@@ -48,3 +48,5 @@ tabla: archivos
 "estado_archivo"	"character varying"	30	"NO"
 "creado_en"	"timestamp without time zone"		"NO"
 "actualizado_en"	"timestamp without time zone"		"NO"
+
+pero estos correo son bien terribles mira llego un correo asi llego en *.rar y dentro hay varios documentos: https://i.ibb.co/V0qNDPJj/url.png
