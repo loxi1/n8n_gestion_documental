@@ -21,7 +21,7 @@ return items.map(item => {
     "documento_id": "5"
   }
 ]
-verLog se optine:
+verLog se optine se creo antes de save_files:
 return items.map(item => {
   return {
     json: {
