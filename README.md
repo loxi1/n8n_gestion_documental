@@ -24,3 +24,11 @@ N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
 N8N_RUNNERS_ENABLED=true
 N8N_RESTRICT_FILE_ACCESS_TO=/files
 N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=false
+
+para leventar en windows
+cd app
+python -m venv venv
+source venv/Scripts/activate
+pip install -r requirements.txt
+
+para levanar en ubuntu

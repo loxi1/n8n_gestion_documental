@@ -2,3 +2,4 @@ storage/files/*
 storage/n8n_data/storage/*
 .env
 .vscode/*
+app/venv
