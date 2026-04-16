@@ -10,7 +10,7 @@ INSERT INTO correos_ingresados (
 )
 VALUES (
     {{$json.messageId ? `'${$json.messageId.replace(/'/g, "''")}'` : 'NULL'}},
-    {{$json.from ? `'${$json.from.replace(/'/g, "''")}'` : 'NULL'}},
+    {{$json.fromEmail ? `'${$json.fromEmail.replace(/'/g, "''")}'` : 'NULL'}},
     {{$json.subject ? `'${$json.subject.replace(/'/g, "''")}'` : 'NULL'}},
     {{$json.date ? `'${$json.date}'` : 'NULL'}},
     1,

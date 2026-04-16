@@ -15,9 +15,19 @@ const output = [];
 for (const item of items) {
     const binary = item.binary || {};
     const subject = item.json.subject || '';
-    const from = item.json.from || '';
     const messageId = item.json.messageId || item.json.message_id || null;
     const date = item.json.date || null;
+
+    // Extraer remitente de forma segura
+    let fromEmail = '';
+    let fromName = '';
+
+    if (item.json.from?.value?.length) {
+        fromEmail = item.json.from.value[0].address || '';
+        fromName = item.json.from.value[0].name || '';
+    } else if (typeof item.json.from === 'string') {
+        fromEmail = item.json.from;
+    }
 
     for (const key of Object.keys(binary)) {
         const file = binary[key];
@@ -33,7 +43,8 @@ for (const item of items) {
         output.push({
             json: {
                 subject,
-                from,
+                fromEmail,
+                fromName,
                 messageId,
                 date,
                 originalFileName: fileName,

@@ -1,141 +1,57 @@
-El error real está aquí:
-SQL
-remitente_email = undefined
-PostgreSQL interpreta undefined como si fuera un nombre de columna, no como texto ni NULL. Por eso dice:
-Plain text
-column "undefined" does not exist
-Qué pasó
-En tu Code estás haciendo:
-JavaScript
-const from = item.json.from || '';
-Pero en n8n, from no suele venir como texto plano. Normalmente viene como objeto o arreglo, algo parecido a esto:
-JSON
+revisar los cambios:
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/service/code.js
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/service/save_correo.sql
+sigo con el error:
 {
-  "value": [
-    {
-      "name": "Proveedor SAC",
-      "address": "ventas@proveedor.com"
-    }
-  ]
+  "errorMessage": "there is no unique or exclusion constraint matching the ON CONFLICT specification",
+  "errorDescription": "Failed query: INSERT INTO correos_ingresados (\n    message_id,\n    remitente_email,\n    asunto,\n    fecha_correo,\n    cantidad_adjuntos,\n    estado_correo,\n    leido,\n    procesado\n)\nVALUES (\n    '<CAFtAZZA8-=nw8EV4bc3YwjMMfKxsjs8qShKuvi8hQOenYJ=WaQ@mail.gmail.com>',\n    'anibal.cayetano@gmail.com',\n    'Prueba correo',\n    '2026-04-16T16:01:36.000Z',\n    1,\n    'descargado',\n    false,\n    false\n)\nON CONFLICT (message_id) DO UPDATE\nSET\n    remitente_email = EXCLUDED.remitente_email,\n    asunto = EXCLUDED.asunto,\n    fecha_correo = EXCLUDED.fecha_correo,\n    cantidad_adjuntos = EXCLUDED.cantidad_adjuntos,\n    actualizado_en = NOW()\nRETURNING id;",
+  "errorDetails": {},
+  "n8nDetails": {
+    "nodeName": "Guardar_Correo",
+    "nodeType": "n8n-nodes-base.postgres",
+    "nodeVersion": 2.6,
+    "resource": "database",
+    "operation": "executeQuery",
+    "time": "16/4/2026, 11:26:00",
+    "n8nVersion": "2.16.1 (Self Hosted)",
+    "binaryDataMode": "filesystem",
+    "stackTrace": [
+      "NodeOperationError: there is no unique or exclusion constraint matching the ON CONFLICT specification",
+      "    at parsePostgresError (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:123:9)",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:267:19",
+      "    at processTicksAndRejections (node:internal/process/task_queues:104:5)",
+      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/database/executeQuery.operation.ts:149:9)",
+      "    at ExecuteContext.router (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/router.ts:41:17)",
+      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/PostgresV2.node.ts:26:10)",
+      "    at WorkflowExecute.executeNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1045:8)",
+      "    at WorkflowExecute.runNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1224:11)",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1672:27",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2324:11"
+    ]
+  }
 }
-Entonces from no es un string, y luego en tu SQL termina saliendo mal.
-Solución correcta
-1. Corrige el Code
-Usa este Code actualizado:
-JavaScript
-const now = new Date();
-
-const year = now.getFullYear();
-const month = String(now.getMonth() + 1).padStart(2, '0');
-const day = String(now.getDate()).padStart(2, '0');
-const hour = String(now.getHours()).padStart(2, '0');
-const minute = String(now.getMinutes()).padStart(2, '0');
-const second = String(now.getSeconds()).padStart(2, '0');
-const ms = String(now.getMilliseconds()).padStart(3, '0');
-
-const stamp = `${year}${month}${day}${hour}${minute}${second}${ms}`;
-
-const output = [];
-
-for (const item of items) {
-	const binary = item.binary || {};
-	const subject = item.json.subject || '';
-	const messageId = item.json.messageId || item.json.message_id || null;
-	const date = item.json.date || null;
-
-	// Extraer remitente de forma segura
-	let fromEmail = '';
-	let fromName = '';
-
-	if (item.json.from?.value?.length) {
-		fromEmail = item.json.from.value[0].address || '';
-		fromName = item.json.from.value[0].name || '';
-	} else if (typeof item.json.from === 'string') {
-		fromEmail = item.json.from;
-	}
-
-	for (const key of Object.keys(binary)) {
-		const file = binary[key];
-		const fileName = file.fileName || 'adjunto';
-		const lowerName = fileName.toLowerCase();
-
-		if (!lowerName.endsWith('.pdf')) {
-			continue;
-		}
-
-		const newFileName = `posible_documento_${stamp}.pdf`;
-
-		output.push({
-			json: {
-				subject,
-				fromEmail,
-				fromName,
-				messageId,
-				date,
-				originalFileName: fileName,
-				storedFileName: newFileName,
-				tipoDetectado: 'pendiente',
-				filePath: `/files/inbox/${year}/${month}/${newFileName}`,
-				relativePath: `inbox/${year}/${month}/${newFileName}`,
-			},
-			binary: {
-				data: file,
-			},
-		});
-	}
-}
-
-return output;
-2. Corrige tu SQL
-En vez de usar from, usa fromEmail.
-Usa esta consulta:
-SQL
-INSERT INTO correos_ingresados (
-    message_id,
-    remitente_email,
-    asunto,
-    fecha_correo,
-    cantidad_adjuntos,
-    estado_correo,
-    leido,
-    procesado
-)
-VALUES (
-    {{$json.messageId ? `'${$json.messageId.replace(/'/g, "''")}'` : 'NULL'}},
-    {{$json.fromEmail ? `'${$json.fromEmail.replace(/'/g, "''")}'` : 'NULL'}},
-    {{$json.subject ? `'${$json.subject.replace(/'/g, "''")}'` : 'NULL'}},
-    {{$json.date ? `'${$json.date}'` : 'NULL'}},
-    1,
-    'descargado',
-    false,
-    false
-)
-ON CONFLICT (message_id) DO UPDATE
-SET
-    remitente_email = EXCLUDED.remitente_email,
-    asunto = EXCLUDED.asunto,
-    fecha_correo = EXCLUDED.fecha_correo,
-    cantidad_adjuntos = EXCLUDED.cantidad_adjuntos,
-    actualizado_en = NOW()
-RETURNING id;
-Qué cambió
-Antes:
-from = objeto
-SQL terminaba con undefined
-Ahora:
-fromEmail = string real
-SQL insertará algo como:
-ventas@proveedor.com
-Recomendación adicional
-Para depurar mejor, antes del nodo Postgres mete un nodo Set o mira el output del Code y confirma que salga así:
-JSON
-{
-  "subject": "Prueba correo",
-  "fromEmail": "alguien@dominio.com",
-  "fromName": "Nombre",
-  "messageId": "<...>",
-  "date": "2026-04-16T16:01:36.000Z"
-}
-Si fromEmail ya sale lleno, el insert debería funcionar.
-Siguiente paso
-Haz estos dos cambios y prueba de nuevo. Si pasa el insert de correos_ingresados, seguimos con documentos y archivos.
+tabla: correos_ingresados
+"column_name"	"data_type"	"is_nullable"
+"id"	"bigint"	"NO"
+"origen"	"character varying"	"NO"
+"proveedor_correo"	"character varying"	"NO"
+"message_id"	"text"	"YES"
+"thread_id"	"text"	"YES"
+"remitente_nombre"	"text"	"YES"
+"remitente_email"	"text"	"YES"
+"reply_to"	"text"	"YES"
+"destinatario_para"	"text"	"YES"
+"destinatario_cc"	"text"	"YES"
+"destinatario_cco"	"text"	"YES"
+"asunto"	"text"	"NO"
+"cuerpo_texto"	"text"	"YES"
+"cuerpo_html"	"text"	"YES"
+"fecha_correo"	"timestamp without time zone"	"YES"
+"fecha_recepcion"	"timestamp without time zone"	"NO"
+"leido"	"boolean"	"NO"
+"procesado"	"boolean"	"NO"
+"estado_correo"	"character varying"	"NO"
+"cantidad_adjuntos"	"integer"	"NO"
+"observacion"	"text"	"YES"
+"creado_en"	"timestamp without time zone"	"NO"
+"actualizado_en"	"timestamp without time zone"	"NO"
