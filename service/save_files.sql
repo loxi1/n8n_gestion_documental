@@ -18,8 +18,8 @@ VALUES (
     {{$json.storedFileName ? `'${$json.storedFileName.replace(/'/g, "''")}'` : 'NULL'}},
     '.pdf',
     {{$json.mimeType ? `'${$json.mimeType.replace(/'/g, "''")}'` : `'application/pdf'`}},
-    {{$json.tamano_bytes ? $json.tamano_bytes : 'NULL'}},
-    {{$json.hash_sha256 ? `'${$json.hash_sha256}'` : 'NULL'}},
+    NULL,
+    NULL,
     {{$json.relativePath ? `'${$json.relativePath.replace(/'/g, "''")}'` : 'NULL'}},
     true,
     'descargado'
