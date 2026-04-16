@@ -1,137 +1,108 @@
-Ya encontré el problema exacto. No está en save_files.sql; está en cómo va fluyendo la data entre nodos y además tus archivos del repo todavía tienen SQL mezclado con JavaScript. En el repo, save_correo.sql todavía termina con return items.map(...) en vez de terminar solo en SQL, y save_documentos.sql también mezcla SQL con return items.map(...). Eso no debe ir dentro del nodo Postgres. �
-GitHub +1
-Además, tu code.js sí genera los campos originalFileName, storedFileName y relativePath, pero no genera correo_id ni documento_id; esos deben venir de nodos posteriores. �
-GitHub
-Y la imagen del flujo muestra que estás usando una cadena secuencial:
-Email Trigger → Code → Write File → Guardar_Correo → merge_correo_id → Guardar_Documentos → merge_documento_id → Guardar_Archivos
-No hay un nodo Merge real que reúna la metadata original con los IDs devueltos por Postgres. �
-ImgBB +1
-Por qué Guardar_Archivos falla
-Tu insert llega con:
-documento_id = 6
-correo_id = undefined
-originalFileName = NULL
-storedFileName = NULL
-relativePath = NULL
-Eso significa que en el item final solo sobrevivió documento_id; se perdió la metadata original y también correo_id.
-Regla correcta
-Los nodos Postgres deben contener solo SQL.
-Los cambios tipo:
-JavaScript
-return items.map(item => {
-  item.json.correo_id = item.json.id;
-  delete item.json.id;
-  return item;
-});
-deben ir en nodos Code, no dentro del SQL. Tus archivos merge_correo_id.js y el código incrustado en los .sql muestran precisamente esa lógica JavaScript. �
-GitHub +2
-Qué debes corregir ya
-1. Deja save_correo.sql así
-SQL
-INSERT INTO correos_ingresados (
-    message_id,
-    remitente_email,
-    asunto,
-    fecha_correo,
-    cantidad_adjuntos,
-    estado_correo,
-    leido,
-    procesado
-)
-VALUES (
-    {{$json.messageId ? `'${$json.messageId.replace(/'/g, "''")}'` : 'NULL'}},
-    {{$json.fromEmail ? `'${$json.fromEmail.replace(/'/g, "''")}'` : 'NULL'}},
-    {{$json.subject ? `'${$json.subject.replace(/'/g, "''")}'` : 'NULL'}},
-    {{$json.date ? `'${$json.date}'` : 'NULL'}},
-    1,
-    'descargado',
-    false,
-    false
-)
-ON CONFLICT (message_id) DO UPDATE
-SET
-    remitente_email = EXCLUDED.remitente_email,
-    asunto = EXCLUDED.asunto,
-    fecha_correo = EXCLUDED.fecha_correo,
-    cantidad_adjuntos = EXCLUDED.cantidad_adjuntos,
-    actualizado_en = NOW()
-RETURNING id;
-2. Deja save_documentos.sql así
-SQL
-INSERT INTO documentos (
-    correo_id,
-    estado_documento,
-    observacion
-)
-VALUES (
-    {{$json.correo_id}},
-    'pendiente',
-    'Documento descargado desde n8n'
-)
-RETURNING id;
-3. Deja save_files.sql como SQL puro
-Tu versión ya está bien en estructura; solo funcionará cuando el item tenga todos los campos. �
-GitHub
-Cómo debe quedar el flujo
-No en una sola línea secuencial simple. Debe haber dos Merge reales.
-Hazlo así:
-Plain text
-Code original
-   ├─→ Write File
-   └─→ Guardar_Correo
-          ↓
-     Code_correo_id
-Luego:
-Plain text
-Code original ─┐
-               ├─→ Merge_1 (combina metadata original + correo_id)
-Code_correo_id ┘
-Después:
-Plain text
-Merge_1 → Guardar_Documentos → Code_documento_id
-Y luego:
-Plain text
-Merge_1 ───────────────┐
-                       ├─→ Merge_2 (combina metadata + correo_id + documento_id)
-Code_documento_id ─────┘
-Finalmente:
-Plain text
-Merge_2 → Guardar_Archivos
-Qué hacen los dos Code pequeños
-Después de Guardar_Correo:
-JavaScript
-return items.map(item => {
-  item.json.correo_id = item.json.id;
-  delete item.json.id;
-  return item;
-});
-Después de Guardar_Documentos:
-JavaScript
-return items.map(item => {
-  item.json.documento_id = item.json.id;
-  delete item.json.id;
-  return item;
-});
-Cómo configurar los Merge
-Usa el nodo Merge real de n8n, no un Code llamado “merge”.
-Configúralo para combinar por posición si cada PDF genera exactamente 1 fila en cada rama.
-Como tu flujo actual trabaja 1 PDF → 1 correo/documento, “by position” es lo más simple.
-Qué deberías ver antes de Guardar_Archivos
-El item final debe tener, al mismo tiempo:
-JSON
+siguio el poceso al final fallo pero cuando veo los archivos descargados no los decargo solo veo dos pero envie 5 archivos,
+[
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "T001-00002145.pdf",
+    "storedFileName": "posible_documento_20260416175350668.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "316 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf"
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "20563293587-01-F001-00011006.pdf",
+    "storedFileName": "posible_documento_20260416175350668.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "71.6 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf"
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "GUIA T002-00280 FIRMADO.pdf",
+    "storedFileName": "posible_documento_20260416175350668.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "378 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf"
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "20100084172-01-F231-0101440.pdf",
+    "storedFileName": "posible_documento_20260416175350668.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "60.5 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf"
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "ORDEN DE COMRA 007902.pdf.pdf",
+    "storedFileName": "posible_documento_20260416175350668.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416175350668.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "765 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260416175350668.pdf"
+  }
+]
+creo que solo descarga el primer archivo deberia descargar todo los pdf que serian
+por favor revisar el repo bueno los link y el error al final save_files
 {
-  "correo_id": 123,
-  "documento_id": 456,
-  "originalFileName": "CIE - Factura N° 2322 - OC 7741 - BBTI.pdf",
-  "storedFileName": "posible_documento_20260416150910642.pdf",
-  "relativePath": "inbox/2026/04/posible_documento_20260416150910642.pdf"
+  "errorMessage": "column \"undefined\" does not exist",
+  "errorDescription": "Failed query: INSERT INTO archivos (\n    documento_id,\n    correo_id,\n    nombre_archivo_original,\n    nombre_archivo_actual,\n    extension,\n    mime_type,\n    tamano_bytes,\n    hash_sha256,\n    ruta_temporal,\n    es_principal,\n    estado_archivo\n)\nVALUES (\n    10,\n    undefined,\n    NULL,\n    NULL,\n    '.pdf',\n    'application/pdf',\n    NULL,\n    NULL,\n    NULL,\n    true,\n    'descargado'\n)\nRETURNING id;",
+  "errorDetails": {},
+  "n8nDetails": {
+    "nodeName": "Guardar_Archivos",
+    "nodeType": "n8n-nodes-base.postgres",
+    "nodeVersion": 2.6,
+    "resource": "database",
+    "operation": "executeQuery",
+    "time": "16/4/2026, 12:53:50",
+    "n8nVersion": "2.16.1 (Self Hosted)",
+    "binaryDataMode": "filesystem",
+    "stackTrace": [
+      "NodeOperationError: column \"undefined\" does not exist",
+      "    at parsePostgresError (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:123:9)",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:267:19",
+      "    at processTicksAndRejections (node:internal/process/task_queues:104:5)",
+      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/database/executeQuery.operation.ts:149:9)",
+      "    at ExecuteContext.router (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/router.ts:41:17)",
+      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/PostgresV2.node.ts:26:10)",
+      "    at WorkflowExecute.executeNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1045:8)",
+      "    at WorkflowExecute.runNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1224:11)",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1672:27",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2324:11"
+    ]
+  }
 }
-Si alguno de esos falta, save_files.sql volverá a fallar.
-Sobre RAR y ZIP
-Tu preocupación es correcta: el mundo real vendrá con PDFs, XML, ZIP, DOCX y a veces RAR. Por ahora, tu code.js está filtrando solo .pdf, lo cual es una buena decisión para avanzar por fases. �
-GitHub
-En resumen
-El error de Guardar_Archivos pasa porque el flujo actual no reúne los datos; solo deja vivo documento_id. Y además los .sql del repo siguen mal porque contienen JavaScript mezclado con SQL. �
-GitHub +2
-Haz primero esta corrección estructural del flujo. Luego save_files.sql debería empezar a recibir todo bien.
-Si quieres, en el siguiente mensaje te doy el diagrama exacto con nombres de nodos y qué conectar en cada puerto, para que lo armes sin adivinar.

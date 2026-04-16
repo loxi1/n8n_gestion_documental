@@ -25,5 +25,4 @@ SET
     fecha_correo = EXCLUDED.fecha_correo,
     cantidad_adjuntos = EXCLUDED.cantidad_adjuntos,
     actualizado_en = NOW()
-  
 RETURNING id;
