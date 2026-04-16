@@ -1,1 +1,30 @@
 se hicieron todo los cambios revisar las url del repo ademas se creo https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/service/db.sql con todo ello por favor validar porque sigue saliendo error e save false
+{
+  "errorMessage": "column \"undefined\" does not exist",
+  "errorDescription": "Failed query: INSERT INTO archivos (\n    documento_id,\n    correo_id,\n    nombre_archivo_original,\n    nombre_archivo_actual,\n    extension,\n    mime_type,\n    tamano_bytes,\n    hash_sha256,\n    ruta_temporal,\n    es_principal,\n    estado_archivo\n)\nVALUES (\n    20,\n    undefined,\n    NULL,\n    NULL,\n    '.pdf',\n    'application/pdf',\n    NULL,\n    NULL,\n    NULL,\n    true,\n    'descargado'\n)\nRETURNING id;",
+  "errorDetails": {},
+  "n8nDetails": {
+    "nodeName": "Guardar_Archivos",
+    "nodeType": "n8n-nodes-base.postgres",
+    "nodeVersion": 2.6,
+    "resource": "database",
+    "operation": "executeQuery",
+    "time": "16/4/2026, 13:53:46",
+    "n8nVersion": "2.16.1 (Self Hosted)",
+    "binaryDataMode": "filesystem",
+    "stackTrace": [
+      "NodeOperationError: column \"undefined\" does not exist",
+      "    at parsePostgresError (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:123:9)",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:267:19",
+      "    at processTicksAndRejections (node:internal/process/task_queues:104:5)",
+      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/database/executeQuery.operation.ts:149:9)",
+      "    at ExecuteContext.router (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/router.ts:41:17)",
+      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/PostgresV2.node.ts:26:10)",
+      "    at WorkflowExecute.executeNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1045:8)",
+      "    at WorkflowExecute.runNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1224:11)",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1672:27",
+      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2324:11"
+    ]
+  }
+}
+ayuda se puede hacer debug mostra console.log para ver si llegan los datos?
