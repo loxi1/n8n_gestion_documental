@@ -1,68 +1,98 @@
-(ocrpdf) root@PROGRAMACION:~/venvs# mkdir -p /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04
-
-ocrmypdf -l spa --force-ocr \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/no_identificados/2026/04/posible_documento_20260416204138431_1.pdf" \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_1.pdf"
-Scanning contents    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 1/1 0:00:00
-OCR                  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 1/1 0:00:00
-Parsing 1 pages with HocrParser                                                                                               _graft.py:342
-Postprocessing...                                                                                                                ocr.py:156
-Auto mode: passing through as PDF/A (input already compliant)                                                             _pipeline.py:1074
-Linearizing          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 100/100 0:00:00
-Recompressing JPEGs  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   0% 0/0 -:--:--
-Deflating JPEGs      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 1/1 0:00:00
-JBIG2                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   0% 0/0 -:--:--
-Image optimization ratio: 1.28 savings: 22.0%                                                                             _pipeline.py:1175
-Total file size ratio: 0.92 savings: -8.1%                                                                                _pipeline.py:1178
-Output file is a PDF (auto mode)                     
-
-(ocrpdf) root@PROGRAMACION:~/venvs# python - <<'PY'
+Vas muy bien. Lo importante es esto:
+Lo que ya comprobaste
+OCRmyPDF sí funcionó en WSL.
+Ya te generó estos archivos:
+ocr_posible_documento_..._1.pdf
+ocr_posible_documento_..._3.pdf
+ocr_posible_documento_..._5.pdf
+Eso significa que el OCR quedó operativo.
+Los errores que viste no son graves
+1. ModuleNotFoundError: No module named 'pypdf'
+Eso solo significa que en el venv de WSL donde instalaste ocrmypdf, no has instalado pypdf.
+2. Command 'Ese' not found
+Eso pasó porque pegaste texto extra junto al comando:
+Plain text
+Ese visualmente es una Orden de Compra...
+No afecta al OCR ya ejecutado.
+Siguiente paso inmediato
+Instala pypdf en ese mismo venv de WSL
+Dentro del venv ocrpdf:
+Bash
+pip install pypdf
+Luego prueba leer los 3 OCRados.
+Prueba 1: archivo _1
+Bash
+python - <<'PY'
 from pypdf import PdfReader
 
 pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_1.pdf")
 text = "\n".join((p.extract_text() or "") for p in pdf.pages)
 print(text[:4000])
 PY
-Traceback (most recent call last):
-  File "<stdin>", line 1, in <module>
-ModuleNotFoundError: No module named 'pypdf'
+Prueba 2: archivo _3
+Bash
+python - <<'PY'
+from pypdf import PdfReader
 
-(ocrpdf) root@PROGRAMACION:~/venvs# ls -lh /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/
-total 336K
--rwxrwxrwx 1 loxi1 loxi1 334K Apr 16 18:35 ocr_posible_documento_20260416204138431_1.pdf
-(ocrpdf) root@PROGRAMACION:~/venvs# ocrmypdf -l spa --force-ocr \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/no_identificados/2026/04/posible_documento_20260416204138431_3.pdf" \
-Try: apt install <deb name>
-(ocrpdf) root@PROGRAMACION:~/venvs# ocrmypdf -l spa --force-ocr \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/no_identificados/2026/04/posible_documento_20260416204138431_5.pdf" \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_5.pdf"
-Ese visualmente es una Orden de Compra N.° 007902 �
-posible_documento_20260416204138431_5.pdf
-Scanning contents    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 1/1 0:00:00
-OCR                  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 1/1 0:00:00
-Parsing 1 pages with HocrParser                                                                                               _graft.py:342
-Postprocessing...                                                                                                                ocr.py:156
-Auto mode: passing through as PDF/A (input already compliant)                                                             _pipeline.py:1074
-Linearizing          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 100/100 0:00:00
-Recompressing JPEGs  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   0% 0/0 -:--:--
-Deflating JPEGs      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 1/1 0:00:00
-JBIG2                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   0% 0/0 -:--:--
-Image optimization ratio: 1.22 savings: 18.3%                                                                             _pipeline.py:1175
-Total file size ratio: 0.62 savings: -60.6%                                                                               _pipeline.py:1178
-Output file is a PDF (auto mode)                                                                                             _common.py:528
-The output file size is 1.40× larger than the input file.                                                                _validation.py:284
-Possible reasons for this include:
---force-ocr (or --mode force) was issued, causing transcoding.
-The optional dependency 'jbig2' was not found, so some image optimizations could not be attempted.
+pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_3.pdf")
+text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+print(text[:4000])
+PY
+Prueba 3: archivo _5
+Bash
+python - <<'PY'
+from pypdf import PdfReader
 
-Command 'Ese' not found, did you mean:
-  command 'nse' from deb ns2 (2.35+dfsg-5)
-  command 'ase' from deb ase (3.22.1-3)
-Try: apt install <deb name>
-posible_documento_20260416204138431_5.pdf: command not found
-(ocrpdf) root@PROGRAMACION:~/venvs# ls -l /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/
-total 1804
--rwxrwxrwx 1 loxi1 loxi1  341777 Apr 16 18:35 ocr_posible_documento_20260416204138431_1.pdf
--rwxrwxrwx 1 loxi1 loxi1  430403 Apr 16 18:39 ocr_posible_documento_20260416204138431_3.pdf
--rwxrwxrwx 1 loxi1 loxi1 1067144 Apr 16 18:40 ocr_posible_documento_20260416204138431_5.pdf
-(ocrpdf) root@PROGRAMACION:~/venvs#
+pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_5.pdf")
+text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+print(text[:4000])
+PY
+Qué espero que pase
+_1
+Debería empezar a mostrar algo tipo:
+guía de remisión
+T001-00002145
+RUC
+destinatario o remitente
+_3
+Debería mostrar algo tipo:
+guía de remisión
+T002-00280
+_5
+Debería mostrar algo tipo:
+orden de compra
+007902
+Si quieres ahorrar tiempo
+Puedes probar los 3 de una vez con este mini script:
+Bash
+python - <<'PY'
+from pypdf import PdfReader
+
+files = [
+    "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_1.pdf",
+    "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_3.pdf",
+    "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_5.pdf",
+]
+
+for path in files:
+    print("=" * 80)
+    print(path)
+    pdf = PdfReader(path)
+    text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    print(text[:2000])
+    print()
+PY
+Qué significa si sale texto
+Si sale texto legible, entonces ya podemos hacer esto con tranquilidad:
+integrar OCR al procesar_pendientes.py
+si no hay texto directo:
+correr OCR
+releer PDF OCRado
+clasificar
+mover a pendientes_clasificados
+Qué hacer ahora
+Ejecuta:
+Bash
+pip install pypdf
+y luego corre el script de los 3 archivos.
+Pégame la salida y con eso te dejo la integración final al procesar_pendientes.py.
