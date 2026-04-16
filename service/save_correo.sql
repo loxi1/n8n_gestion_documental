@@ -25,4 +25,9 @@ SET
     fecha_correo = EXCLUDED.fecha_correo,
     cantidad_adjuntos = EXCLUDED.cantidad_adjuntos,
     actualizado_en = NOW()
-RETURNING id;
+    
+return items.map(item => {
+  item.json.correo_id = item.json.id;
+  delete item.json.id;
+  return item;
+});

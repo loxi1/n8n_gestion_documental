@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 const now = new Date();
 
 const year = now.getFullYear();
@@ -18,7 +20,6 @@ for (const item of items) {
     const messageId = item.json.messageId || item.json.message_id || null;
     const date = item.json.date || null;
 
-    // Extraer remitente de forma segura
     let fromEmail = '';
     let fromName = '';
 
@@ -40,6 +41,9 @@ for (const item of items) {
 
         const newFileName = `posible_documento_${stamp}.pdf`;
 
+        const buffer = await this.helpers.getBinaryDataBuffer(0, key);
+        const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+
         output.push({
             json: {
                 subject,
@@ -52,6 +56,9 @@ for (const item of items) {
                 tipoDetectado: 'pendiente',
                 filePath: `/files/inbox/${year}/${month}/${newFileName}`,
                 relativePath: `inbox/${year}/${month}/${newFileName}`,
+                hash_sha256: hash,
+                tamano_bytes: file.fileSize || null,
+                mimeType: file.mimeType || 'application/pdf',
             },
             binary: {
                 data: file,
