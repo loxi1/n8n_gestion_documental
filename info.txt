@@ -1,38 +1,190 @@
-Puse este comando:
-ALTER TABLE archivos
-ALTER COLUMN hash_sha256 DROP NOT NULL;
-gudardo bien code, file write
-cambie el save_correo y tengo este error:
-{
-  "errorMessage": "Syntax error at line 29 near \"return\" [item 0]",
-  "errorDescription": "Failed query: INSERT INTO correos_ingresados (\n    message_id,\n    remitente_email,\n    asunto,\n    fecha_correo,\n    cantidad_adjuntos,\n    estado_correo,\n    leido,\n    procesado\n)\nVALUES (\n    '<CAFtAZZA8-=nw8EV4bc3YwjMMfKxsjs8qShKuvi8hQOenYJ=WaQ@mail.gmail.com>',\n    'anibal.cayetano@gmail.com',\n    'Prueba correo',\n    '2026-04-16T16:01:36.000Z',\n    1,\n    'descargado',\n    false,\n    false\n)\nON CONFLICT (message_id) DO UPDATE\nSET\n    remitente_email = EXCLUDED.remitente_email,\n    asunto = EXCLUDED.asunto,\n    fecha_correo = EXCLUDED.fecha_correo,\n    cantidad_adjuntos = EXCLUDED.cantidad_adjuntos,\n    actualizado_en = NOW()\n  \nreturn items.map(item => {\n  item.json.correo_id = item.json.id;\n  delete item.json.id;\n  return item;\n});",
-  "errorDetails": {},
-  "n8nDetails": {
-    "nodeName": "Guardar_Correo",
-    "nodeType": "n8n-nodes-base.postgres",
-    "nodeVersion": 2.6,
-    "resource": "database",
-    "operation": "executeQuery",
-    "itemIndex": 0,
-    "time": "16/4/2026, 12:08:54",
-    "n8nVersion": "2.16.1 (Self Hosted)",
-    "binaryDataMode": "filesystem",
-    "stackTrace": [
-      "NodeOperationError: Syntax error at line 29 near \"return\"",
-      "    at parsePostgresError (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:123:9)",
-      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:267:19",
-      "    at processTicksAndRejections (node:internal/process/task_queues:104:5)",
-      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/database/executeQuery.operation.ts:149:9)",
-      "    at ExecuteContext.router (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/router.ts:41:17)",
-      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/PostgresV2.node.ts:26:10)",
-      "    at WorkflowExecute.executeNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1045:8)",
-      "    at WorkflowExecute.runNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1224:11)",
-      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1672:27",
-      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2324:11"
-    ]
-  }
-}
-te dejo las url para que valides:
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/service/save_correo.sql
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/service/save_documentos.sql
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/service/save_files.sql
+Ya vi el problema exacto en tus archivos.
+El error actual no es de PostgreSQL “complicado”
+Es porque metiste JavaScript dentro del SQL.
+Tu save_documentos.sql termina así:
+SQL
+... VALUES ( {{$json.id}}, 'pendiente', 'Documento descargado desde n8n' ) return items.map(item => { item.json.documento_id = item.json.id; delete item.json.id; return item; });
+Eso está mal. PostgreSQL solo espera SQL, no return items.map(...). Lo confirmé en tu archivo save_documentos.sql. �
+GitHub
+Y el error anterior de save_correo mostraba exactamente lo mismo: también se le había pegado un return items.map(...) al final del SQL, por eso falló con “near return”. Ese save_correo.sql correcto debe terminar solo en RETURNING id;, como ya está ahora en tu repo. �
+GitHub
+Regla clave en n8n
+Nodo Postgres → solo SQL
+Nodo Code → JavaScript
+Nodo Edit Fields / Set / Merge → transformación de datos entre nodos
+No mezcles ambas cosas.
+Qué debes hacer
+1. Deja save_correo.sql como está
+Ese ya está bien:
+SQL
+INSERT INTO correos_ingresados (
+  message_id,
+  remitente_email,
+  asunto,
+  fecha_correo,
+  cantidad_adjuntos,
+  estado_correo,
+  leido,
+  procesado
+)
+VALUES (
+  ... 
+)
+ON CONFLICT (message_id) DO UPDATE
+SET ...
+RETURNING id;
+Está correcto en tu repo. �
+GitHub
+2. Corrige save_documentos.sql
+Debe quedar solo SQL.
+Usa esto:
+SQL
+INSERT INTO documentos (
+    correo_id,
+    estado_documento,
+    observacion
+)
+VALUES (
+    {{$json.correo_id}},
+    'pendiente',
+    'Documento descargado desde n8n'
+)
+RETURNING id;
+No agregues nada más.
+3. Corrige save_files.sql
+Ese también está bien como SQL puro, pero depende de que antes ya existan:
+correo_id
+documento_id
+Y además, ahora como quitaste el hash, cámbialo temporalmente para no depender de hash_sha256 si no lo calculas todavía.
+Te sugiero dejarlo así:
+SQL
+INSERT INTO archivos (
+    documento_id,
+    correo_id,
+    nombre_archivo_original,
+    nombre_archivo_actual,
+    extension,
+    mime_type,
+    tamano_bytes,
+    hash_sha256,
+    ruta_temporal,
+    es_principal,
+    estado_archivo
+)
+VALUES (
+    {{$json.documento_id}},
+    {{$json.correo_id}},
+    {{$json.originalFileName ? `'${$json.originalFileName.replace(/'/g, "''")}'` : 'NULL'}},
+    {{$json.storedFileName ? `'${$json.storedFileName.replace(/'/g, "''")}'` : 'NULL'}},
+    '.pdf',
+    {{$json.mimeType ? `'${$json.mimeType.replace(/'/g, "''")}'` : `'application/pdf'`}},
+    {{$json.tamano_bytes ? $json.tamano_bytes : 'NULL'}},
+    {{$json.hash_sha256 ? `'${$json.hash_sha256}'` : 'NULL'}},
+    {{$json.relativePath ? `'${$json.relativePath.replace(/'/g, "''")}'` : 'NULL'}},
+    true,
+    'descargado'
+)
+RETURNING id;
+La versión de tu repo ya está bastante alineada con esto. �
+GitHub
+Lo que falta de verdad: pasar los IDs entre nodos
+Ahora mismo tu cuello de botella no es SQL. Es el flujo de datos.
+Debes hacer esto:
+Flujo recomendado
+Plain text
+Code
+→ Write File
+→ Guardar_Correo
+→ Code (renombrar id a correo_id)
+→ Guardar_Documentos
+→ Code (renombrar id a documento_id)
+→ Merge
+→ Guardar_Archivos
+Pero mejor aún:
+Plain text
+Code original
+→ Write File
+→ Guardar_Correo
+→ Code_correo_id
+→ Merge_1  ← une Code original + correo_id
+→ Guardar_Documentos
+→ Code_documento_id
+→ Merge_2  ← une Merge_1 + documento_id
+→ Guardar_Archivos
+Cómo hacer los nodos Code intermedios
+Después de Guardar_Correo
+Agrega un nodo Code con esto:
+JavaScript
+return items.map(item => {
+  item.json.correo_id = item.json.id;
+  delete item.json.id;
+  return item;
+});
+Después de Guardar_Documentos
+Agrega otro nodo Code con esto:
+JavaScript
+return items.map(item => {
+  item.json.documento_id = item.json.id;
+  delete item.json.id;
+  return item;
+});
+Cómo usar los Merge
+Merge 1
+Une:
+salida de Code original
+salida de Code_correo_id
+Para que el item tenga:
+subject
+fromEmail
+originalFileName
+storedFileName
+relativePath
+correo_id
+Merge 2
+Une:
+salida de Merge_1
+salida de Code_documento_id
+Para que el item final tenga además:
+documento_id
+Y recién ahí pasa a Guardar_Archivos.
+Por qué te estaba fallando save_files.sql
+Porque entraba algo así:
+SQL
+VALUES (
+  undefined,
+  undefined,
+  NULL,
+  NULL,
+  ...
+)
+Eso pasa cuando el nodo no recibe:
+documento_id
+correo_id
+nombres de archivo
+No es culpa de la tabla archivos, sino de que los datos no están unidos todavía.
+Sobre RAR, ZIP y el “mar de posibilidades”
+Tu preocupación es totalmente válida.
+Mi recomendación sigue siendo esta:
+Fase actual
+solo .pdf
+Siguiente fase
+.zip
+Más adelante
+.rar
+Porque los correos reales son caóticos y si intentas cubrir todo hoy, te frenas.
+Además, n8n sí tiene soporte documentado para compresión/descompresión con ZIP/Gzip mediante el nodo Compression. �
+Para RAR, normalmente tocaría resolverlo fuera de n8n o con una imagen personalizada, así que dejarlo para después es la mejor decisión.
+GitHub
+Qué haría ahora mismo
+Corrige save_documentos.sql y deja solo SQL.
+Agrega Code_correo_id.
+Agrega Code_documento_id.
+Usa dos Merge.
+Luego prueba Guardar_Archivos.
+Tu error actual, resumido
+No es que la BD esté mal.
+Es que estabas haciendo esto:
+SQL + JavaScript mezclados
+y faltan merges para conservar correo_id y documento_id
+Eso ya tiene solución clara.
+Si quieres, el siguiente mensaje te lo doy con el diagrama exacto de nodos en orden y cómo configurar cada Merge para que no te pierdas.
