@@ -1,8 +1,16 @@
-repito el archivo no esta en esa ruta los archivos esta en storage/files/inbox/2026/04/*
+repito el archivo no esta en esa ruta los archivos esta en storage/files/no_identificados/2026/04/*
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/
+total 4
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 files/
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 08:01 n8n_data/
+
 BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
 $ ls -l storage/files/
 total 0
 drwxr-xr-x 1 BBTI 01 197121 0 Apr 15 18:17 inbox/
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 no_identificados/
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 ocr_tmp/
 drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 17:09 pendientes_clasificados/
 
 BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
@@ -11,31 +19,33 @@ total 0
 drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 11:20 2026/
 
 BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/inbox/2026/
+total 4
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 04/
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
 $ ls -l storage/files/inbox/2026/04/
+total 0
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/no_identificados/2026/04/
 total 1432
 -rw-r--r-- 1 BBTI 01 197121 316245 Apr 16 15:41 posible_documento_20260416204138431_1.pdf
 -rw-r--r-- 1 BBTI 01 197121 378460 Apr 16 15:41 posible_documento_20260416204138431_3.pdf
 -rw-r--r-- 1 BBTI 01 197121 764541 Apr 16 15:41 posible_documento_20260416204138431_5.pdf
 
 BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/pendientes_clasificados/2026/
+$ ls -l storage/files/ocr_tmp/
 total 0
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 17:09 04/
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 2026/
 
 BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/pendientes_clasificados/2026/04/
-total 132
--rw-r--r-- 1 BBTI 01 197121 60487 Apr 16 15:41 FACTURA_20100084172_F231_0101440.pdf
--rw-r--r-- 1 BBTI 01 197121 71578 Apr 16 15:41 FACTURA_20563293587_F001_00011006.pdf
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/
-total 4
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 17:09 files/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 08:01 n8n_data/
+$ ls -l storage/files/ocr_tmp/2026/04/
+total 0
 
 BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
 $
+
 
 Perfecto. Ya quedó listo el OCR en WSL. Ahora hagamos la prueba manual con uno de tus PDFs escaneados.
 1. Ejecuta esto en WSL
