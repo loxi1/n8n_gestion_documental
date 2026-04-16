@@ -1,83 +1,38 @@
-Ya vi el diagrama. Guardar_Archivos está conectado en línea recta desde VerLog, y antes de eso vienes por merge_documento_id. No hay ningún Merge node real que combine la metadata original del Code con los IDs devueltos por Postgres; solo hay nodos Code secuenciales. Por eso, al final sobreviven los campos del último nodo y se pierden correo_id, originalFileName, storedFileName y relativePath. �
-ImgBB
-Lo que está mal en tu flujo actual
-Tu cadena actual es esta:
-Plain text
-Email Trigger
-→ Code in JavaScript
-→ Read/Write Files from Disk
-→ Guardar_Correo
-→ merge_correo_id
-→ Guardar_Documentos
-→ merge_documento_id
-→ VerLog
-→ Guardar_Archivos
-Ese diseño no mezcla salidas; solo reemplaza el item con la salida del nodo anterior. Por eso VerLog primero te mostró solo documento_id, y aunque luego generaste un VerLog bueno, Guardar_Archivos sigue ejecutándose con otra rama o con datos incompletos del último paso. El problema no es SQL; es que no estás conservando la metadata original a lo largo del flujo. �
-ImgBB
-Cómo debe quedar
-Necesitas dos nodos Merge reales de n8n:
-Plain text
-Code original ───────────────┐
-                             ├─ Merge_1
-merge_correo_id ─────────────┘
-
-Merge_1 ─→ Guardar_Documentos ─→ merge_documento_id
-
-Merge_1 ──────────────────────┐
-                              ├─ Merge_2
-merge_documento_id ───────────┘
-
-Merge_2 ─→ VerLog ─→ Guardar_Archivos
-Qué hace cada uno
-Merge_1: une la salida del Code original con merge_correo_id
-Merge_2: une la salida de Merge_1 con merge_documento_id
-Configura ambos en modo Combine by Position, porque tienes 5 PDFs y cada rama devuelve 5 items en el mismo orden. Ese es el caso ideal para combinar por posición. �
-ImgBB
-Conexión exacta que debes corregir
-Guardar_Archivos no debe depender de merge_documento_id solo, ni de una cadena lineal sin merge. Debe depender de la salida de Merge_2 o, si quieres seguir depurando, de VerLog siempre que VerLog esté conectado después de Merge_2. En tu diagrama actual no aparece ningún Merge real, así que ahí está la causa del undefined. �
-ImgBB
-Cómo comprobarlo en 30 segundos
-Antes de Guardar_Archivos, deja el VerLog con este código:
-JavaScript
-return items.map(item => {
-  return {
-    json: {
-      keys: Object.keys(item.json),
-      correo_id: item.json.correo_id,
-      documento_id: item.json.documento_id,
-      originalFileName: item.json.originalFileName,
-      storedFileName: item.json.storedFileName,
-      relativePath: item.json.relativePath,
-      mimeType: item.json.mimeType,
-      sql_ok:
-        item.json.correo_id &&
-        item.json.documento_id &&
-        item.json.originalFileName &&
-        item.json.storedFileName &&
-        item.json.relativePath
-          ? 'SI'
-          : 'NO'
-    }
-  };
-});
-Si sql_ok sale SI en los 5 items, entonces el siguiente nodo ya puede ser Guardar_Archivos.
-Tus nodos Code intermedios deben ser estos
-merge_correo_id
-JavaScript
-return items.map(item => {
-  item.json.correo_id = item.json.id;
-  delete item.json.id;
-  return item;
-});
-merge_documento_id
-JavaScript
-return items.map(item => {
-  item.json.documento_id = item.json.id;
-  delete item.json.id;
-  return item;
-});
-Resumen corto
-No necesitas tocar save_files.sql todavía.
-Primero agrega Merge_1 y Merge_2 reales y conecta Guardar_Archivos después de Merge_2. El error correo_id = undefined viene de que tu flujo actual es secuencial y no está combinando datos de ramas distintas. �
-ImgBB
-Si quieres, en el siguiente mensaje te doy el paso a paso exacto para crear Merge_1 y Merge_2 dentro de n8n, clic por clic.
+Con el codigo que pusiste se optine esto:
+[
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "1",
+    "sql_ok": "NO"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "2",
+    "sql_ok": "NO"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "3",
+    "sql_ok": "NO"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "4",
+    "sql_ok": "NO"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "5",
+    "sql_ok": "NO"
+  }
+]
