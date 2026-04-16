@@ -1,149 +1,47 @@
-repito el archivo no esta en esa ruta los archivos esta en storage/files/no_identificados/2026/04/*
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/
-total 4
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 files/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 08:01 n8n_data/
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/
-total 0
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 15 18:17 inbox/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 no_identificados/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 ocr_tmp/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 17:09 pendientes_clasificados/
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/inbox/
-total 0
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 11:20 2026/
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/inbox/2026/
-total 4
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 04/
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/inbox/2026/04/
-total 0
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/no_identificados/2026/04/
-total 1432
--rw-r--r-- 1 BBTI 01 197121 316245 Apr 16 15:41 posible_documento_20260416204138431_1.pdf
--rw-r--r-- 1 BBTI 01 197121 378460 Apr 16 15:41 posible_documento_20260416204138431_3.pdf
--rw-r--r-- 1 BBTI 01 197121 764541 Apr 16 15:41 posible_documento_20260416204138431_5.pdf
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/ocr_tmp/
-total 0
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 16 18:29 2026/
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/ocr_tmp/2026/04/
-total 0
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$
-
-
-Perfecto. Ya quedó listo el OCR en WSL. Ahora hagamos la prueba manual con uno de tus PDFs escaneados.
-1. Ejecuta esto en WSL
-Como estás dentro del venv ocrpdf, corre:
+Correcto, gracias por la aclaración. Entonces probemos OCR sobre los que están en:
+Plain text
+storage/files/no_identificados/2026/04/
+1. En WSL ejecuta esto con el primero
+Como ya tienes activo el venv ocrpdf, corre:
 Bash
-mkdir -p /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas
+mkdir -p /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04
 
 ocrmypdf -l spa --force-ocr \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260416204138431_1.pdf" \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas/guia_ocr_1.pdf"
-2. Si termina bien, verifica que el archivo exista
+"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/no_identificados/2026/04/posible_documento_20260416204138431_1.pdf" \
+"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_1.pdf"
+2. Verifica que sí se generó
 Bash
-ls -lh /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas/
-3. Ahora prueba si ya tiene texto
-Puedes hacerlo con Python dentro del mismo venv:
+ls -lh /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/
+3. Extrae el texto del OCRado
 Bash
 python - <<'PY'
 from pypdf import PdfReader
 
-pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas/guia_ocr_1.pdf")
+pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_1.pdf")
 text = "\n".join((p.extract_text() or "") for p in pdf.pages)
 print(text[:4000])
 PY
-4. Qué deberías esperar
-Para ese archivo _1.pdf, lo normal es que ya aparezca texto parecido a:
-guía de remisión remitente electrónica
-T001-00002145
-RUC 20563293587
-BBTI S.A.C.
-Porque visualmente ese PDF sí contiene esa información �
+4. Qué esperamos
+Ese archivo _1.pdf visualmente es una Guía de Remisión Remitente Electrónica T001-00002145, así que tras OCR deberías empezar a ver texto de ese tipo �
 posible_documento_20260416204138431_1.pdf
-5. Luego probamos los otros dos
-Si el primero sale bien, hacemos lo mismo con:
+5. Si funciona, hacemos lo mismo con los otros dos
+Para el _3.pdf
 Bash
-/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260416204138431_3.pdf
-y
-Bash
-/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260416204138431_5.pdf
-El _3.pdf es una guía electrónica T002-00280 �
-El _5.pdf es una orden de compra N.° 007902 �
-posible_documento_20260416204138431_3.pdf
-posible_documento_20260416204138431_5.pdf
-6. Si sale error de permisos o de ruta
-Pégame la salida exacta del comando ocrmypdf.
-Empieza con el _1.pdf y me pegas:
-la salida de ocrmypdf
-la salida de ls -lh
-y el texto extraído del bloque Python
-
- de tus PDFs
-Desde WSL:
-Bash
-mkdir -p /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas
 ocrmypdf -l spa --force-ocr \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260416204138431_1.pdf" \
-"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas/guia_ocr_1.pdf"
-Si termina bien, luego puedes probar si tiene texto:
+"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/no_identificados/2026/04/posible_documento_20260416204138431_3.pdf" \
+"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_3.pdf"
+Ese visualmente es una Guía de Remisión Electrónica T002-00280 �
+posible_documento_20260416204138431_3.pdf
+Para el _5.pdf
 Bash
-python3 - <<'PY'
-from pypdf import PdfReader
-pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas/guia_ocr_1.pdf")
-text = "\n".join((p.extract_text() or "") for p in pdf.pages)
-print(text[:3000])
-PY
-Si quieres algo todavía más simple
-También puedes instalar OCRmyPDF por apt si está disponible en tu Ubuntu:
-Bash
-sudo apt install -y ocrmypdf
-y verificar:
-Bash
-ocrmypdf --version
-La documentación de OCRmyPDF justamente recomienda primero el paquete del sistema en Linux. �
-OCRmyPDF
-Lo que yo te recomiendo
-Mejor ruta para tus pruebas
-apt install de dependencias del sistema.
-venv para ocrmypdf.
-probar comando manual sobre un PDF escaneado.
-recién luego integrar ocr_service.py.
-Importante para tu caso
-No ejecutes:
-Bash
-python3 -m pip install --user ocrmypdf
-en ese Ubuntu de WSL, porque te va a seguir chocando con el entorno administrado. Eso es exactamente el comportamiento esperado con PEP 668. �
-Python Enhancement Proposals (PEPs)
-Qué hacer ahora
-Ejecuta estos comandos, en este orden:
-Bash
-sudo apt update
-sudo apt install -y python3-venv python3-pip tesseract-ocr tesseract-ocr-spa ghostscript qpdf pngquant unpaper
-python3 -m venv ~/venvs/ocrpdf
-source ~/venvs/ocrpdf/bin/activate
-pip install --upgrade pip
-pip install ocrmypdf
-ocrmypdf --version
-tesseract --version
-Luego me pegas la salida de:
-Bash
-ocrmypdf --version
-tesseract --version
-y te doy el siguiente comando exacto para probar uno de tus PDFs escaneados.
+ocrmypdf -l spa --force-ocr \
+"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/no_identificados/2026/04/posible_documento_20260416204138431_5.pdf" \
+"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_5.pdf"
+Ese visualmente es una Orden de Compra N.° 007902 �
+posible_documento_20260416204138431_5.pdf
+6. Si quieres ahorrar pasos
+Haz primero solo el _1.pdf y me pegas:
+salida de ocrmypdf
+salida de ls -lh
+texto extraído del bloque Python
+Con eso te digo si el OCR quedó suficientemente bien como para integrarlo al script.
