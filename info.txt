@@ -1,98 +1,153 @@
-Vas muy bien. Lo importante es esto:
-Lo que ya comprobaste
-OCRmyPDF sí funcionó en WSL.
-Ya te generó estos archivos:
-ocr_posible_documento_..._1.pdf
-ocr_posible_documento_..._3.pdf
-ocr_posible_documento_..._5.pdf
-Eso significa que el OCR quedó operativo.
-Los errores que viste no son graves
-1. ModuleNotFoundError: No module named 'pypdf'
-Eso solo significa que en el venv de WSL donde instalaste ocrmypdf, no has instalado pypdf.
-2. Command 'Ese' not found
-Eso pasó porque pegaste texto extra junto al comando:
-Plain text
-Ese visualmente es una Orden de Compra...
-No afecta al OCR ya ejecutado.
-Siguiente paso inmediato
-Instala pypdf en ese mismo venv de WSL
-Dentro del venv ocrpdf:
-Bash
-pip install pypdf
-Luego prueba leer los 3 OCRados.
-Prueba 1: archivo _1
-Bash
-python - <<'PY'
+Creo que estamos encaminados:
+(ocrpdf) root@PROGRAMACION:~/venvs# pip install pypdf
+Collecting pypdf
+  Downloading pypdf-6.10.2-py3-none-any.whl.metadata (7.1 kB)
+Downloading pypdf-6.10.2-py3-none-any.whl (336 kB)
+Installing collected packages: pypdf
+Successfully installed pypdf-6.10.2
+(ocrpdf) root@PROGRAMACION:~/venvs# python - <<'PY'
 from pypdf import PdfReader
 
 pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_1.pdf")
 text = "\n".join((p.extract_text() or "") for p in pdf.pages)
 print(text[:4000])
 PY
-Prueba 2: archivo _3
-Bash
-python - <<'PY'
+A o ri Cramer
+IMPORT EXPORT PACKING PERU S.A.C. : (
+CAL.JULIO C. TELLO NRO. 265 NRO, 265 i RUC: 20563293587
+GUÍA DE REMISIÓN REMITENTE
+ELECTRÓNICA
+Nro. TOO01-00002145
+LINCE - LIMA - LIMA
+| Cllente: BBTIS.A.C. |
+RUC: 20565747356 Dirección: — CAL. 6 MZA. D LOTE. 13 URB. INDUSTRIAL GRIMAN |
+| Fecha de emisión: — 14-ABR-2026 Ciudad: CALLAO-CALLAO - CALLAO |
+DETALLE DE LA GUÍA: PUNTO DE PARTIDA: PUNTO DE LLEGADA:
+¡Tipo de Transportista: PRIVADO Fecha inicio traslado: 14-abr-2026 | | | | CAL. 6 MZA. D LOTE, 13 URB, INDUSTRIAL GRIMANESA || | CAL. JULIO C. TELLO NRO, 265, LIMA - LIMA - LINCE || : ¡ . "|| Und, de Medida: KGM Peso Bruto: — 200.00 po] Ñ "OLER ERA EONCI |
+| Motivo: VENTA Descripción: | A RR
+O o : O : O Ao o O DESCRIPCION . E : O suNar | PUN NoRMALIZADO.
+200 | KILO ¡0000000034 CARTON CORRUGADO 1.64 M
+OBSERVACIONES
+O/C 007897
+DATOS DEL CONDUCTOR
+E |
+1. Nidedocumento: 10538114 Nidelicencia Q1OS38114
+PP a ar " rre A a
+Nombres y apellidos: _____ GUSTAVO EDUARDO - CARRASCO DURAN
+DATOS DEL VEHÍCULOPrincipe PP. o qx__A — ____-———_ A,
+Placa: F2E798
+|
+Operador de Servicios Electrónicos
+según Resolución N” 034-005-0008776
+Representación impresa de la guía de remisión remitente, consulte en www.efact.pe
+Autorizado mediante la Resolución de intendencia N* 0340050004177/SUNAT
+1 de 1
+
+(ocrpdf) root@PROGRAMACION:~/venvs# python - <<'PY'
 from pypdf import PdfReader
 
 pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_3.pdf")
 text = "\n".join((p.extract_text() or "") for p in pdf.pages)
 print(text[:4000])
 PY
-Prueba 3: archivo _5
-Bash
-python - <<'PY'
+OMEGA POWER S.A.C.
+AV. ELMER FAUCETT NRO. 2293 - RUC: 20538549071
+OMEGA Bellavista- Callao- Callao Telf.:(51.1) GUÍA DE REMISIÓN ELECTRÓNICA
+373 5446 - (51.1) 373 5447POWER TO002-00280
+Fecha de Emisión: Fecha de Inicio de traslado:
+2026-04-15 2026-04-15
+PUNTO DE PARTIDA
+AV. ELMER FAUCETT NRO. 2293 - Bellavista, Callao, Callao, Perú
+PUNTO DE LLEGADA
+CAL. 6 MZ. D LT. 13 URB. INDUSTRIAL GRIMAN - Callao, Callao( 070101), Perú
+DESTINATARIO CARGA
+BBTI S.A.C. Peso bruto:1.0
+Cantidad Bultos:1
+RUC:20565747356
+CODIGO CODBAR DESCRIPCION MEDIDA CANTIDAD
+2CSF204401R12 8012542785408 — INTERRUPTOR DIFERENCIAL S/INMUNIZADO 4P /F204 A-25/0.03 Unidad 1.0
+50 AP-R/ 25A, 30MA
+MOTIVO DEL TRASLADO UNIDAD DE TRANSPORTE / CONDUCTOR
+VENTA VEHICULO MARCA Y PLACA N*: Hyundai/h100 - OMP666
+CERTIFICADO DE INSCRIPCIÓN N2:
+LICENCIA DE CONDUCIR N?2: Q09964953
+NOMBRE:ROJAS VILA, VICTOR YVAN
+TIPO DOC:DNI
+NRO DOC:09964953
+OC 007902 .
+Doc. de Referencia: Ov00161
+OQ OMEGA POWER S.A.C,
+AV ELMER FAUCETT N* 2293
+BELLAVISTA - CALLAO
+15 ABR. 2026
+DESPACHADO
+Telefono: (51.1) 373 5446 - (51.1) 373 5447
+Email: administracionEomegapower.com.pe
+Representación impresa de guía de remisión electrónica, consulta en http://www.omegapower.com.pe
+Av. Elmer Faucett N*2293 Bellavista - Callao - Perú | Teléfonos: (+51-1) 373 5446 / 373 5447 Email:
+administracionOnmeganower com.ne | Web-mail: www omeeanower.com.ne
+
+(ocrpdf) root@PROGRAMACION:~/venvs# python - <<'PY'
 from pypdf import PdfReader
 
 pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_5.pdf")
 text = "\n".join((p.extract_text() or "") for p in pdf.pages)
 print(text[:4000])
 PY
-Qué espero que pase
-_1
-Debería empezar a mostrar algo tipo:
-guía de remisión
-T001-00002145
-RUC
-destinatario o remitente
-_3
-Debería mostrar algo tipo:
-guía de remisión
-T002-00280
-_5
-Debería mostrar algo tipo:
-orden de compra
-007902
-Si quieres ahorrar tiempo
-Puedes probar los 3 de una vez con este mini script:
-Bash
-python - <<'PY'
-from pypdf import PdfReader
+=> e BBTI S.A.C.
+SE
+= ti S.0,6, 20565747356CAL.6 MZA. D LOTE. 13 URB. INDUSTRIAL GRIMAN (ALT. DE LIMA CARGO
+CITY) PROV. CONST. DEL CALLAO - PROV. CONST. DEL CALLAO - CALLAO
+Orden de Compra N*:007902
+SEÑOR(ES) : OMEGA POWER S.A.C. FECHA: 15/04/2026
+R.U.C. : 20538549071 CONDICION DE PAGO : FACTURA NEGOCIABLE 30 DÍAS
+ATENCIÓN: MELENDEZ NORELYS MONEDA: SOLES
+TELEFONO : 981 453 414 COTIZACION : S00943
+DIRECCIÓN : AV. ELMER FAUCETT NRO. 2293 CALLAO - PROV. CONST. DEL CALLAO - BELLAVISTA
+CUENTAS BANCARIAS : TIEMPO DE ENTREGA : 15/04/2026
+SOLICITANTE : PLANTA CENTRO DE COSTOS: 051264 - PR-030-26 CORDEX
+LUGAR DE ENTREGA: CALLE 6 MZ D LOTE 13 URB. GRIMANEZA CALLAO CALLAO
+OBSERVACIONES :
+CODIGO DESCRIPCION CANT | UNID. PRECIO | IMPORTE
+241043216 |INT DIFERENCIAL 4P X 25A 30 MA F204A ABB 2CSF204401R1250 1| UND 377.076 377.08
+SON: CUATROCIENTOS CUARENTA Y CUATRO CON 95/100 SOLES Sub - total s/ 377.08
+IGV ( 18) % S/ 67.87
+Percepción S/ 0.00
+Total S/ | 444.95
+BBTI S.A.C., a partir del 01/02/2026, ha sido designado como Agente de Retención del IGV, según R.S. N.* 367-2023/SUNAT; en tal sentido, para las
+operaciones gravadas con IGV cuyo importe supere S/ 700, se deberá retener el 3% del importe total de la operación, conforme al Régimen de
+Retenciones vigente.
+PRESENTACIÓN DE COMPROBANTES DE PAGO
+La presentación de facturas deberá realizarse únicamente a través del siguiente medio digital: facturas(Dbbti.com.pe
+Para su conformidad, los comprobantes deberán incluir obligatoriamente los siguientes documentos adjuntos:
+- Factura en formato PDF (debe indicar el Nro. de la OC/S).
+- Archivos XML.
+- Orden de Compra.
+- Guía de remisión firmada, confirmando la recepción total de los materiales
+Importante: Solo se aceptarán los comprobantes que cumplan con la presentación completa de los documentos señalados.
+A través del mismo buzón, se confirmará la recepción conforme de la factura o, en caso contrario, se indicará el motivo del rechazo. El cómputo de los
+plazos comerciales iniciará a partir de la aceptación conforme de la factura.
+ENTREGA Y RECOJO DE LETRAS
+En las operaciones pactadas con letras de cambio, se establece lo siguiente:
+- Las letras podrán ser entregadas junto con la factura o en fecha posterior, previa coordinación entre las partes, siempre que el comprobante de pago
+y sus documentos anexos hayan sido remitidos por correo.
+- En caso de entrega posterior, el proveedor deberá presentar la letra dentro de los días siguientes, adjuntando la factura correspondiente.
+- Las letras serán suscritas en máximo 3 días hábiles por el representante legal de la empresa una vez validadas las condiciones de la operación.
+- El recojo de las letras firmadas deberá ser realizado por personal autorizado del proveedor, previa coordinación con el área administrativa entre el
+horario de lunes a viernes de 9:00 AM a 5:00 PM (refrigerio de 1:00 PM a 2:00 PM).
+HORARIO DE ENTREGA DE MATERIALES
+Lunes a viernes de 8:00 AM - 5:00 PM (Refrigerio de 1:00 PM a 2:00 PM) todo material será recibido con copia de Orden de Compra y Guía de Remisión
+del Proveedor. Para el ingreso, se deberá contar con los EPP básicos.
+CONDICIONES COMERCIALES
+- Todos los documentos relacionados con esta Orden de Compra (OC) deberán consignar el número correspondiente.
+- Los productos entregados deberán cumplir con las características técnicas, TDT o planos, según corresponda.
+- La OC se considerará aceptada si el proveedor no manifiesta su rechazo dentro de las 24 horas posteriores a su emisión.
+- Es obligatoria la presentación de la carta de garantía y del certificado de calidad. El protocolo de pruebas será exigible únicamente cuando haya sido
+solicitado por BBTI S.A.C. y previamente coordinado entre las partes, pudiendo realizarse en laboratorio, de corresponder.
+- En caso de incumplimiento de la fecha de entrega pactada, BBTI S.A.C. se reserva el derecho de anular la OC de forma parcial o total.
+VB? Autorización:
+ESTADO : EMITIDA
+CREADO POR: KENJI CHUNG SANCHEZ
+APROBADO POR : Page 1 of 1
 
-files = [
-    "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_1.pdf",
-    "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_3.pdf",
-    "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260416204138431_5.pdf",
-]
-
-for path in files:
-    print("=" * 80)
-    print(path)
-    pdf = PdfReader(path)
-    text = "\n".join((p.extract_text() or "") for p in pdf.pages)
-    print(text[:2000])
-    print()
-PY
-Qué significa si sale texto
-Si sale texto legible, entonces ya podemos hacer esto con tranquilidad:
-integrar OCR al procesar_pendientes.py
-si no hay texto directo:
-correr OCR
-releer PDF OCRado
-clasificar
-mover a pendientes_clasificados
-Qué hacer ahora
-Ejecuta:
-Bash
-pip install pypdf
-y luego corre el script de los 3 archivos.
-Pégame la salida y con eso te dejo la integración final al procesar_pendientes.py.
+(ocrpdf) root@PROGRAMACION:~/venvs#
