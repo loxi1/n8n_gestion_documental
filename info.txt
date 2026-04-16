@@ -1,42 +1,359 @@
-Acompañame en esta travesia:
-gestiondocumental=# SELECT id, correo_id, estado_documento, creado_en FROM documentos ORDER BY id DESC;
- id | correo_id | estado_documento |         creado_en
-----+-----------+------------------+----------------------------
-  5 |         1 | no_identificado  | 2026-04-16 15:42:08.487013
-  4 |         1 | clasificado      | 2026-04-16 15:42:08.487013
-  3 |         1 | no_identificado  | 2026-04-16 15:42:08.487013
-  2 |         1 | clasificado      | 2026-04-16 15:42:08.487013
-  1 |         1 | no_identificado  | 2026-04-16 15:42:08.487013
-(5 rows)
+Perfecto. Vamos a hacerlo bien y simple: OCR local primero.
+Camino recomendado
+En Windows para probar puede ser más incómodo, pero en tu servidor Ubuntu esto encaja muy bien.
+Yo te propongo esta estrategia:
+Flujo nuevo de Python
+intentar leer texto normal con pypdf
+si no hay texto:
+ejecutar OCR
+generar PDF con capa de texto
+volver a leer texto del PDF OCR
+clasificar
+actualizar BD
+mover/renombrar
+Opción que recomiendo
+Usa ocrmypdf
+Porque:
+recibe PDF escaneado
+le incrusta texto OCR
+te devuelve otro PDF buscable
+luego tu mismo extractor actual sigue funcionando
+En Ubuntu instalarás algo así
+Más adelante en servidor:
+Bash
+sudo apt update
+sudo apt install -y ocrmypdf tesseract-ocr tesseract-ocr-spa ghostscript qpdf
+Para Windows local, mejor primero dejamos el código preparado y luego en Ubuntu lo ejecutas.
+Si quieres probar en Windows, también se puede, pero para este tipo de pipeline productivo Ubuntu será mejor.
+Nuevo diseño de carpetas
+Te recomiendo agregar:
+Plain text
+storage/files/
+  inbox/
+  pendientes_clasificados/
+  ocr_tmp/
+  no_identificados/
+  error/
+Nuevo requirements.txt
+Deja así tu app/requirements.txt:
+Plain text
+psycopg2-binary==2.9.10
+pypdf==5.4.0
+python-dotenv==1.0.1
+ocrmypdf no lo pondremos en pip aquí, porque normalmente en Linux conviene instalarlo del sistema.
+Nuevo módulo: core/ocr_service.py
+Crea:
+Python
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
 
 
-gestiondocumental=#
-                                                             ^
-gestiondocumental=# SELECT id, documento_id, nombre_archivo_original, hash_sha256, ruta_temporal FROM archivos ORDER BY id DESC;
- id | documento_id |     nombre_archivo_original      | hash_sha256 |                             ruta_temporal
-----+--------------+----------------------------------+-------------+-----------------------------------------------------------------------
-  5 |            5 | ORDEN DE COMRA 007902.pdf.pdf    |             | inbox/2026/04/posible_documento_20260416204138431_5.pdf
-  4 |            4 | 20100084172-01-F231-0101440.pdf  |             | pendientes_clasificados/2026/04/FACTURA_20100084172_F231_0101440.pdf
-  3 |            3 | GUIA T002-00280 FIRMADO.pdf      |             | inbox/2026/04/posible_documento_20260416204138431_3.pdf
-  2 |            2 | 20563293587-01-F001-00011006.pdf |             | pendientes_clasificados/2026/04/FACTURA_20563293587_F001_00011006.pdf
-  1 |            1 | T001-00002145.pdf                |             | inbox/2026/04/posible_documento_20260416204138431_1.pdf
-(5 rows)
+def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
 
-Directorio de C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\inbox\2026\04
+    cmd = [
+        "ocrmypdf",
+        "--force-ocr",
+        "-l", "spa",
+        str(input_pdf),
+        str(output_pdf),
+    ]
 
-16/04/2026  17:09    <DIR>          .
-16/04/2026  11:20    <DIR>          ..
-16/04/2026  15:41           316.245 posible_documento_20260416204138431_1.pdf
-16/04/2026  15:41           378.460 posible_documento_20260416204138431_3.pdf
-16/04/2026  15:41           764.541 posible_documento_20260416204138431_5.pdf
-               3 archivos      1.459.246 bytes
-               2 dirs  127.129.022.464 bytes libres
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+Ajuste de core/config.py
+Agrega estas rutas:
+Python
+from __future__ import annotations
 
- Directorio de C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_clasificados\2026\04
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 
-16/04/2026  17:09    <DIR>          .
-16/04/2026  17:09    <DIR>          ..
-16/04/2026  15:41            60.487 FACTURA_20100084172_F231_0101440.pdf
-16/04/2026  15:41            71.578 FACTURA_20563293587_F001_00011006.pdf
-               2 archivos        132.065 bytes
-               2 dirs  127.129.079.808 bytes libres
+load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+STORAGE_DIR = BASE_DIR / "storage" / "files"
+OCR_TMP_DIR = STORAGE_DIR / "ocr_tmp"
+INBOX_DIR = STORAGE_DIR / "inbox"
+PENDIENTES_CLASIFICADOS_DIR = STORAGE_DIR / "pendientes_clasificados"
+NO_IDENTIFICADOS_DIR = STORAGE_DIR / "no_identificados"
+ERROR_DIR = STORAGE_DIR / "error"
+
+PG_HOST = os.getenv("PG_HOST", "localhost")
+PG_PORT = int(os.getenv("PG_PORT", "5432"))
+PG_DB = os.getenv("PG_DB", "gestiondocumental")
+PG_USER = os.getenv("PG_USER", "postgres")
+PG_PASSWORD = os.getenv("PG_PASSWORD", "postgres123")
+Nuevo procesar_pendientes.py
+Reemplázalo por esta versión:
+Python
+from __future__ import annotations
+
+from pathlib import Path
+
+from core.config import (
+    STORAGE_DIR,
+    OCR_TMP_DIR,
+    PENDIENTES_CLASIFICADOS_DIR,
+    NO_IDENTIFICADOS_DIR,
+)
+from core.db import get_cursor
+from core.extractor_pdf import extract_text_from_pdf
+from core.classifier import extract_basic_fields
+from core.file_manager import build_temp_classified_name, move_file
+from core.ocr_service import run_ocr
+
+
+SQL_SELECT_PENDING = """
+SELECT
+    d.id AS documento_id,
+    a.id AS archivo_id,
+    a.ruta_temporal,
+    a.nombre_archivo_actual,
+    a.nombre_archivo_original
+FROM documentos d
+JOIN archivos a ON a.documento_id = d.id
+WHERE d.estado_documento IN ('pendiente', 'no_identificado')
+  AND a.estado_archivo IN ('descargado', 'renombrado')
+ORDER BY d.id ASC;
+"""
+
+SQL_UPDATE_DOCUMENTO = """
+UPDATE documentos
+SET
+    tipo_documental = %(tipo_documental)s,
+    ruc = %(ruc)s,
+    serie = %(serie)s,
+    numero = %(numero)s,
+    fecha_emision = %(fecha_emision)s,
+    importe = %(importe)s,
+    estado_documento = %(estado_documento)s,
+    actualizado_en = NOW()
+WHERE id = %(documento_id)s;
+"""
+
+SQL_UPDATE_ARCHIVO = """
+UPDATE archivos
+SET
+    nombre_archivo_actual = %(nombre_archivo_actual)s,
+    ruta_temporal = %(ruta_temporal)s,
+    estado_archivo = %(estado_archivo)s,
+    actualizado_en = NOW()
+WHERE id = %(archivo_id)s;
+"""
+
+
+def resolve_absolute_path(relative_path: str) -> Path:
+    return STORAGE_DIR / relative_path
+
+
+def move_to_no_identificados(pdf_path: Path, fallback_name: str) -> tuple[str, str]:
+    year = pdf_path.parent.parent.name
+    month = pdf_path.parent.name
+    destino_relativo = f"no_identificados/{year}/{month}/{fallback_name}"
+    destino_abs = STORAGE_DIR / destino_relativo
+    move_file(pdf_path, destino_abs)
+    return fallback_name, destino_relativo
+
+
+def procesar_documento(item: dict) -> None:
+    documento_id = item["documento_id"]
+    archivo_id = item["archivo_id"]
+    ruta_temporal = item["ruta_temporal"]
+    nombre_archivo_actual = item["nombre_archivo_actual"]
+    nombre_archivo_original = item["nombre_archivo_original"]
+
+    pdf_path = resolve_absolute_path(ruta_temporal)
+
+    if not pdf_path.exists():
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                """
+                UPDATE documentos
+                SET estado_documento = 'error', actualizado_en = NOW()
+                WHERE id = %s
+                """,
+                (documento_id,),
+            )
+            cur.execute(
+                """
+                UPDATE archivos
+                SET estado_archivo = 'error', actualizado_en = NOW()
+                WHERE id = %s
+                """,
+                (archivo_id,),
+            )
+        print(f"[ERROR] No existe archivo: {pdf_path}")
+        return
+
+    text = ""
+    try:
+        text = extract_text_from_pdf(pdf_path)
+    except Exception as exc:
+        print(f"[WARN] Error lectura directa PDF {pdf_path}: {exc}")
+
+    # Si no hay texto, intentar OCR
+    if not text.strip():
+        ocr_output = OCR_TMP_DIR / pdf_path.parent.parent.name / pdf_path.parent.name / pdf_path.name
+        ocr_ok = run_ocr(pdf_path, ocr_output)
+
+        if ocr_ok and ocr_output.exists():
+            try:
+                text = extract_text_from_pdf(ocr_output)
+                if text.strip():
+                    # reemplazamos el original por el OCRado
+                    move_file(ocr_output, pdf_path)
+                    print(f"[OCR OK] documento_id={documento_id} archivo={pdf_path.name}")
+                else:
+                    print(f"[OCR WARN] OCR generado pero sin texto útil: {pdf_path.name}")
+            except Exception as exc:
+                print(f"[OCR ERROR] No se pudo leer OCR: {exc}")
+
+    if not text.strip():
+        nuevo_nombre, destino_relativo = move_to_no_identificados(pdf_path, nombre_archivo_actual)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO,
+                {
+                    "tipo_documental": None,
+                    "ruc": None,
+                    "serie": None,
+                    "numero": None,
+                    "fecha_emision": None,
+                    "importe": None,
+                    "estado_documento": "no_identificado",
+                    "documento_id": documento_id,
+                },
+            )
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": nuevo_nombre,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": "renombrado",
+                    "archivo_id": archivo_id,
+                },
+            )
+
+        print(f"[WARN] No identificado: {pdf_path.name}")
+        return
+
+    fields = extract_basic_fields(text, nombre_archivo_original)
+    tipo_documental = fields["tipo_documental"]
+    estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
+
+    nuevo_nombre = build_temp_classified_name(
+        tipo_documental=tipo_documental,
+        ruc=fields["ruc"],
+        serie=fields["serie"],
+        numero=fields["numero"],
+        fallback_name=nombre_archivo_actual,
+    )
+
+    year = pdf_path.parent.parent.name
+    month = pdf_path.parent.name
+
+    if estado_documento == "clasificado":
+        destino_relativo = f"pendientes_clasificados/{year}/{month}/{nuevo_nombre}"
+    else:
+        destino_relativo = f"no_identificados/{year}/{month}/{nuevo_nombre}"
+
+    destino_abs = STORAGE_DIR / destino_relativo
+    move_file(pdf_path, destino_abs)
+
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            SQL_UPDATE_DOCUMENTO,
+            {
+                "tipo_documental": tipo_documental,
+                "ruc": fields["ruc"],
+                "serie": fields["serie"],
+                "numero": fields["numero"],
+                "fecha_emision": fields["fecha_emision"],
+                "importe": fields["importe"],
+                "estado_documento": estado_documento,
+                "documento_id": documento_id,
+            },
+        )
+
+        cur.execute(
+            SQL_UPDATE_ARCHIVO,
+            {
+                "nombre_archivo_actual": nuevo_nombre,
+                "ruta_temporal": destino_relativo,
+                "estado_archivo": "renombrado",
+                "archivo_id": archivo_id,
+            },
+        )
+
+    print(
+        f"[OK] documento_id={documento_id} tipo={tipo_documental} archivo={nuevo_nombre}"
+    )
+
+
+def main() -> None:
+    with get_cursor() as (_, cur):
+        cur.execute(SQL_SELECT_PENDING)
+        rows = cur.fetchall()
+
+    if not rows:
+        print("No hay documentos pendientes.")
+        return
+
+    print(f"Pendientes encontrados: {len(rows)}")
+
+    for row in rows:
+        procesar_documento(row)
+
+
+if __name__ == "__main__":
+    main()
+Qué va a pasar con tus 3 escaneados
+Por las imágenes que enviaste:
+posible_documento_..._5.pdf es una Orden de Compra N°007902 visualmente clara �
+posible_documento_20260416204138431_5.pdf
+posible_documento_..._1.pdf es una Guía de Remisión Remitente Electrónica T001-00002145 visualmente clara �
+posible_documento_20260416204138431_1.pdf
+posible_documento_..._3.pdf es una Guía de Remisión Electrónica T002-00280 visualmente clara �
+posible_documento_20260416204138431_3.pdf
+O sea, tu lógica conceptual ya iba bien: el problema no era la clasificación, sino que eran PDFs escaneados sin texto.
+Y los otros 2 sí tenían texto parseable:
+factura F001-00011006 �
+FACTURA_20563293587_F001_00011006.pdf
+factura F231-0101440 �
+FACTURA_20100084172_F231_0101440.pdf
+Resultado esperado cuando pongas OCR en Ubuntu
+Lo esperable es que esos 3 pasen de:
+no_identificado
+a algo así:
+orden_compra
+guia
+guia
+y se muevan a:
+Plain text
+storage/files/pendientes_clasificados/2026/04/
+con nombres más útiles.
+Mi recomendación práctica
+En Windows
+No te mates instalando OCR si solo es para pruebas.
+En Ubuntu
+Sí lo implementamos bien y ahí lo dejamos productivo.
+Siguiente paso ideal
+Ahora toca una de estas dos:
+Opción A
+Te preparo cómo ejecutar esto en Ubuntu con instalación de OCR.
+Opción B
+Te preparo cómo hacer que n8n llame a procesar_pendientes.py después del guardado.
+Yo haría primero la Opción A y luego la B, porque así el script ya queda listo antes de enchufarlo a n8n.
