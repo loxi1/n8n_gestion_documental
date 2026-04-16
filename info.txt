@@ -1,145 +1,71 @@
-Perfecto. Eso confirma el diagnóstico:
-Resultado real
-Tu nodo antes de Guardar_Archivos solo recibe:
-JSON
-{
-  "documento_id": "1"
-}
-Entonces:
-correo_id no llegó
-originalFileName no llegó
-storedFileName no llegó
-relativePath no llegó
-Por eso save_files.sql falla.
-Traducción simple
-Tu flujo sigue estando lineal, no combinado.
-Lo que tienes que hacer ahora
-Debes agregar 2 nodos Merge reales.
-Estructura correcta
-Rama 1
-Plain text
-Code in JavaScript
-   ├─→ Read/Write Files from Disk
-   └─→ Guardar_Correo
-          └─→ merge_correo_id
-Merge 1
-Une:
-Code in JavaScript
-merge_correo_id
-Quedará:
-Plain text
-Code in JavaScript ─────┐
-                        ├─→ Merge_1
-merge_correo_id ────────┘
-Luego
-Plain text
-Merge_1
-   └─→ Guardar_Documentos
-          └─→ merge_documento_id
-Merge 2
-Une:
-Merge_1
-merge_documento_id
-Quedará:
-Plain text
-Merge_1 ────────────────┐
-                        ├─→ Merge_2
-merge_documento_id ─────┘
-Final
-Plain text
-Merge_2
-   └─→ VerLog
-          └─→ Guardar_Archivos
-Cómo configurar los Merge
-Merge_1
-Nodo: Merge
-Mode: Combine
-Combine By: Position
-Input 1:
-Code in JavaScript
-Input 2:
-merge_correo_id
-Merge_2
-Nodo: Merge
-Mode: Combine
-Combine By: Position
-Input 1:
-Merge_1
-Input 2:
-merge_documento_id
-Importante
-Guardar_Documentos ya no debe salir directo de merge_correo_id
-Debe salir de:
-Plain text
-Merge_1 → Guardar_Documentos
-Porque Guardar_Documentos necesita correo_id, pero además queremos conservar toda la metadata original.
-Qué debe pasar después
-VerLog después de Merge_2 debe mostrar algo así:
-JSON
+
+gestiondocumental=# SELECT id, correo_id, estado_documento, creado_en FROM documentos ORDER BY id DESC;
+ id | correo_id | estado_documento |         creado_en
+----+-----------+------------------+----------------------------
+ 10 |         1 | pendiente        | 2026-04-16 15:20:44.813896
+  9 |         1 | pendiente        | 2026-04-16 15:20:44.813896
+  8 |         1 | pendiente        | 2026-04-16 15:20:44.813896
+  7 |         1 | pendiente        | 2026-04-16 15:20:44.813896
+  6 |         1 | pendiente        | 2026-04-16 15:20:44.813896
+  5 |         1 | pendiente        | 2026-04-16 14:40:12.100522
+  4 |         1 | pendiente        | 2026-04-16 14:40:12.100522
+  3 |         1 | pendiente        | 2026-04-16 14:40:12.100522
+  2 |         1 | pendiente        | 2026-04-16 14:40:12.100522
+  1 |         1 | pendiente        | 2026-04-16 14:40:12.100522
+(10 rows)
+salida:
+[
+  {
+    "documento_id": "6"
+  },
+  {
+    "documento_id": "7"
+  },
+  {
+    "documento_id": "8"
+  },
+  {
+    "documento_id": "9"
+  },
+  {
+    "documento_id": "10"
+  }
+]
+VerLog
 [
   {
     "keys": [
-      "subject",
-      "fromEmail",
-      "fromName",
-      "messageId",
-      "date",
-      "originalFileName",
-      "storedFileName",
-      "tipoDetectado",
-      "filePath",
-      "relativePath",
-      "mimeType",
-      "tamano_bytes",
-      "correo_id",
       "documento_id"
     ],
-    "correo_id": 1,
-    "documento_id": 1,
-    "originalFileName": "T001-00002145.pdf",
-    "storedFileName": "posible_documento_20260416193941955_1.pdf",
-    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_1.pdf",
-    "mimeType": "application/pdf",
-    "sql_ok": "SI"
+    "documento_id": "6",
+    "sql_ok": "NO"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "7",
+    "sql_ok": "NO"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "8",
+    "sql_ok": "NO"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "9",
+    "sql_ok": "NO"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "10",
+    "sql_ok": "NO"
   }
 ]
-Si ves eso, Guardar_Archivos ya funcionará.
-Respuesta directa a tu estado actual
-Tu salida actual:
-JSON
-{
-  "keys": ["documento_id"],
-  "sql_ok": "NO"
-}
-significa que:
-✅ merge_documento_id funciona
-❌ pero no está unido con la data original ni con correo_id
-Qué no hacer
-No sigas tocando save_files.sql todavía.
-El SQL está esperando datos que simplemente no le están llegando.
-Qué hacer ya mismo
-agrega Merge_1
-agrega Merge_2
-conecta como te indiqué
-deja VerLog después de Merge_2
-ejecuta de nuevo
-Si quieres, te lo dibujo más simple todavía, exacto como debe verse en el canvas:
-Plain text
-Email Trigger
-   ↓
-Code in JavaScript
-   ├──────────────→ Read/Write Files from Disk
-   ├──────────────→ Guardar_Correo → merge_correo_id ─┐
-   │                                                  │
-   └──────────────────────────────────────────────────→ Merge_1
-                                                      ↓
-                                              Guardar_Documentos
-                                                      ↓
-                                             merge_documento_id ─┐
-                                                                  │
-Merge_1 ─────────────────────────────────────────────────────────→ Merge_2
-                                                                  ↓
-                                                                VerLog
-                                                                  ↓
-                                                           Guardar_Archivos
-Pega luego la salida de VerLog después de Merge_2.
