@@ -1,79 +1,22 @@
+Bien cree los merge en las posiciones indicadas:
+gestiondocumental=# SELECT id, documento_id, nombre_archivo_original, hash_sha256, ruta_temporal FROM archivos ORDER BY id
+ DESC;
+ id | documento_id |     nombre_archivo_original      | hash_sha256 |                      ruta_temporal
 
-gestiondocumental=# SELECT id, asunto, remitente_email, fecha_correo, estado_correo FROM correos_ingresados ORDER BY id DE
-SC;
- id |  asunto   |      remitente_email      |    fecha_correo     | estado_correo
-----+-----------+---------------------------+---------------------+---------------
-  1 | facuturas | anibal.cayetano@gmail.com | 2026-04-16 17:53:07 | descargado
-(1 row)
+----+--------------+----------------------------------+-------------+-----------------------------------------------------
+----
+  5 |            5 | ORDEN DE COMRA 007902.pdf.pdf    |             | inbox/2026/04/posible_documento_20260416204138431_5.
+pdf
+  4 |            4 | 20100084172-01-F231-0101440.pdf  |             | inbox/2026/04/posible_documento_20260416204138431_4.
+pdf
+  3 |            3 | GUIA T002-00280 FIRMADO.pdf      |             | inbox/2026/04/posible_documento_20260416204138431_3.
+pdf
+  2 |            2 | 20563293587-01-F001-00011006.pdf |             | inbox/2026/04/posible_documento_20260416204138431_2.
+pdf
+  1 |            1 | T001-00002145.pdf                |             | inbox/2026/04/posible_documento_20260416204138431_1.
+pdf
+(5 rows)
 
-gestiondocumental=# SELECT id, correo_id, estado_documento, creado_en FROM documentos ORDER BY id DESC;
- id | correo_id | estado_documento |         creado_en
-----+-----------+------------------+----------------------------
- 10 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  9 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  8 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  7 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  6 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  5 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-  4 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-  3 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-  2 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-  1 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-(10 rows)
-salida:
-[
-  {
-    "documento_id": "6"
-  },
-  {
-    "documento_id": "7"
-  },
-  {
-    "documento_id": "8"
-  },
-  {
-    "documento_id": "9"
-  },
-  {
-    "documento_id": "10"
-  }
-]
-VerLog
-[
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "6",
-    "sql_ok": "NO"
-  },
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "7",
-    "sql_ok": "NO"
-  },
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "8",
-    "sql_ok": "NO"
-  },
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "9",
-    "sql_ok": "NO"
-  },
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "10",
-    "sql_ok": "NO"
-  }
-]
-no hiciste ningun cambio que deseas ver?
+
+gestiondocumental=#
+la url de diagrama de secuencia es este: https://i.ibb.co/qLJf8xX9/url.png dime como prosegimos.
