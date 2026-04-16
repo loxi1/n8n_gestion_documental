@@ -1,17 +1,103 @@
-Por favor quiero instalar OCR en windows para pruebas,
-BBTI 01@PROGRAMACION MINGW64 ~
-$ pyenv --version
-El sistema no puede encontrar la ruta especificada.
-pyenv 3.1.1
+Sí. Para Windows de prueba, te recomiendo este camino:
+Mejor opción
+Tesseract en Windows + OCRmyPDF dentro de WSL Ubuntu
+Porque:
+Tesseract sí tiene instaladores para Windows a través de UB Mannheim, referenciados por la documentación oficial de Tesseract. �
+Tesseract OCR +1
+OCRmyPDF en Windows se recomienda usarlo vía WSL Ubuntu, según su propia documentación. �
+OCRmyPDF
+Ruta recomendada para ti
+Parte A. Instalar Tesseract en Windows
+La documentación oficial de Tesseract indica que para Windows hay instaladores disponibles a través de UB Mannheim. �
+Tesseract OCR +1
+Qué harás
+Instala Tesseract para Windows.
+Durante la instalación, asegúrate de incluir:
+idioma Spanish / spa
+idioma English / eng
+Verifica en PowerShell o Git Bash:
+Bash
+tesseract --version
+Si no reconoce el comando, agrega Tesseract al PATH.
+Ruta típica
+Suele quedar algo así:
+Plain text
+C:\Program Files\Tesseract-OCR
+Y ahí debe existir:
+Plain text
+tesseract.exe
+Parte B. Instalar OCRmyPDF en WSL Ubuntu
+OCRmyPDF documenta que en Windows lo adecuado es usar WSL Ubuntu y seguir el procedimiento de Ubuntu. �
+OCRmyPDF
+En PowerShell o CMD de Windows:
+Bash
+wsl
+Ya dentro de Ubuntu:
+Bash
+sudo apt update
+sudo apt install -y python3-pip python3-venv tesseract-ocr tesseract-ocr-spa ghostscript qpdf pngquant unpaper
+python3 -m pip install --user ocrmypdf
+Luego verifica:
+Bash
+ocrmypdf --version
+tesseract --version
+Parte C. Probar OCRmyPDF en un PDF escaneado
+Como tus PDFs están en C:\D\Proyectos\GestionDocumental\..., en WSL los verás como:
+Plain text
+/mnt/c/D/Proyectos/GestionDocumental/...
+Ejemplo de prueba:
+Bash
+ocrmypdf -l spa "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260416204138431_1.pdf" "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/prueba_ocr_1.pdf"
+Luego puedes probar si tu script ya extrae texto de ese PDF OCRado.
+Cómo integrarlo a tu script en Windows
+Tu ocr_service.py puede quedarse igual si ejecutas Python dentro de WSL o si llamas ocrmypdf desde WSL.
+Pero para pruebas rápidas, te propongo una variante temporal en Windows:
+Opción simple
+En vez de ejecutar ocrmypdf directo, llama a WSL desde Python:
+Python
+from pathlib import Path
+import subprocess
 
-BBTI 01@PROGRAMACION MINGW64 ~
-$ python --version
-Python 3.11.9
 
-BBTI 01@PROGRAMACION MINGW64 ~
-$
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ pip -V
-pip 24.0 from C:\D\Proyectos\GestionDocumental\n8n-local\app\venv\Lib\site-packages\pip (python 3.11)
-(venv) 
-cuando haga el deploy a ubuntu vamos con la opcion A, despues de probar con OCR vamos a la opcion B
+def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+
+    input_wsl = str(input_pdf).replace("\\", "/").replace("C:/", "/mnt/c/")
+    output_wsl = str(output_pdf).replace("\\", "/").replace("C:/", "/mnt/c/")
+
+    cmd = [
+        "wsl",
+        "ocrmypdf",
+        "--force-ocr",
+        "-l", "spa",
+        input_wsl,
+        output_wsl,
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            print(result.stderr)
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+Qué te recomiendo hacer primero
+Paso 1
+Instala Tesseract en Windows.
+Paso 2
+Instala OCRmyPDF en WSL Ubuntu.
+Paso 3
+Prueba manualmente un archivo con:
+Bash
+wsl ocrmypdf -l spa "ruta_entrada" "ruta_salida"
+Paso 4
+Si eso funciona, adaptamos ocr_service.py.
+Importante
+Para producción en Ubuntu, tu ruta será mucho más limpia.
+En Windows esto solo será para validar.
+Tu plan de hacer en Windows una prueba y luego en Ubuntu ir con despliegue formal es el correcto. OCRmyPDF además mantiene documentación específica para el uso en WSL, lo que encaja muy bien con tu escenario actual. �
+OCRmyPDF
+El siguiente paso es que hagas la instalación y me pegues la salida de:
+Bash
+tesseract --version
+wsl ocrmypdf --version
