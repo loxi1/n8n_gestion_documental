@@ -1,3 +1,95 @@
+code.js forma esta data:
+[
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "T001-00002145.pdf",
+    "storedFileName": "posible_documento_20260416193941955_1.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_1.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_1.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "316 kB"
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "20563293587-01-F001-00011006.pdf",
+    "storedFileName": "posible_documento_20260416193941955_2.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_2.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_2.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "71.6 kB"
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "GUIA T002-00280 FIRMADO.pdf",
+    "storedFileName": "posible_documento_20260416193941955_3.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_3.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_3.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "378 kB"
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "20100084172-01-F231-0101440.pdf",
+    "storedFileName": "posible_documento_20260416193941955_4.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_4.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_4.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "60.5 kB"
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "ORDEN DE COMRA 007902.pdf.pdf",
+    "storedFileName": "posible_documento_20260416193941955_5.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_5.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_5.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "765 kB"
+  }
+]
+save_correo forma esto:
+[
+  {
+    "id": "1"
+  },
+  {
+    "id": "1"
+  },
+  {
+    "id": "1"
+  },
+  {
+    "id": "1"
+  },
+  {
+    "id": "1"
+  }
+]
+veo que todos son repetidos o 
 merge_correo_id se obtiene:
 return items.map(item => {
   item.json.correo_id = item.json.id;
@@ -89,5 +181,88 @@ return items.map(item => {
   },
   {
     "documento_id": "5"
+  }
+]
+esto en verLog deseas formar se agrego->correo_id y documento_id :
+[
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "T001-00002145.pdf",
+    "storedFileName": "posible_documento_20260416193941955_1.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_1.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_1.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "316 kB",
+    "correo_id": 1,
+    "documento_id":1
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "20563293587-01-F001-00011006.pdf",
+    "storedFileName": "posible_documento_20260416193941955_2.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_2.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_2.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "71.6 kB",
+    "correo_id": 1,
+    "documento_id":2
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "GUIA T002-00280 FIRMADO.pdf",
+    "storedFileName": "posible_documento_20260416193941955_3.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_3.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_3.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "378 kB",
+    "correo_id": 1,
+    "documento_id":3
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "20100084172-01-F231-0101440.pdf",
+    "storedFileName": "posible_documento_20260416193941955_4.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_4.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_4.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "60.5 kB",
+    "correo_id": 1,
+    "documento_id":4
+  },
+  {
+    "subject": "facuturas",
+    "fromEmail": "anibal.cayetano@gmail.com",
+    "fromName": "Anibal Cayetano Meza",
+    "messageId": "<CAFtAZZAJ3jAbQf=J35hbKy5-XXwPSr+++Sj6AUMs01kEOWGxEQ@mail.gmail.com>",
+    "date": "2026-04-16T17:53:07.000Z",
+    "originalFileName": "ORDEN DE COMRA 007902.pdf.pdf",
+    "storedFileName": "posible_documento_20260416193941955_5.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260416193941955_5.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_5.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "765 kB",
+    "correo_id": 1,
+    "documento_id":5
   }
 ]
