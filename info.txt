@@ -1,79 +1,100 @@
-
-gestiondocumental=# SELECT id, asunto, remitente_email, fecha_correo, estado_correo FROM correos_ingresados ORDER BY id DE
-SC;
- id |  asunto   |      remitente_email      |    fecha_correo     | estado_correo
-----+-----------+---------------------------+---------------------+---------------
-  1 | facuturas | anibal.cayetano@gmail.com | 2026-04-16 17:53:07 | descargado
-(1 row)
-
-gestiondocumental=# SELECT id, correo_id, estado_documento, creado_en FROM documentos ORDER BY id DESC;
- id | correo_id | estado_documento |         creado_en
-----+-----------+------------------+----------------------------
- 10 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  9 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  8 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  7 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  6 |         1 | pendiente        | 2026-04-16 15:20:44.813896
-  5 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-  4 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-  3 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-  2 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-  1 |         1 | pendiente        | 2026-04-16 14:40:12.100522
-(10 rows)
-salida:
+Sí, ya con esa salida no necesito más SQL. El problema está 100% en el canvas.
+Tu VerLog sigue viendo solo:
+JSON
+{ "documento_id": "6" }
+Eso significa que VerLog no está después de un Merge real.
+Todavía está colgando de la rama de merge_documento_id sola, o Merge_2 no está configurado bien.
+Qué quiero que cambies en n8n
+Haz esto exacto.
+1. Crea un nodo Merge_1
+Conecta:
+Input 1: Code in JavaScript
+Input 2: merge_correo_id
+Configúralo así:
+Mode: Combine
+Combine By: Position
+2. Cambia la entrada de Guardar_Documentos
+Guardar_Documentos ya no debe salir de merge_correo_id.
+Debe salir de:
+Plain text
+Merge_1 -> Guardar_Documentos
+3. Crea un nodo Merge_2
+Conecta:
+Input 1: Merge_1
+Input 2: merge_documento_id
+Configúralo así:
+Mode: Combine
+Combine By: Position
+4. Mueve VerLog
+VerLog debe salir de:
+Plain text
+Merge_2 -> VerLog
+5. Mueve Guardar_Archivos
+Guardar_Archivos debe salir de:
+Plain text
+VerLog -> Guardar_Archivos
+o directo de Merge_2, pero mientras depuras mejor:
+Plain text
+Merge_2 -> VerLog -> Guardar_Archivos
+Cómo debe verse el flujo
+Plain text
+Email Trigger
+   ↓
+Code in JavaScript
+   ├────────────→ Read/Write Files from Disk
+   ├────────────→ Guardar_Correo → merge_correo_id ─┐
+   │                                                │
+   └────────────────────────────────────────────────→ Merge_1
+                                                     ↓
+                                              Guardar_Documentos
+                                                     ↓
+                                             merge_documento_id ─┐
+                                                                 │
+Merge_1 ────────────────────────────────────────────────────────→ Merge_2
+                                                                 ↓
+                                                               VerLog
+                                                                 ↓
+                                                          Guardar_Archivos
+Qué debes ver después
+Cuando ejecutes, VerLog debe mostrar algo como:
+JSON
 [
   {
-    "documento_id": "6"
-  },
-  {
-    "documento_id": "7"
-  },
-  {
-    "documento_id": "8"
-  },
-  {
-    "documento_id": "9"
-  },
-  {
-    "documento_id": "10"
+    "keys": [
+      "subject",
+      "fromEmail",
+      "fromName",
+      "messageId",
+      "date",
+      "originalFileName",
+      "storedFileName",
+      "tipoDetectado",
+      "filePath",
+      "relativePath",
+      "mimeType",
+      "tamano_bytes",
+      "correo_id",
+      "documento_id"
+    ],
+    "correo_id": 1,
+    "documento_id": 6,
+    "originalFileName": "T001-00002145.pdf",
+    "storedFileName": "posible_documento_20260416193941955_1.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260416193941955_1.pdf",
+    "mimeType": "application/pdf",
+    "sql_ok": "SI"
   }
 ]
-VerLog
-[
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "6",
-    "sql_ok": "NO"
-  },
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "7",
-    "sql_ok": "NO"
-  },
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "8",
-    "sql_ok": "NO"
-  },
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "9",
-    "sql_ok": "NO"
-  },
-  {
-    "keys": [
-      "documento_id"
-    ],
-    "documento_id": "10",
-    "sql_ok": "NO"
-  }
-]
-no hiciste ningun cambio que deseas ver?
+Si no ves eso, Guardar_Archivos va a seguir fallando.
+Lo que ya está probado
+Tus consultas muestran que esto sí funciona:
+correos_ingresados: 1 correo
+documentos: 5 filas nuevas para ese correo
+O sea, el backend SQL está bien.
+Lo único roto es la unión de datos entre ramas.
+Qué quiero ver ahora
+No necesito más SQL.
+Necesito una de estas dos cosas:
+una captura del canvas después de agregar Merge_1 y Merge_2, o
+la salida nueva de VerLog
+La salida nueva debe incluir correo_id y originalFileName. Si no, el merge sigue mal.
