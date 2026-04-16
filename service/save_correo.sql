@@ -26,8 +26,4 @@ SET
     cantidad_adjuntos = EXCLUDED.cantidad_adjuntos,
     actualizado_en = NOW()
   
-return items.map(item => {
-  item.json.correo_id = item.json.id;
-  delete item.json.id;
-  return item;
-});
+RETURNING id;
