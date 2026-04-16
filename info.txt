@@ -1,52 +1,235 @@
-Perfecto ahora guarda hasta: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/service/save_documentos.sql
-pero no guarda save_files
-el error:
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/service/save_files.sql
-
+Perfecto. Ya el problema cambió: ahora el flujo sí llega a save_files.sql, pero ese nodo no está recibiendo los datos que necesita.
+El error real
+Tu insert está entrando así:
+SQL
+VALUES (
+    undefined,
+    undefined,
+    NULL,
+    NULL,
+    '.pdf',
+    'application/pdf',
+    NULL,
+    true,
+    'descargado'
+)
+Eso significa que en el nodo Guardar_Archivos no están llegando:
+documento_id
+correo_id
+originalFileName
+storedFileName
+relativePath
+Y además tu tabla archivos tiene un campo obligatorio que todavía no estás enviando:
+hash_sha256 → NOT NULL
+Entonces hay 2 problemas:
+1. No estás uniendo los datos de nodos anteriores
+Guardar_Archivos necesita datos de:
+tu Code
+Guardar_Correo
+Guardar_Documentos
+Si no usas un Merge o no mantienes el item combinado, el último nodo solo ve su propia salida.
+2. Falta hash_sha256
+Tu tabla exige hash_sha256, así que aunque arregles los ids, igual el insert va a fallar si no lo mandas.
+Qué te recomiendo hacer ahora
+Paso 1: no guardes aún en archivos hasta unir bien los datos
+Primero revisa qué output tiene cada nodo:
+Code
+Guardar_Correo
+Guardar_Documentos
+Debes confirmar que:
+Code entregue algo así
+JSON
 {
-  "errorMessage": "column \"undefined\" does not exist",
-  "errorDescription": "Failed query: INSERT INTO archivos (\n    documento_id,\n    correo_id,\n    nombre_archivo_original,\n    nombre_archivo_actual,\n    extension,\n    mime_type,\n    ruta_temporal,\n    es_principal,\n    estado_archivo\n)\nVALUES (\n    undefined,\n    undefined,\n    NULL,\n    NULL,\n    '.pdf',\n    'application/pdf',\n    NULL,\n    true,\n    'descargado'\n)\nRETURNING id;",
-  "errorDetails": {},
-  "n8nDetails": {
-    "nodeName": "Guardar_Archivos",
-    "nodeType": "n8n-nodes-base.postgres",
-    "nodeVersion": 2.6,
-    "resource": "database",
-    "operation": "executeQuery",
-    "time": "16/4/2026, 11:35:18",
-    "n8nVersion": "2.16.1 (Self Hosted)",
-    "binaryDataMode": "filesystem",
-    "stackTrace": [
-      "NodeOperationError: column \"undefined\" does not exist",
-      "    at parsePostgresError (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:123:9)",
-      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/helpers/utils.ts:267:19",
-      "    at processTicksAndRejections (node:internal/process/task_queues:104:5)",
-      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/database/executeQuery.operation.ts:149:9)",
-      "    at ExecuteContext.router (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/actions/router.ts:41:17)",
-      "    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_8da18263ca0574b0db58d4fefd8173ce/node_modules/n8n-nodes-base/nodes/Postgres/v2/PostgresV2.node.ts:26:10)",
-      "    at WorkflowExecute.executeNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1045:8)",
-      "    at WorkflowExecute.runNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1224:11)",
-      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1672:27",
-      "    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file+packages+core_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trace-otlp_2d19a9be2839cb42cd2e8c9cacd05d5a/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2324:11"
-    ]
-  }
+  "subject": "...",
+  "fromEmail": "...",
+  "messageId": "...",
+  "date": "...",
+  "originalFileName": "...pdf",
+  "storedFileName": "posible_documento_....pdf",
+  "relativePath": "inbox/2026/04/posible_documento_....pdf"
+}
+Guardar_Correo devuelva
+JSON
+{
+  "id": 123
+}
+Guardar_Documentos devuelva
+JSON
+{
+  "id": 456
+}
+Paso 2: usa Merge
+Haz esto:
+Plain text
+Code ───────────────┐
+                    ├─ Merge (Code + Guardar_Correo)
+Guardar_Correo ─────┘
+Luego:
+Plain text
+Merge anterior ─────┐
+                    ├─ Merge ( + Guardar_Documentos )
+Guardar_Documentos ─┘
+Y recién después:
+Plain text
+→ Guardar_Archivos
+Objetivo
+Que Guardar_Archivos vea en el mismo item:
+correo_id
+documento_id
+originalFileName
+storedFileName
+relativePath
+Paso 3: renombra los ids antes del segundo merge
+Porque Guardar_Correo y Guardar_Documentos ambos devuelven id, y se pisan.
+Solución
+Después de cada Postgres agrega un Edit Fields o Code pequeño:
+después de Guardar_Correo
+JavaScript
+return items.map(item => {
+  item.json.correo_id = item.json.id;
+  delete item.json.id;
+  return item;
+});
+después de Guardar_Documentos
+JavaScript
+return items.map(item => {
+  item.json.documento_id = item.json.id;
+  delete item.json.id;
+  return item;
+});
+Así no confundes un id con otro.
+Paso 4: agrega hash_sha256 en el Code
+Como n8n permite usar el módulo crypto en el Code node, puedes calcular el hash ahí. La doc del Code node indica que en n8n self-hosted puedes usar módulos disponibles, y crypto está soportado. �
+n8n Docs
+Actualiza tu Code así:
+JavaScript
+const crypto = require('crypto');
+
+const now = new Date();
+
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, '0');
+const day = String(now.getDate()).padStart(2, '0');
+const hour = String(now.getHours()).padStart(2, '0');
+const minute = String(now.getMinutes()).padStart(2, '0');
+const second = String(now.getSeconds()).padStart(2, '0');
+const ms = String(now.getMilliseconds()).padStart(3, '0');
+
+const stamp = `${year}${month}${day}${hour}${minute}${second}${ms}`;
+
+const output = [];
+
+for (const item of items) {
+	const binary = item.binary || {};
+	const subject = item.json.subject || '';
+	const messageId = item.json.messageId || item.json.message_id || null;
+	const date = item.json.date || null;
+
+	let fromEmail = '';
+	let fromName = '';
+
+	if (item.json.from?.value?.length) {
+		fromEmail = item.json.from.value[0].address || '';
+		fromName = item.json.from.value[0].name || '';
+	} else if (typeof item.json.from === 'string') {
+		fromEmail = item.json.from;
+	}
+
+	for (const key of Object.keys(binary)) {
+		const file = binary[key];
+		const fileName = file.fileName || 'adjunto';
+		const lowerName = fileName.toLowerCase();
+
+		if (!lowerName.endsWith('.pdf')) {
+			continue;
+		}
+
+		const newFileName = `posible_documento_${stamp}.pdf`;
+
+		const buffer = await this.helpers.getBinaryDataBuffer(0, key);
+		const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+		output.push({
+			json: {
+				subject,
+				fromEmail,
+				fromName,
+				messageId,
+				date,
+				originalFileName: fileName,
+				storedFileName: newFileName,
+				tipoDetectado: 'pendiente',
+				filePath: `/files/inbox/${year}/${month}/${newFileName}`,
+				relativePath: `inbox/${year}/${month}/${newFileName}`,
+				hash_sha256: hash,
+				tamano_bytes: file.fileSize || null,
+				mimeType: file.mimeType || 'application/pdf',
+			},
+			binary: {
+				data: file,
+			},
+		});
+	}
 }
 
-tabla: archivos
-"id"	"bigint"		"NO"
-"documento_id"	"bigint"		"YES"
-"correo_id"	"bigint"		"YES"
-"nombre_archivo_original"	"text"		"NO"
-"nombre_archivo_actual"	"text"		"NO"
-"extension"	"character varying"	20	"YES"
-"mime_type"	"character varying"	100	"YES"
-"tamano_bytes"	"bigint"		"YES"
-"hash_sha256"	"character varying"	64	"NO"
-"ruta_temporal"	"text"		"YES"
-"ruta_final"	"text"		"YES"
-"es_principal"	"boolean"		"NO"
-"estado_archivo"	"character varying"	30	"NO"
-"creado_en"	"timestamp without time zone"		"NO"
-"actualizado_en"	"timestamp without time zone"		"NO"
-
-pero estos correo son bien terribles mira llego un correo asi llego en *.rar y dentro hay varios documentos: https://i.ibb.co/V0qNDPJj/url.png
+return output;
+Paso 5: corrige save_files.sql
+Tu insert debe usar todos los campos necesarios.
+Usa algo como esto:
+SQL
+INSERT INTO archivos (
+    documento_id,
+    correo_id,
+    nombre_archivo_original,
+    nombre_archivo_actual,
+    extension,
+    mime_type,
+    tamano_bytes,
+    hash_sha256,
+    ruta_temporal,
+    es_principal,
+    estado_archivo
+)
+VALUES (
+    {{$json.documento_id}},
+    {{$json.correo_id}},
+    {{$json.originalFileName ? `'${$json.originalFileName.replace(/'/g, "''")}'` : 'NULL'}},
+    {{$json.storedFileName ? `'${$json.storedFileName.replace(/'/g, "''")}'` : 'NULL'}},
+    '.pdf',
+    {{$json.mimeType ? `'${$json.mimeType.replace(/'/g, "''")}'` : `'application/pdf'`}},
+    {{$json.tamano_bytes ? $json.tamano_bytes : 'NULL'}},
+    {{$json.hash_sha256 ? `'${$json.hash_sha256}'` : 'NULL'}},
+    {{$json.relativePath ? `'${$json.relativePath.replace(/'/g, "''")}'` : 'NULL'}},
+    true,
+    'descargado'
+)
+RETURNING id;
+Sobre ZIP y RAR
+Tu observación es correcta: el correo real puede traer cualquier cosa.
+Mi recomendación por fases
+Fase actual
+Procesa solo:
+PDF
+Fase siguiente
+Acepta también:
+ZIP
+n8n sí tiene nodo Compression para comprimir y descomprimir ZIP y Gzip. �
+n8n Docs
+RAR
+RAR no lo resolvería dentro de n8n al inicio.
+n8n no trae soporte nativo claro para RAR, y para comandos externos en Docker normalmente necesitas extender la imagen y usar Execute Command. La doc del nodo Execute Command dice justamente que en Docker, si el comando no existe, debes crear una imagen personalizada con el paquete instalado. �
+n8n Docs +1
+Entonces
+Para tu proyecto:
+PDF → ahora
+ZIP → después, con Compression node
+RAR → después, mejor con Python o una imagen Docker custom
+Eso es lo más ordenado.
+Qué haría yo ya mismo
+Arreglar correo_id y documento_id con Merge.
+Agregar hash_sha256 en el Code.
+Recién después volver a probar Guardar_Archivos.
+En resumen
+Tu nodo Guardar_Archivos todavía no falla por SQL complicado.
+Falla porque no le están llegando los datos correctos y además falta un campo obligatorio.
+Si quieres, el siguiente mensaje te lo doy con el diagrama exacto de nodos para los dos Merge, paso por paso, para que no se te crucen los id.
