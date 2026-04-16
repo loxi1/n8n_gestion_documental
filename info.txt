@@ -1,43 +1,27 @@
-Sí, se puede depurar, y ya con lo que compartiste el problema quedó bastante acotado.
-Lo que sí está bien
-Tu code.js ya genera 5 items con nombres únicos y rutas distintas, así que la parte de captura y guardado físico ya funciona. �
-GitHub
-El problema sigue siendo este
-En Guardar_Archivos llega:
-documento_id = 20
-correo_id = undefined
-originalFileName = NULL
-storedFileName = NULL
-relativePath = NULL
-Eso significa que antes de Guardar_Archivos se perdió casi toda la metadata original, y solo sobrevivió documento_id.
-Además, en tu repo:
-save_files.sql sí espera correo_id, originalFileName, storedFileName y relativePath. �
-GitHub
-merge_correo_id.js existe y solo renombra id a correo_id. �
-GitHub
-merge_documento_id.js ni siquiera está accesible en la URL que pasaste; devolvió 404. �
-No URL provided.
-Ese 404 es una pista fuerte: probablemente tu flujo local tenga un nodo, pero el repo no tiene ese archivo, o el nombre/ruta no coincide.
-Qué está fallando realmente
-No es el SQL final. Es el encadenamiento de nodos.
-Tu flujo necesita que justo antes de Guardar_Archivos exista un item con todo esto junto:
-JSON
-{
-  "correo_id": 123,
-  "documento_id": 20,
-  "originalFileName": "T001-00002145.pdf",
-  "storedFileName": "posible_documento_20260416181101369_1.pdf",
-  "relativePath": "inbox/2026/04/posible_documento_20260416181101369_1.pdf",
-  "mimeType": "application/pdf"
-}
-Ahora mismo no llega así.
-Cómo depurar de verdad en n8n
-Opción más útil
-No uses console.log como primera herramienta.
-En n8n, lo más práctico es meter un Code node de inspección o un Edit Fields / Set antes de Guardar_Archivos y mirar el Output.
-Crea un nodo Code antes de Guardar_Archivos
-Pon esto:
-JavaScript
+merge_correo_id se obtiene:
+return items.map(item => {
+  item.json.correo_id = item.json.id;
+  delete item.json.id;
+  return item;
+});
+[
+  {
+    "documento_id": "1"
+  },
+  {
+    "documento_id": "2"
+  },
+  {
+    "documento_id": "3"
+  },
+  {
+    "documento_id": "4"
+  },
+  {
+    "documento_id": "5"
+  }
+]
+verLog se optine:
 return items.map(item => {
   return {
     json: {
@@ -51,115 +35,59 @@ return items.map(item => {
     }
   };
 });
-Qué debes revisar
-Si ahí ves:
-documento_id con valor
-pero correo_id = undefined
-y nombres/rutas vacíos
-entonces el problema está antes de ese nodo, no en save_files.sql.
-Dónde está el cuello de botella
-En los Merge.
-Regla
-Tienes que usar dos Merge reales y configurarlos para combinar por posición.
-Flujo correcto
-Plain text
-Code original
- ├── Write File
- ├── Guardar_Correo
- │     └── Code_correo_id
- └── Merge_1
-Merge_1 debe unir:
-entrada 1: Code original
-entrada 2: Code_correo_id
-Así el resultado de Merge_1 tendrá:
-metadata original
-correo_id
-Luego:
-Plain text
-Merge_1
- └── Guardar_Documentos
-       └── Code_documento_id
-Y después:
-Merge_2 debe unir:
-entrada 1: Merge_1
-entrada 2: Code_documento_id
-Así el resultado final tendrá:
-metadata original
-correo_id
-documento_id
-Y recién eso va a Guardar_Archivos.
-Qué revisar puntualmente
-1. merge_documento_id.js
-La URL que diste falla con 404. �
-Asegúrate de que el nodo exista y que el archivo sí esté en el repo si quieres versionarlo.
-No URL provided.
-El contenido debería ser:
-JavaScript
+[
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "1"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "2"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "3"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "4"
+  },
+  {
+    "keys": [
+      "documento_id"
+    ],
+    "documento_id": "5"
+  }
+]
+
+merge_documento_id
 return items.map(item => {
   item.json.documento_id = item.json.id;
   delete item.json.id;
   return item;
 });
-2. Configuración de los Merge
-Usa el nodo Merge de n8n, no un Code node llamado merge.
-Configúralo como:
-Mode: Combine
-Combine By: Position
-Eso es lo correcto cuando cada rama devuelve el mismo número de items en el mismo orden.
-Otro detalle de tu db.sql
-Tu db.sql crea un índice único parcial en message_id:
-SQL
-CREATE UNIQUE INDEX ux_correos_ingresados_message_id ON correos_ingresados(message_id) WHERE message_id IS NOT NULL;
-y luego además intenta agregar una constraint única:
-SQL
-ALTER TABLE correos_ingresados ADD CONSTRAINT uq_correos_ingresados_message_id UNIQUE (message_id);
-Eso es redundante y puede traerte lío si vuelves a recrear la BD. Y también creas hash_sha256 NOT NULL y luego lo aflojas con ALTER COLUMN ... DROP NOT NULL. �
-GitHub
-No es lo que te está rompiendo ahora, pero conviene limpiar ese script después.
-Qué haría yo ya mismo
-Paso 1
-Inserta el Code de inspección antes de Guardar_Archivos.
-Paso 2
-Mira el output y confirma si faltan:
-correo_id
-originalFileName
-storedFileName
-relativePath
-Paso 3
-Si faltan, arregla Merge_1 y Merge_2 así:
-Code_correo_id
-JavaScript
-return items.map(item => {
-  item.json.correo_id = item.json.id;
-  delete item.json.id;
-  return item;
-});
-Code_documento_id
-JavaScript
-return items.map(item => {
-  item.json.documento_id = item.json.id;
-  delete item.json.id;
-  return item;
-});
-Merge_1
-Input 1: Code original
-Input 2: Code_correo_id
-Combine by Position
-Merge_2
-Input 1: Merge_1
-Input 2: Code_documento_id
-Combine by Position
-Si quieres depurar con console.log
-Se puede, pero no es mi primera recomendación aquí.
-Si aun así quieres, en un Code puedes hacer algo como:
-JavaScript
-for (const item of items) {
-  console.log(item.json);
-}
-return items;
-Pero en n8n self-hosted eso suele ser más incómodo de leer que simplemente inspeccionar el Output del nodo.
-Resumen
-Tu error actual no es de PostgreSQL final.
-Es que Guardar_Archivos no está recibiendo el item completo.
-La prueba definitiva es poner un Code de inspección justo antes de Guardar_Archivos.
-Si me pegas ese output, te digo exactamente qué Merge está mal.
+[
+  {
+    "documento_id": "1"
+  },
+  {
+    "documento_id": "2"
+  },
+  {
+    "documento_id": "3"
+  },
+  {
+    "documento_id": "4"
+  },
+  {
+    "documento_id": "5"
+  }
+]
