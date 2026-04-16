@@ -32,3 +32,7 @@ source venv/Scripts/activate
 pip install -r requirements.txt
 
 para levanar en ubuntu
+instalar ocrmypdf
+sudo apt update
+sudo apt install -y ocrmypdf tesseract-ocr tesseract-ocr-spa ghostscript qpdf
+
