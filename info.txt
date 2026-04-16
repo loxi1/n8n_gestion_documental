@@ -1,4 +1,11 @@
 
+gestiondocumental=# SELECT id, asunto, remitente_email, fecha_correo, estado_correo FROM correos_ingresados ORDER BY id DE
+SC;
+ id |  asunto   |      remitente_email      |    fecha_correo     | estado_correo
+----+-----------+---------------------------+---------------------+---------------
+  1 | facuturas | anibal.cayetano@gmail.com | 2026-04-16 17:53:07 | descargado
+(1 row)
+
 gestiondocumental=# SELECT id, correo_id, estado_documento, creado_en FROM documentos ORDER BY id DESC;
  id | correo_id | estado_documento |         creado_en
 ----+-----------+------------------+----------------------------
@@ -69,3 +76,4 @@ VerLog
     "sql_ok": "NO"
   }
 ]
+no hiciste ningun cambio que deseas ver?
