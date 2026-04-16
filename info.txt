@@ -1,90 +1,77 @@
-ayuda entre a wsl desde la consola y estoy en esa ruta e instale y funciono(Espero no se malogre al usar docker) pero no funciona esto:
-root@PROGRAMACION:/mnt/c/D/Proyectos/GestionDocumental/n8n-local# python3 -m pip install --user ocrmypdf
-error: externally-managed-environment
-
-× This environment is externally managed
-╰─> To install Python packages system-wide, try apt install
-    python3-xyz, where xyz is the package you are trying to
-    install.
-
-    If you wish to install a non-Debian-packaged Python package,
-    create a virtual environment using python3 -m venv path/to/venv.
-    Then use path/to/venv/bin/python and path/to/venv/bin/pip. Make
-    sure you have python3-full installed.
-
-    If you wish to install a non-Debian packaged Python application,
-    it may be easiest to use pipx install xyz, which will manage a
-    virtual environment for you. Make sure you have pipx installed.
-
-    See /usr/share/doc/python3.12/README.venv for more information.
-
-note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
-hint: See PEP 668 for the detailed specification.
-root@PROGRAMACION:/mnt/c/D/Proyectos/GestionDocumental/n8n-local#
-
-sudo apt install -y python3-pip python3-venv tesseract-ocr tesseract-ocr-spa ghostscript qpdf pngquant unpaper
-python3 -m pip install --user ocrmypdf
-Luego verifica:
+Sí, te ayudo. No has roto nada, y Docker no se malogra por esto.
+Ese error sale por PEP 668: Ubuntu marca el Python del sistema como “externally managed”, y pip ya no deja instalar paquetes globales o con --user en ese entorno; la recomendación oficial es usar venv o herramientas como pipx. �
+Python Enhancement Proposals (PEPs) +1
+Además, la propia documentación de OCRmyPDF dice que en Linux primero conviene instalar el paquete del sistema y, si quieres una versión más nueva, usar instalación con Python aparte. Para WSL, OCRmyPDF también documenta ese camino. �
+OCRmyPDF +1
+Haz esto en WSL Ubuntu
+1. Instala dependencias del sistema
+Dentro de WSL:
+Bash
+sudo apt update
+sudo apt install -y python3-venv python3-pip tesseract-ocr tesseract-ocr-spa ghostscript qpdf pngquant unpaper
+2. Crea un entorno virtual solo para OCR
+Yo lo haría en tu home de WSL, no dentro de /mnt/c/...:
+Bash
+mkdir -p ~/venvs
+python3 -m venv ~/venvs/ocrpdf
+source ~/venvs/ocrpdf/bin/activate
+3. Instala OCRmyPDF dentro del venv
+Bash
+pip install --upgrade pip
+pip install ocrmypdf
+4. Verifica
 Bash
 ocrmypdf --version
 tesseract --version
-Parte C. Probar OCRmyPDF en un PDF escaneado
-Como tus PDFs están en C:\D\Proyectos\GestionDocumental\..., en WSL los verás como:
-Plain text
-/mnt/c/D/Proyectos/GestionDocumental/...
-Ejemplo de prueba:
+Prueba rápida con uno de tus PDFs
+Desde WSL:
 Bash
-ocrmypdf -l spa "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260416204138431_1.pdf" "/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/prueba_ocr_1.pdf"
-Luego puedes probar si tu script ya extrae texto de ese PDF OCRado.
-Cómo integrarlo a tu script en Windows
-Tu ocr_service.py puede quedarse igual si ejecutas Python dentro de WSL o si llamas ocrmypdf desde WSL.
-Pero para pruebas rápidas, te propongo una variante temporal en Windows:
-Opción simple
-En vez de ejecutar ocrmypdf directo, llama a WSL desde Python:
-Python
-from pathlib import Path
-import subprocess
-
-
-def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
-    output_pdf.parent.mkdir(parents=True, exist_ok=True)
-
-    input_wsl = str(input_pdf).replace("\\", "/").replace("C:/", "/mnt/c/")
-    output_wsl = str(output_pdf).replace("\\", "/").replace("C:/", "/mnt/c/")
-
-    cmd = [
-        "wsl",
-        "ocrmypdf",
-        "--force-ocr",
-        "-l", "spa",
-        input_wsl,
-        output_wsl,
-    ]
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            print(result.stderr)
-        return result.returncode == 0
-    except FileNotFoundError:
-        return False
-Qué te recomiendo hacer primero
-Paso 1
-Instala Tesseract en Windows.
-Paso 2
-Instala OCRmyPDF en WSL Ubuntu.
-Paso 3
-Prueba manualmente un archivo con:
+mkdir -p /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas
+ocrmypdf -l spa --force-ocr \
+"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260416204138431_1.pdf" \
+"/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas/guia_ocr_1.pdf"
+Si termina bien, luego puedes probar si tiene texto:
 Bash
-wsl ocrmypdf -l spa "ruta_entrada" "ruta_salida"
-Paso 4
-Si eso funciona, adaptamos ocr_service.py.
-Importante
-Para producción en Ubuntu, tu ruta será mucho más limpia.
-En Windows esto solo será para validar.
-Tu plan de hacer en Windows una prueba y luego en Ubuntu ir con despliegue formal es el correcto. OCRmyPDF además mantiene documentación específica para el uso en WSL, lo que encaja muy bien con tu escenario actual. �
+python3 - <<'PY'
+from pypdf import PdfReader
+pdf = PdfReader("/mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/ocr_tmp/pruebas/guia_ocr_1.pdf")
+text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+print(text[:3000])
+PY
+Si quieres algo todavía más simple
+También puedes instalar OCRmyPDF por apt si está disponible en tu Ubuntu:
+Bash
+sudo apt install -y ocrmypdf
+y verificar:
+Bash
+ocrmypdf --version
+La documentación de OCRmyPDF justamente recomienda primero el paquete del sistema en Linux. �
 OCRmyPDF
-El siguiente paso es que hagas la instalación y me pegues la salida de:
+Lo que yo te recomiendo
+Mejor ruta para tus pruebas
+apt install de dependencias del sistema.
+venv para ocrmypdf.
+probar comando manual sobre un PDF escaneado.
+recién luego integrar ocr_service.py.
+Importante para tu caso
+No ejecutes:
 Bash
+python3 -m pip install --user ocrmypdf
+en ese Ubuntu de WSL, porque te va a seguir chocando con el entorno administrado. Eso es exactamente el comportamiento esperado con PEP 668. �
+Python Enhancement Proposals (PEPs)
+Qué hacer ahora
+Ejecuta estos comandos, en este orden:
+Bash
+sudo apt update
+sudo apt install -y python3-venv python3-pip tesseract-ocr tesseract-ocr-spa ghostscript qpdf pngquant unpaper
+python3 -m venv ~/venvs/ocrpdf
+source ~/venvs/ocrpdf/bin/activate
+pip install --upgrade pip
+pip install ocrmypdf
+ocrmypdf --version
 tesseract --version
-wsl ocrmypdf --version
+Luego me pegas la salida de:
+Bash
+ocrmypdf --version
+tesseract --version
+y te doy el siguiente comando exacto para probar uno de tus PDFs escaneados.
