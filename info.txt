@@ -1,0 +1,141 @@
+El error real está aquí:
+SQL
+remitente_email = undefined
+PostgreSQL interpreta undefined como si fuera un nombre de columna, no como texto ni NULL. Por eso dice:
+Plain text
+column "undefined" does not exist
+Qué pasó
+En tu Code estás haciendo:
+JavaScript
+const from = item.json.from || '';
+Pero en n8n, from no suele venir como texto plano. Normalmente viene como objeto o arreglo, algo parecido a esto:
+JSON
+{
+  "value": [
+    {
+      "name": "Proveedor SAC",
+      "address": "ventas@proveedor.com"
+    }
+  ]
+}
+Entonces from no es un string, y luego en tu SQL termina saliendo mal.
+Solución correcta
+1. Corrige el Code
+Usa este Code actualizado:
+JavaScript
+const now = new Date();
+
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, '0');
+const day = String(now.getDate()).padStart(2, '0');
+const hour = String(now.getHours()).padStart(2, '0');
+const minute = String(now.getMinutes()).padStart(2, '0');
+const second = String(now.getSeconds()).padStart(2, '0');
+const ms = String(now.getMilliseconds()).padStart(3, '0');
+
+const stamp = `${year}${month}${day}${hour}${minute}${second}${ms}`;
+
+const output = [];
+
+for (const item of items) {
+	const binary = item.binary || {};
+	const subject = item.json.subject || '';
+	const messageId = item.json.messageId || item.json.message_id || null;
+	const date = item.json.date || null;
+
+	// Extraer remitente de forma segura
+	let fromEmail = '';
+	let fromName = '';
+
+	if (item.json.from?.value?.length) {
+		fromEmail = item.json.from.value[0].address || '';
+		fromName = item.json.from.value[0].name || '';
+	} else if (typeof item.json.from === 'string') {
+		fromEmail = item.json.from;
+	}
+
+	for (const key of Object.keys(binary)) {
+		const file = binary[key];
+		const fileName = file.fileName || 'adjunto';
+		const lowerName = fileName.toLowerCase();
+
+		if (!lowerName.endsWith('.pdf')) {
+			continue;
+		}
+
+		const newFileName = `posible_documento_${stamp}.pdf`;
+
+		output.push({
+			json: {
+				subject,
+				fromEmail,
+				fromName,
+				messageId,
+				date,
+				originalFileName: fileName,
+				storedFileName: newFileName,
+				tipoDetectado: 'pendiente',
+				filePath: `/files/inbox/${year}/${month}/${newFileName}`,
+				relativePath: `inbox/${year}/${month}/${newFileName}`,
+			},
+			binary: {
+				data: file,
+			},
+		});
+	}
+}
+
+return output;
+2. Corrige tu SQL
+En vez de usar from, usa fromEmail.
+Usa esta consulta:
+SQL
+INSERT INTO correos_ingresados (
+    message_id,
+    remitente_email,
+    asunto,
+    fecha_correo,
+    cantidad_adjuntos,
+    estado_correo,
+    leido,
+    procesado
+)
+VALUES (
+    {{$json.messageId ? `'${$json.messageId.replace(/'/g, "''")}'` : 'NULL'}},
+    {{$json.fromEmail ? `'${$json.fromEmail.replace(/'/g, "''")}'` : 'NULL'}},
+    {{$json.subject ? `'${$json.subject.replace(/'/g, "''")}'` : 'NULL'}},
+    {{$json.date ? `'${$json.date}'` : 'NULL'}},
+    1,
+    'descargado',
+    false,
+    false
+)
+ON CONFLICT (message_id) DO UPDATE
+SET
+    remitente_email = EXCLUDED.remitente_email,
+    asunto = EXCLUDED.asunto,
+    fecha_correo = EXCLUDED.fecha_correo,
+    cantidad_adjuntos = EXCLUDED.cantidad_adjuntos,
+    actualizado_en = NOW()
+RETURNING id;
+Qué cambió
+Antes:
+from = objeto
+SQL terminaba con undefined
+Ahora:
+fromEmail = string real
+SQL insertará algo como:
+ventas@proveedor.com
+Recomendación adicional
+Para depurar mejor, antes del nodo Postgres mete un nodo Set o mira el output del Code y confirma que salga así:
+JSON
+{
+  "subject": "Prueba correo",
+  "fromEmail": "alguien@dominio.com",
+  "fromName": "Nombre",
+  "messageId": "<...>",
+  "date": "2026-04-16T16:01:36.000Z"
+}
+Si fromEmail ya sale lleno, el insert debería funcionar.
+Siguiente paso
+Haz estos dos cambios y prueba de nuevo. Si pasa el insert de correos_ingresados, seguimos con documentos y archivos.
