@@ -1,160 +1,191 @@
-Vas por muy buen camino. De hecho, lo que estás diseñando ya es un mini sistema documental contable automatizado, no solo OCR 👍
-Te doy una propuesta bien aterrizada a tu caso real (contabilidad + carpetas Windows + n8n + OCR).
-🧠 🧩 1. Tu lógica de negocio (bien definida)
-Lo que quieres lograr:
-✔ Regla clave
-La factura manda (documento principal)
-Todo lo demás (guía, OC, nota, etc.) se agrupa con esa factura
-✔ Resultado esperado
-Ejemplo real:
-
-04-0001 F001 00011006 20563293587 BBTI SAC FACTURA.pdf
-04-0001 F001 00011006 20563293587 BBTI SAC GUIA.pdf
-04-0001 F001 00011006 20563293587 BBTI SAC OC.pdf
-👉 MISMO correlativo → MISMA operación contable
-🧠 🧩 2. Estructura del nombre (bien diseñado)
-Te propongo este formato final:
-
-MM-CCCC TIPO SERIE NUMERO RUC CLIENTE TIPO_DOC.pdf
-Ejemplo:
-
-04-0001 F001 00011006 20563293587 BBTI_SAC FACTURA.pdf
-04-0001 F001 00011006 20563293587 BBTI_SAC GUIA.pdf
-04-0001 F001 00011006 20563293587 BBTI_SAC OC.pdf
-🔥 Explicación
-Parte
-Significado
-04
-Mes contable
-0001
-Correlativo mensual
-F001 00011006
-Serie + número
-RUC
-Identificador único
-CLIENTE
-Empresa destino
-TIPO_DOC
-FACTURA / GUIA / OC
-🧠 🧩 3. Cómo detectar el CLIENTE (clave en tu caso)
-Esto es MUY importante porque define la carpeta final.
-🔍 Estrategia
-Del OCR:
+Sí, así queda mucho más claro.
+Con tu ejemplo, el nombre del archivo principal sería:
 Plain text
-BBTI S.A.C.
-RUC: 20565747356
-Normalizas:
+04-0001 F231 0101440 20100084172 Promotores Electricos S A Factura.pdf
+Y en ese PDF se ve justamente:
+emisor: Promotores Electricos S A
+RUC emisor: 20100084172
+factura: F231-0101440
+cliente destino: BBTI S.A.C. �
+FACTURA_20100084172_F231_0101440.pdf
+Entonces la lógica correcta es esta
+En el nombre del archivo
+Usas datos del documento/emisor:
+serie
+número
+RUC emisor
+razón social emisora
+Para mover a carpeta final
+Usas el cliente destino:
+BBTI SAC
+BB Tecnología Industrial SAC
+Consorcio Cima Energy
+Consorcio Iluminación Tarma 2025
+Consorcio Huancavelica
+Eso está perfecto.
+Propuesta simple y rápida
+1. Detectar cliente destino
+En el PDF factura, el campo clave es:
+Plain text
+CLIENTE: ... - BBTI S.A.C.
+o a veces:
+cliente
+destinatario
+razón social receptora
+En tu ejemplo, el cliente destino es BBTI S.A.C. �
+FACTURA_20100084172_F231_0101440.pdf
+2. Mapear cliente destino a carpeta Windows
+Haz una tabla o diccionario de equivalencias.
+Opción rápida en Python
 Python
-CLIENTES = {
-    "20565747356": "BBTI_SAC",
-    "20563293587": "BB_TECNOLOGIA",
-    "20538549071": "CONSORCIO_CIMA",
+CLIENTES_DESTINO = {
+    "BBTI S.A.C.": {
+        "codigo": "BBTI",
+        "carpeta": r"\\servidor\compartido\BBTI SAC",
+    },
+    "BB TECNOLOGIA INDUSTRIAL S.A.C.": {
+        "codigo": "BBTEC",
+        "carpeta": r"\\servidor\compartido\BB TECNOLOGIA INDUSTRIAL SAC",
+    },
+    "CONSORCIO CIMA ENERGY": {
+        "codigo": "CIMA",
+        "carpeta": r"\\servidor\compartido\CONSORCIO CIMA ENERGY",
+    },
+    "CONSORCIO ILUMINACION TARMA 2025": {
+        "codigo": "TARMA",
+        "carpeta": r"\\servidor\compartido\CONSORCIO ILUMINACION TARMA 2025",
+    },
+    "CONSORCIO HUANCAVELICA": {
+        "codigo": "HUANCA",
+        "carpeta": r"\\servidor\compartido\CONSORCIO HUANCAVELICA",
+    },
 }
-🧠 🧩 4. Carpeta final (Windows compartido)
-Tú dijiste algo clave:
-👉 Linux solo staging → final en Windows
-Perfecto, arquitectura correcta:
-
-Linux (n8n + OCR)
-   ↓
-Procesa
-   ↓
-Mover a:
-\\SERVIDOR\DOCUMENTOS\CLIENTE\AÑO\MES\
-📁 Ejemplo real:
-
-\\fileserver\documentos\BBTI_SAC\2026\04\
-    04-0001 F001 00011006 ... FACTURA.pdf
-    04-0001 F001 00011006 ... GUIA.pdf
-🧠 🧩 5. Cómo asignar correlativo mensual (CRÍTICO)
-Esto es lo que te faltaba cerrar 🔥
-✔ Solo la FACTURA genera correlativo
-SQL
-SELECT COALESCE(MAX(correlativo),0)+1
-FROM documentos
-WHERE EXTRACT(MONTH FROM fecha_emision) = 4;
-✔ Luego guardas:
-SQL
-UPDATE documentos
-SET correlativo = 1
-WHERE id = 2;
-✔ Luego todos los relacionados usan ese mismo correlativo
-SQL
-UPDATE documentos
-SET correlativo = 1
-WHERE correo_id = 1;
-🧠 🧩 6. Flujo completo (tu sistema final)
-🔄 Pipeline real:
-1. n8n
-Guarda archivos
-Inserta BD
-2. Python procesar_pendientes.py
-Para cada documento:
-
-1. OCR si es necesario
-2. Detectar tipo:
-   - factura
-   - guia
-   - oc
-3. Extraer:
-   - RUC
-   - serie
-   - número
-   - cliente
-4. Si es FACTURA:
-   → genera correlativo
-5. Si NO es factura:
-   → busca factura del mismo correo
-6. Genera nombre final
-7. Mueve archivo
-8. Actualiza BD
-🧠 🧩 7. Caso tricky (el tuyo actual)
-👉 Documento 5 lo detectaste como factura pero es OC
-Solución:
-🔍 Regla más estricta
+3. Carpeta final por mes en español
+Como en Windows ya lo manejan así:
+ENERO
+FEBRERO
+MARZO
+...
+haz una función:
 Python
-if "FACTURA" in text and "RUC" in text and "IGV" in text:
-    tipo = "factura"
-elif "GUIA" in text:
-    tipo = "guia"
-elif "ORDEN DE COMPRA" in text:
-    tipo = "oc"
-🧠 🧩 8. Muy importante (tu escenario real)
-👉 Dijiste:
-hay documentos manuales en carpeta Windows
-💡 Entonces:
-❗ NO generes correlativo solo con DB
-Debes validar contra archivos existentes
-✔ Estrategia híbrida:
-Revisar BD
-Revisar carpeta Windows
-Tomar el mayor correlativo
-🧠 🧩 9. Siguiente nivel (PRO)
-Cuando quieras escalar:
-OCR → OK (ya lo tienes)
-Regex → OK
-Luego: 👉 IA (Gemini / OpenAI) para:
-Validar tipo
-Extraer campos difíciles
-🧠 🧩 10. Mi opinión directa (sin rodeo)
-✔ Tu arquitectura: BIEN DISEÑADA ✔ Tu flujo: correcto ✔ Tu enfoque: industrial (esto es sistema real)
-🔥 Lo único que faltaba cerrar:
-correlativo por factura ✔
-agrupación ✔
-cliente ✔
-carpeta final ✔
-🚀 Siguiente paso (te recomiendo)
-Ajustar detección de tipo documento
-Implementar correlativo mensual
-Implementar cliente → carpeta Windows
-Implementar rename final
-👉 Si quieres el siguiente nivel:
-Te puedo armar:
-✅ función Python completa:
-generar_nombre_final()
-detectar_cliente()
-asignar_correlativo()
-mover_a_windows()
-Todo listo para copiar en tu script.
-Solo dime:
-👉 “armamos el módulo final completo”
+MESES_ES = {
+    1: "ENERO",
+    2: "FEBRERO",
+    3: "MARZO",
+    4: "ABRIL",
+    5: "MAYO",
+    6: "JUNIO",
+    7: "JULIO",
+    8: "AGOSTO",
+    9: "SEPTIEMBRE",
+    10: "OCTUBRE",
+    11: "NOVIEMBRE",
+    12: "DICIEMBRE",
+}
+Y la ruta final sería algo como:
+Plain text
+\\servidor\compartido\BBTI SAC\ABRIL\
+o si manejan año:
+Plain text
+\\servidor\compartido\BBTI SAC\2026\ABRIL\
+Yo te recomiendo año + mes, si puedes.
+4. Forma rápida de mover todos los archivos relacionados
+Como tú dijiste, todos los PDFs relacionados al mismo correo deben compartir el mismo asiento/correlativo y la misma carpeta destino.
+Entonces el proceso debe ser:
+Paso A
+Encuentras la factura principal del correo.
+Paso B
+De esa factura obtienes:
+mes
+correlativo
+cliente destino
+carpeta Windows
+Paso C
+A todos los archivos del mismo correo_id les aplicas:
+mismo prefijo 04-0001
+misma carpeta destino
+distinto sufijo según tipo documental
+Ejemplo real con tu factura
+Factura encontrada:
+tipo: factura
+serie: F231
+número: 0101440
+ruc emisor: 20100084172
+emisor: Promotores Electricos S A
+cliente destino: BBTI S.A.C. �
+FACTURA_20100084172_F231_0101440.pdf
+Entonces:
+Factura
+Plain text
+04-0001 F231 0101440 20100084172 Promotores Electricos S A Factura.pdf
+Guía del mismo correo
+Plain text
+04-0001 F231 0101440 20100084172 Promotores Electricos S A Guia.pdf
+Orden de compra del mismo correo
+Plain text
+04-0001 F231 0101440 20100084172 Promotores Electricos S A Orden de Compra.pdf
+Todos van a:
+Plain text
+\\servidor\compartido\BBTI SAC\ABRIL\
+5. Cómo mantener la carpeta compartida actual
+Tu idea me parece correcta.
+No conviene inventar otra estructura si:
+ya hay documentos escaneados manualmente allí
+contabilidad ya usa ese repositorio
+otras áreas ya validan ahí
+Entonces tu sistema Linux debe actuar como:
+staging / procesamiento
+y luego mover a la carpeta compartida Windows existente.
+Eso es lo más sano.
+6. Mi sugerencia concreta de implementación
+En PostgreSQL agrega estos campos
+En documentos o en una tabla auxiliar:
+cliente_destino
+cliente_destino_codigo
+carpeta_destino
+grupo_codigo
+nombre_final
+ruta_windows_final
+7. Lógica práctica de movimiento
+Función ejemplo
+Python
+def construir_ruta_windows(cliente_destino: str, fecha_emision: date) -> str:
+    config = CLIENTES_DESTINO.get(cliente_destino)
+    if not config:
+        raise ValueError(f"Cliente destino no configurado: {cliente_destino}")
+
+    mes = MESES_ES[fecha_emision.month]
+    return rf"{config['carpeta']}\{mes}"
+8. Mi opinión sobre la forma rápida
+La forma más rápida y mantenible sería:
+A. Mantener una tabla/config de clientes destino
+No hardcodear todo disperso.
+B. Procesar por correo
+Porque el grupo sale de la factura principal.
+C. Mover por lote
+Cuando ya identificaste la factura del correo:
+renombras todos
+mueves todos a la carpeta del cliente destino
+9. Recomendación sobre nomenclatura
+Tu ejemplo está bien. Yo solo haría un pequeño ajuste para que sea más consistente:
+Plain text
+04-0001 F231 0101440 20100084172 Promotores Electricos S A FACTURA.pdf
+04-0001 F231 0101440 20100084172 Promotores Electricos S A GUIA.pdf
+04-0001 F231 0101440 20100084172 Promotores Electricos S A OC.pdf
+Ventajas:
+misma base
+el tipo queda al final
+fácil de ordenar visualmente
+Mi recomendación final
+Sí:
+el emisor va en el nombre
+el cliente destino define la carpeta
+el mes de la factura define la carpeta mensual
+todos los documentos del correo se mueven juntos
+Eso está muy bien diseñado.
+El siguiente paso ideal es que te arme ya:
+la función detectar_cliente_destino()
+la función construir_nombre_final()
+la función construir_ruta_windows()
+la lógica para mover todos los PDFs del mismo correo_id
+y dejarlo listo para integrar a tu procesar_pendientes.py.
