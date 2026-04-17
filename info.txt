@@ -1,143 +1,334 @@
-Excelente… esto ya se puso interesante de verdad 🔥
-Te hice el análisis cruzado real (OCR + archivos + DB) y te digo directo qué está pasando:
-🧠 1. ¿Hay documentos repetidos?
-👉 NO hay duplicados exactos, pero sí hay documentos del mismo grupo mal clasificados.
-📄 2. Análisis documento por documento
-🟢 Documento 4 (FACTURA correcta)
-Archivo:
-04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
-Contenido real:
-Factura electrónica
-Serie: F231
-Número: 0101440
-RUC: 20100084172
-Cliente: BBTI SAC �
-04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
-👉 ✅ Este está PERFECTO
-👉 Es un documento principal válido (grupo 04-0002)
-🟢 Documento 3 (FACTURA OCR correcta)
-Archivo OCR:
-ocr_posible_documento_..._3.pdf
-Contenido:
-Factura
-RUC: 20538549071
-Total: S/ 444.95
-OC: 007902 �
+Sí, correcto: 04-0001 debe ser único por correo y todos los PDF adjuntos de ese correo deben heredar ese mismo grupo/asiento.
+Y sí, n8n puede procesar más de 1 correo. Si el trigger recibe varios correos o los va detectando uno por uno, tu modelo sigue funcionando porque el agrupador será correo_id. Lo importante es que Python procese por correo, no por documento suelto.
+Con tus archivos de ejemplo, se ve que hay un mismo paquete documental alrededor de la OC 007902: una factura de Omega Power F002-00000254, una guía T002-00280 y una orden de compra 007902; todos apuntan a BBTI como destino. � � �
 posible_documento_20260417220657884_2.pdf
-👉 ✅ También correcto
-👉 Grupo: 04-0001
-🟡 Documento 1 (GUÍA)
-Archivo:
-posible_documento_..._1.pdf
-Contenido:
-Guía de remisión
-Serie: T002
-Número: 00280
-RUC: 20538549071
-OC: 007902 �
 ocr_posible_documento_20260417220657881_1.pdf
-👉 ❗ Este documento pertenece al MISMO GRUPO que la factura
-🔴 Documento 5 (ORDEN DE COMPRA)
-Archivo:
-04-0001 981 453 ... FACTURA.pdf ❌ (mal nombrado)
-Contenido real:
-Orden de compra N° 007902 �
 ocr_posible_documento_20260417220657884_3.pdf
-👉 🚨 ERROR CRÍTICO:
-Está siendo tratado como FACTURA
-Pero es ORDEN DE COMPRA
-🚨 3. Problema real detectado
-❌ Problema #1: Clasificación incorrecta
-Tu sistema hizo esto:
-Plain text
-ORDEN DE COMPRA → FACTURA ❌
-👉 Esto rompe toda tu lógica contable
-❌ Problema #2: No estás agrupando por OC
-Todos estos documentos tienen:
-Plain text
-OC: 007902
-Pero tu sistema los separó en:
-grupo 04-0001 (factura)
-otros sin grupo
-👉 ❌ deberían ser UNO SOLO
-❌ Problema #3: Falta documento principal
-Tu regla era:
-Siempre hay una factura principal
-Pero en este caso tienes:
-1 factura válida
-1 factura OCR
-1 guía
-1 orden compra
-👉 Pero no estás haciendo:
-Plain text
-documento_principal_id
-🧠 4. Lo correcto (modelo ideal)
-🔗 Agrupación correcta
-Todos estos deben quedar así:
-Plain text
-GRUPO: 04-0001
-
-- FACTURA (principal)
-- GUIA
-- ORDEN_COMPRA
-🧠 5. Diagnóstico final
-👉 NO tienes duplicados
-👉 Tienes un problema más complejo:
-🔥 “duplicación lógica por mala clasificación”
-🛠️ 6. Qué debes corregir YA
-✅ 1. Detectar tipo correctamente
-En tu Python:
-Python
-if "FACTURA" in text:
-    tipo = "factura"
-elif "GUIA" in text:
-    tipo = "guia"
-elif "ORDEN DE COMPRA" in text:
-    tipo = "orden_compra"
-👉 esto es obligatorio
-✅ 2. Agrupar por OC (CLAVE)
-Extrae:
-Python
-oc = re.search(r"OC[:\s]*([0-9]+)", text)
-👉 y usa eso como clave de grupo
-✅ 3. Definir documento principal
-Python
-if tipo == "factura":
-    es_principal = True
-else:
-    es_principal = False
-    documento_principal_id = factura_id
-✅ 4. Renombrado correcto
-FACTURA:
-Plain text
-04-0001 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
-GUIA:
-Plain text
-04-0001 T002 00280 20538549071 OMEGA POWER GUIA.pdf
-ORDEN COMPRA:
-Plain text
-04-0001 OC 007902 BBTI ORDEN_COMPRA.pdf
-🧠 7. Conclusión clara
-👉 Tu sistema YA FUNCIONA
-👉 OCR también OK
-👉 n8n OK
-Pero ahora estás en fase crítica:
-⚠️ “normalización documental”
-🚀 8. Siguiente paso (te recomiendo)
-Si quieres hacerlo PRO de verdad:
-👉 siguiente mejora:
-agrupar por:
-OC
-RUC proveedor
+Regla nueva
+Para cada correo_id:
+se identifica la factura principal
+de esa factura salen:
+mes
 cliente destino
-🧠 Opinión directa (sin filtro)
-Lo que hiciste hasta ahora está:
-👉 🔥 nivel sistema empresarial real
-👉 pero te falta este paso para que sea contable-ready
-👉 Si quieres seguimos con esto:
-Te puedo ayudar a implementar:
-✅ agrupación automática por OC
-✅ asignación de documento principal
-✅ renombrado unificado
-✅ mover a carpeta Windows por cliente
-Y ya te queda sistema listo para producción real 💪
+correlativo mensual
+se genera un solo grupo_codigo, por ejemplo 04-0001
+todos los documentos PDF del mismo correo usan ese mismo grupo_codigo
+Resultado esperado para un correo
+Ejemplo:
+factura → 04-0001 F002 00000254 20538549071 OMEGA POWER S A FACTURA.pdf
+guía → 04-0001 T002 00280 20538549071 OMEGA POWER S A GUIA.pdf
+OC → 04-0001 OC 007902 20538549071 OMEGA POWER S A ORDEN_COMPRA.pdf
+Y todos irán a la carpeta Windows del cliente destino, que en estos ejemplos es BBTI. � � �
+posible_documento_20260417220657884_2.pdf
+ocr_posible_documento_20260417220657881_1.pdf
+04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
+Implementación
+1. Ajuste conceptual
+Ya no llames get_next_correlativo_mes() por cada factura encontrada durante el loop.
+Debes llamarlo una sola vez por correo.
+2. Nueva función: obtener datos del correo
+Crea en app/core/grupo_documental.py:
+Python
+from __future__ import annotations
+
+from datetime import date
+from core.db import get_cursor
+
+
+def get_next_correlativo_mes(fecha_emision: date, prefijo: str = "04") -> tuple[int, str]:
+    year = fecha_emision.year
+    month = fecha_emision.month
+
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            """
+            SELECT COALESCE(MAX(correlativo_mes), 0) AS max_corr
+            FROM documentos
+            WHERE fecha_emision IS NOT NULL
+              AND EXTRACT(YEAR FROM fecha_emision) = %s
+              AND EXTRACT(MONTH FROM fecha_emision) = %s
+              AND grupo_codigo LIKE %s
+            """,
+            (year, month, f"{prefijo}-%"),
+        )
+        row = cur.fetchone()
+
+    siguiente = int(row["max_corr"] or 0) + 1
+    grupo_codigo = f"{prefijo}-{siguiente:04d}"
+    return siguiente, grupo_codigo
+
+
+def get_documentos_por_correo(correo_id: int) -> list[dict]:
+    with get_cursor() as (_, cur):
+        cur.execute(
+            """
+            SELECT
+                d.id AS documento_id,
+                d.correo_id,
+                d.tipo_documental,
+                d.serie,
+                d.numero,
+                d.ruc,
+                d.razon_social,
+                d.fecha_emision,
+                d.importe,
+                d.estado_documento,
+                a.id AS archivo_id,
+                a.nombre_archivo_actual,
+                a.nombre_archivo_original,
+                a.ruta_temporal,
+                a.estado_archivo
+            FROM documentos d
+            JOIN archivos a ON a.documento_id = d.id
+            WHERE d.correo_id = %s
+            ORDER BY d.id ASC
+            """,
+            (correo_id,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+3. Elegir la factura principal del correo
+En procesar_pendientes.py, agrega una función:
+Python
+def select_factura_principal(documentos: list[dict]) -> dict | None:
+    facturas = [d for d in documentos if d.get("tipo_documental") == "factura"]
+
+    if not facturas:
+        return None
+
+    # prioridad: factura con fecha + serie F*
+    facturas.sort(
+        key=lambda d: (
+            0 if d.get("fecha_emision") else 1,
+            0 if str(d.get("serie") or "").upper().startswith("F") else 1,
+            d["documento_id"],
+        )
+    )
+    return facturas[0]
+4. Nombre final por documento
+En app/core/file_manager.py, usa esto:
+Python
+from pathlib import Path
+import re
+
+
+def sanitize_filename(name: str) -> str:
+    return re.sub(r'[<>:"/\\|?*]+', "_", name).strip()
+
+
+def build_final_name(
+    grupo_codigo: str,
+    serie: str | None,
+    numero: str | None,
+    ruc_emisor: str | None,
+    razon_social_emisor: str | None,
+    tipo_documental: str,
+    fallback_name: str,
+) -> str:
+    ext = Path(fallback_name).suffix.lower() or ".pdf"
+
+    serie_txt = (serie or "").strip()
+    numero_txt = (numero or "").strip()
+    ruc_txt = (ruc_emisor or "").strip()
+    razon_txt = sanitize_filename((razon_social_emisor or "").strip()) or "SIN_RAZON_SOCIAL"
+
+    tipo_map = {
+        "factura": "FACTURA",
+        "guia": "GUIA",
+        "orden_compra": "ORDEN_COMPRA",
+        "nota": "NOTA",
+        "otro": "OTRO",
+    }
+    tipo_txt = tipo_map.get(tipo_documental, "OTRO")
+
+    parts = [grupo_codigo]
+
+    if serie_txt:
+        parts.append(serie_txt)
+    if numero_txt:
+        parts.append(numero_txt)
+    if ruc_txt:
+        parts.append(ruc_txt)
+
+    parts.append(razon_txt)
+    parts.append(tipo_txt)
+
+    return sanitize_filename(" ".join(parts)) + ext
+5. Procesar por correo, no por documento
+En procesar_pendientes.py, cambia el flujo principal.
+Nueva idea de main()
+obtener correos pendientes
+procesar todos los documentos de ese correo
+recién asignar grupo único al correo
+Usa este main():
+Python
+def get_correos_pendientes() -> list[int]:
+    with get_cursor() as (_, cur):
+        cur.execute(
+            """
+            SELECT DISTINCT correo_id
+            FROM documentos
+            WHERE estado_documento IN ('pendiente', 'no_identificado', 'clasificado', 'error')
+              AND correo_id IS NOT NULL
+            ORDER BY correo_id
+            """
+        )
+        rows = cur.fetchall()
+        return [int(r["correo_id"]) for r in rows]
+Y luego:
+Python
+def main() -> None:
+    correos = get_correos_pendientes()
+
+    if not correos:
+        print("No hay correos pendientes.")
+        return
+
+    print(f"Correos encontrados: {len(correos)}")
+
+    for correo_id in correos:
+        procesar_correo(correo_id)
+6. Nueva función procesar_correo()
+Esta es la clave:
+Python
+def procesar_correo(correo_id: int) -> None:
+    print(f"[CORREO] Procesando correo_id={correo_id}")
+
+    documentos = get_documentos_por_correo(correo_id)
+
+    # 1. Primero procesa cada documento para extraer texto/OCR/clasificar
+    procesados = []
+    for item in documentos:
+        data = process_one_document(item, save_changes=False)
+        if data:
+            procesados.append(data)
+
+    if not procesados:
+        print(f"[WARN] correo_id={correo_id} sin documentos procesables")
+        return
+
+    # 2. Elegir factura principal del correo
+    factura_principal = select_factura_principal(procesados)
+    if not factura_principal:
+        print(f"[WARN] correo_id={correo_id} sin factura principal")
+        # puedes marcar todo como inconsistente
+        return
+
+    fecha_emision = factura_principal.get("fecha_emision_date")
+    if not fecha_emision:
+        print(f"[WARN] correo_id={correo_id} sin fecha_emision en factura principal")
+        return
+
+    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_emision, prefijo="04")
+
+    cliente_destino_id = factura_principal.get("cliente_destino_id")
+    ruta_windows_final = factura_principal.get("ruta_windows_final")
+    factura_principal_id = factura_principal["documento_id"]
+
+    # 3. Aplicar grupo único a todos los documentos del correo
+    for item in procesados:
+        item["grupo_codigo"] = grupo_codigo
+        item["correlativo_mes"] = correlativo_mes
+        item["cliente_destino_id"] = item.get("cliente_destino_id") or cliente_destino_id
+        item["ruta_windows_final"] = ruta_windows_final
+        item["es_principal"] = item["documento_id"] == factura_principal_id
+        item["documento_principal_id"] = None if item["documento_id"] == factura_principal_id else factura_principal_id
+
+        item["nombre_final"] = build_final_name(
+            grupo_codigo=grupo_codigo,
+            serie=item.get("serie"),
+            numero=item.get("numero"),
+            ruc_emisor=item.get("ruc"),
+            razon_social_emisor=item.get("razon_social"),
+            tipo_documental=item.get("tipo_documental"),
+            fallback_name=item.get("nombre_archivo_actual") or item.get("nombre_archivo_original"),
+        )
+
+        save_processed_document(item)
+
+    print(f"[OK] correo_id={correo_id} grupo={grupo_codigo} principal={factura_principal_id}")
+7. process_one_document() ahora devuelve datos
+En vez de guardar de frente, haz que devuelva un dict.
+Cámbiala para que al final retorne algo así:
+Python
+return {
+    "documento_id": documento_id,
+    "archivo_id": archivo_id,
+    "correo_id": correo_id,
+    "proveedor_id": proveedor_id,
+    "cliente_destino_id": cliente_destino_id,
+    "tipo_documental": tipo_documental,
+    "serie": fields["serie"],
+    "numero": fields["numero"],
+    "ruc": ruc_emisor,
+    "razon_social": razon_social_emisor,
+    "fecha_emision": fecha_emision_normalizada,
+    "fecha_emision_date": fecha_emision_date,
+    "importe": fields["importe"],
+    "estado_documento": estado_documento,
+    "nombre_archivo_actual": nombre_archivo_actual,
+    "nombre_archivo_original": nombre_archivo_original,
+    "ruta_temporal": ruta_temporal,
+    "ruta_windows_final": ruta_windows_final,
+}
+Y ponle parámetro:
+Python
+def process_one_document(item: dict, save_changes: bool = False) -> dict | None:
+Así primero clasifica, luego procesar_correo() decide grupo único.
+8. Nueva función para guardar al final
+Agrega:
+Python
+def save_processed_document(item: dict) -> None:
+    pdf_path = resolve_absolute_path(item["ruta_temporal"])
+    year = pdf_path.parent.parent.name
+    month = pdf_path.parent.name
+
+    destino_relativo = f"pendientes_clasificados/{year}/{month}/{item['nombre_final']}"
+    destino_abs = STORAGE_DIR / destino_relativo
+
+    if pdf_path.exists() and pdf_path.name != item["nombre_final"]:
+        move_file(pdf_path, destino_abs)
+
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            SQL_UPDATE_DOCUMENTO,
+            {
+                "proveedor_id": item["proveedor_id"],
+                "cliente_destino_id": item["cliente_destino_id"],
+                "tipo_documental": item["tipo_documental"],
+                "serie": item["serie"],
+                "numero": item["numero"],
+                "ruc": item["ruc"],
+                "razon_social": item["razon_social"],
+                "fecha_emision": item["fecha_emision"],
+                "importe": item["importe"],
+                "estado_documento": item["estado_documento"],
+                "grupo_codigo": item["grupo_codigo"],
+                "correlativo_mes": item["correlativo_mes"],
+                "es_principal": item["es_principal"],
+                "documento_principal_id": item["documento_principal_id"],
+                "nombre_final": item["nombre_final"],
+                "ruta_windows_final": item["ruta_windows_final"],
+                "documento_id": item["documento_id"],
+            },
+        )
+
+        cur.execute(
+            SQL_UPDATE_ARCHIVO,
+            {
+                "nombre_archivo_actual": item["nombre_final"],
+                "ruta_temporal": destino_relativo,
+                "estado_archivo": "renombrado",
+                "archivo_id": item["archivo_id"],
+            },
+        )
+Qué cambia con esto
+Antes:
+cada factura podía generar su propio 04-000X
+Ahora:
+solo una factura principal del correo genera el grupo
+todos los adjuntos PDF del correo heredan ese mismo grupo
+Eso es exactamente tu regla de negocio.
+Respuesta directa
+Sí, 04-0001 debe ser único por correo, y esta implementación lo respeta.
+Y sí, n8n puede procesar más de un correo; Python los agrupará por correo_id, así que no se mezclarán.
+Si quieres, en el siguiente mensaje te ayudo a adaptar tu process_one_document() actual línea por línea para que no tengas que reescribir todo a ciegas.
