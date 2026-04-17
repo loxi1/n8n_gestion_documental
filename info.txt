@@ -1,63 +1,41 @@
-Sí, ya vi el problema exacto en tu repo: procesar_pendientes.py toma fields["fecha_emision"] y la manda directo al UPDATE documentos, sin normalizarla antes. Por eso PostgreSQL revienta cuando recibe "14-ABR-2026" como date. �
-GitHub
-Además, tu OCR ya está funcionando bien desde WSL, porque el script quedó configurado para usar /home/loxi1/venvs/ocrpdf/bin/ocrmypdf en Windows y ya te devolvió [OCR OK]. �
-GitHub
-Qué hay que hacer
-Agregar una función que convierta fechas como:
-14-ABR-2026
-14/04/2026
-2026-04-15
-a formato ISO:
-2026-04-14
-y recién eso guardar en la BD.
-Cambio exacto en procesar_pendientes.py
-1. Agrega estos imports arriba
-Python
-import re
-from datetime import datetime
-2. Agrega esta función debajo de to_wsl_path() o antes de process_one_document()
-Python
-
-3. Dentro de process_one_document(), después de esta línea:
-Python
-fields = extract_basic_fields(text, nombre_archivo_original)
-agrega:
-Python
-fecha_emision_normalizada = normalize_date(fields["fecha_emision"])
-4. Luego cambia esta parte del cur.execute(SQL_UPDATE_DOCUMENTO, {...})
-donde hoy tienes:
-Python
-"fecha_emision": fields["fecha_emision"],
-cámbialo por:
-Python
-"fecha_emision": fecha_emision_normalizada,
-Hazlo en ambos lugares si actualizas documento en más de un bloque.
-Qué va a pasar después
-Con eso:
-14-ABR-2026 → 2026-04-14
-2026-04-15 se queda bien
-PostgreSQL ya no se quejará por formato de fecha
-Lo bueno de tu estado actual
-Tu OCR local ya quedó resuelto.
-Tu file_manager.py ya está listo para renombrar como:
-FACTURA_...
-GUIA_...
-OC_... �
-GitHub
-Y tu config.py ya tiene la estructura mínima correcta para storage/files y ocr_tmp. �
-GitHub
-Siguiente paso
-Haz ese cambio de normalización de fecha y vuelve a ejecutar:
-Bash
-python procesar_pendientes.py
-Luego revisa:
-SQL
+$ python procesar_pendientes.py
+Pendientes encontrados: 3
+[ERROR] No existe archivo: C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\no_identificados\2026\04\posible_documento_20260416204138431_1.pdf
+[OCR OK] documento_id=3 archivo=posible_documento_20260416204138431_3.pdf
+[OK] documento_id=3 tipo=guia archivo=GUIA_373_5446.pdf
+[OCR OK] documento_id=5 archivo=posible_documento_20260416204138431_5.pdf
+[OK] documento_id=5 tipo=factura archivo=FACTURA_20538549071_981_453.pdf
+(venv) 
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
 SELECT id, estado_documento, tipo_documental, serie, numero, ruc, fecha_emision
-FROM documentos
-ORDER BY id;
-y
-SQL
-SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo
-FROM archivos
-ORDER BY id;
-Pégame esa salida y seguimos con el siguiente ajuste.
+gestiondocumental-# FROM documentos
+gestiondocumental-# ORDER BY id;
+ id | estado_documento | tipo_documental | serie |  numero  |     ruc     | fecha_emision
+----+------------------+-----------------+-------+----------+-------------+---------------
+  1 | error            |                 |       |          |             |
+  2 | clasificado      | factura         | F001  | 00011006 | 20563293587 |
+  3 | clasificado      | guia            | 373   | 5446     | 20538549071 |
+  4 | clasificado      | factura         | F231  | 0101440  | 20100084172 | 2026-10-04
+  5 | clasificado      | factura         | 981   | 453      | 20538549071 | 2026-04-15
+(5 rows)
+
+
+gestiondocumental=# SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo FROM archivos ORDER BY id;
+ id | documento_id |           nombre_archivo_actual           |                             ruta_temporal                             | estado
+_archivo
+----+--------------+-------------------------------------------+-----------------------------------------------------------------------+-------
+---------
+  1 |            1 | posible_documento_20260416204138431_1.pdf | no_identificados/2026/04/posible_documento_20260416204138431_1.pdf    | error
+  2 |            2 | FACTURA_20563293587_F001_00011006.pdf     | pendientes_clasificados/2026/04/FACTURA_20563293587_F001_00011006.pdf | renomb
+rado
+  3 |            3 | GUIA_373_5446.pdf                         | pendientes_clasificados/2026/04/GUIA_373_5446.pdf                     | renomb
+rado
+  4 |            4 | FACTURA_20100084172_F231_0101440.pdf      | pendientes_clasificados/2026/04/FACTURA_20100084172_F231_0101440.pdf  | renomb
+rado
+  5 |            5 | FACTURA_20538549071_981_453.pdf           | pendientes_clasificados/2026/04/FACTURA_20538549071_981_453.pdf       | renomb
+rado
+(5 rows)
+
+
+gestiondocumental=#
+
