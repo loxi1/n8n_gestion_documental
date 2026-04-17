@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import re
 from datetime import date
+from typing import Any
+
 from core.db import get_cursor
 
 
@@ -34,6 +37,8 @@ def get_documentos_por_correo(correo_id: int) -> list[dict]:
             SELECT
                 d.id AS documento_id,
                 d.correo_id,
+                d.proveedor_id,
+                d.cliente_destino_id,
                 d.tipo_documental,
                 d.serie,
                 d.numero,
@@ -42,6 +47,12 @@ def get_documentos_por_correo(correo_id: int) -> list[dict]:
                 d.fecha_emision,
                 d.importe,
                 d.estado_documento,
+                d.grupo_codigo,
+                d.correlativo_mes,
+                d.es_principal,
+                d.documento_principal_id,
+                d.nombre_final,
+                d.ruta_windows_final,
                 a.id AS archivo_id,
                 a.nombre_archivo_actual,
                 a.nombre_archivo_original,
@@ -55,3 +66,54 @@ def get_documentos_por_correo(correo_id: int) -> list[dict]:
             (correo_id,),
         )
         return [dict(r) for r in cur.fetchall()]
+
+
+def extract_oc(text: str) -> str | None:
+    patrones = [
+        r"\bORDEN DE COMPRA[:\sN°º]*([0-9]{3,})\b",
+        r"\bN[°º]\s*OC[:\s]*([0-9]{3,})\b",
+        r"\bOC[:\s]*([0-9]{3,})\b",
+    ]
+    text_u = text.upper()
+    for patron in patrones:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def build_operation_key(
+    correo_id: int,
+    tipo_documental: str | None,
+    ruc: str | None,
+    oc: str | None,
+    cliente_destino_id: int | None,
+) -> str:
+    """
+    Clave lógica de agrupación.
+    - Si hay OC, usarla.
+    - Si no, usar factura + ruc.
+    """
+    ruc_txt = (ruc or "SINRUC").strip()
+    cli_txt = str(cliente_destino_id or "SINCLI")
+    oc_txt = (oc or "").strip()
+
+    if oc_txt:
+        return f"{correo_id}|OC|{oc_txt}|{ruc_txt}|{cli_txt}"
+
+    return f"{correo_id}|DOC|{tipo_documental or 'SIN_TIPO'}|{ruc_txt}|{cli_txt}"
+
+
+def select_factura_principal(documentos: list[dict]) -> dict | None:
+    facturas = [d for d in documentos if d.get("tipo_documental") == "factura"]
+    if not facturas:
+        return None
+
+    facturas.sort(
+        key=lambda d: (
+            0 if d.get("fecha_emision") else 1,
+            0 if str(d.get("serie") or "").upper().startswith("F") else 1,
+            d["documento_id"],
+        )
+    )
+    return facturas[0]
