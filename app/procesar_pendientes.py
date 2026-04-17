@@ -76,7 +76,6 @@ def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
 
     system_name = platform.system().lower()
 
-    # En Windows usaremos WSL
     if "windows" in system_name:
         input_wsl = to_wsl_path(input_pdf)
         output_wsl = to_wsl_path(output_pdf)
@@ -85,11 +84,9 @@ def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
             "wsl",
             "bash",
             "-lc",
-            f'export PATH="$HOME/venvs/ocrpdf/bin:$PATH" && '
-            f'ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
+            f'/home/loxi1/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
         ]
     else:
-        # En Ubuntu producción
         cmd = [
             "ocrmypdf",
             "-l", "spa",
