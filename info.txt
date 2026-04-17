@@ -1,42 +1,86 @@
-Tengo este error:
-$ python procesar_pendientes.py
-Pendientes encontrados: 3
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-bash: line 1: ocrmypdf: command not found
-
-[WARN] No identificado: documento_id=1 archivo=posible_documento_20260416204138431_1.pdf
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-bash: line 1: ocrmypdf: command not found
-
-[WARN] No identificado: documento_id=3 archivo=posible_documento_20260416204138431_3.pdf
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-bash: line 1: ocrmypdf: command not found
-
-[WARN] No identificado: documento_id=5 archivo=posible_documento_20260416204138431_5.pdf
-(venv) 
-
-estructura de archivos
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/no_identificados/2026/04/
-total 1432
--rw-r--r-- 1 BBTI 01 197121 316245 Apr 16 15:41 posible_documento_20260416204138431_1.pdf
--rw-r--r-- 1 BBTI 01 197121 378460 Apr 16 15:41 posible_documento_20260416204138431_3.pdf
--rw-r--r-- 1 BBTI 01 197121 764541 Apr 16 15:41 posible_documento_20260416204138431_5.pdf
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/ocr_tmp/2026/04/
-total 1804
--rw-r--r-- 1 BBTI 01 197121  341777 Apr 16 18:35 ocr_posible_documento_20260416204138431_1.pdf
--rw-r--r-- 1 BBTI 01 197121  430403 Apr 16 18:39 ocr_posible_documento_20260416204138431_3.pdf
--rw-r--r-- 1 BBTI 01 197121 1067144 Apr 16 18:40 ocr_posible_documento_20260416204138431_5.pdf
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$
-
-los archivos del proyecto estan aqui por favor revisalos: https://github.com/loxi1/n8n_gestion_documental/tree/master/app
+Perfecto, ya encontramos el problema exacto:
+Qué pasa
+Tu ocrmypdf está instalado en:
+Plain text
+/root/venvs/ocrpdf/bin/ocrmypdf
+pero cuando llamas wsl ... desde PowerShell o desde Python, WSL entra con tu usuario por defecto, no como root.
+Entonces intenta ejecutar un archivo dentro de /root/... y por eso da:
+Plain text
+Permission denied
+La mejor solución
+Mueve el entorno OCR al usuario normal loxi1
+No lo dejes en /root.
+Eso te va a evitar problemas ahora y después.
+Haz esto dentro de WSL
+Entra a WSL como tu usuario normal loxi1, no como root.
+Primero verifica:
+Bash
+whoami
+echo $HOME
+Debería salir algo como:
+Plain text
+loxi1
+/home/loxi1
+Luego crea el nuevo venv en tu home
+Bash
+mkdir -p ~/venvs
+python3 -m venv ~/venvs/ocrpdf
+source ~/venvs/ocrpdf/bin/activate
+pip install --upgrade pip
+pip install ocrmypdf pypdf
+Verifica
+Bash
+which ocrmypdf
+ocrmypdf --version
+Debería quedar algo como:
+Plain text
+/home/loxi1/venvs/ocrpdf/bin/ocrmypdf
+Luego prueba desde PowerShell
+PowerShell
+wsl bash -lc "/home/loxi1/venvs/ocrpdf/bin/ocrmypdf --version"
+Si responde bien, ya quedó solucionado.
+Qué cambiar en tu procesar_pendientes.py
+Donde pusimos:
+Python
+f'/root/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
+cámbialo por:
+Python
+f'/home/loxi1/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
+Alternativa rápida, si no quieres reinstalar
+Podrías ejecutar WSL como root:
+PowerShell
+wsl -u root bash -lc "/root/venvs/ocrpdf/bin/ocrmypdf --version"
+y en Python usar:
+Python
+cmd = [
+    "C:\\Windows\\System32\\wsl.exe",
+    "-u", "root",
+    "bash",
+    "-lc",
+    f'/root/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
+]
+Pero no te lo recomiendo
+Porque:
+es más sucio
+te acostumbra a correr OCR como root
+luego en producción no querrás eso
+Mi recomendación final
+Hazlo bien desde ya:
+crea el venv en /home/loxi1/venvs/ocrpdf
+reinstala ocrmypdf y pypdf
+prueba desde PowerShell
+cambia la ruta en Python
+Comandos exactos
+En WSL como loxi1
+Bash
+mkdir -p ~/venvs
+python3 -m venv ~/venvs/ocrpdf
+source ~/venvs/ocrpdf/bin/activate
+pip install --upgrade pip
+pip install ocrmypdf pypdf
+which ocrmypdf
+ocrmypdf --version
+En PowerShell
+PowerShell
+wsl bash -lc "/home/loxi1/venvs/ocrpdf/bin/ocrmypdf --version"
+Cuando te funcione ese último comando, seguimos con el cambio en procesar_pendientes.py.
