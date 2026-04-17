@@ -1,59 +1,274 @@
-Se ejecuto el limpiando la base datos y los archivos se enviaron dos archivos:
-[
-  {
-    "subject": "facto 01",
-    "fromEmail": "anibal.cayetano@gmail.com",
-    "fromName": "Anibal Cayetano Meza",
-    "messageId": "<CAFtAZZCu=p6VPpz8FWJOeMNYkXhrF-ubQK_=6G=++cKAp6RiYQ@mail.gmail.com>",
-    "date": "2026-04-17T22:35:01.000Z",
-    "originalFileName": "20100084172-01-F241-0045334.pdf",
-    "storedFileName": "posible_documento_20260417231447226_1.pdf",
-    "tipoDetectado": "pendiente",
-    "filePath": "/files/inbox/2026/04/posible_documento_20260417231447226_1.pdf",
-    "relativePath": "inbox/2026/04/posible_documento_20260417231447226_1.pdf",
-    "mimeType": "application/pdf",
-    "tamano_bytes": "60.7 kB"
-  },
-  {
-    "subject": "facto 2",
-    "fromEmail": "anibal.cayetano@gmail.com",
-    "fromName": "Anibal Cayetano Meza",
-    "messageId": "<CAFtAZZDQT02_giWENQzbFfhXaUwy4sFqhurQ0x536k_baS5qPA@mail.gmail.com>",
-    "date": "2026-04-17T22:37:36.000Z",
-    "originalFileName": "GUIA T002-00280 FIRMADO.pdf",
-    "storedFileName": "posible_documento_20260417231447226_1.pdf",
-    "tipoDetectado": "pendiente",
-    "filePath": "/files/inbox/2026/04/posible_documento_20260417231447226_1.pdf",
-    "relativePath": "inbox/2026/04/posible_documento_20260417231447226_1.pdf",
-    "mimeType": "application/pdf",
-    "tamano_bytes": "378 kB"
-  },
-  {
-    "subject": "facto 2",
-    "fromEmail": "anibal.cayetano@gmail.com",
-    "fromName": "Anibal Cayetano Meza",
-    "messageId": "<CAFtAZZDQT02_giWENQzbFfhXaUwy4sFqhurQ0x536k_baS5qPA@mail.gmail.com>",
-    "date": "2026-04-17T22:37:36.000Z",
-    "originalFileName": "F F002-00000254.pdf",
-    "storedFileName": "posible_documento_20260417231447226_2.pdf",
-    "tipoDetectado": "pendiente",
-    "filePath": "/files/inbox/2026/04/posible_documento_20260417231447226_2.pdf",
-    "relativePath": "inbox/2026/04/posible_documento_20260417231447226_2.pdf",
-    "mimeType": "application/pdf",
-    "tamano_bytes": "99.9 kB"
-  },
-  {
-    "subject": "facto 2",
-    "fromEmail": "anibal.cayetano@gmail.com",
-    "fromName": "Anibal Cayetano Meza",
-    "messageId": "<CAFtAZZDQT02_giWENQzbFfhXaUwy4sFqhurQ0x536k_baS5qPA@mail.gmail.com>",
-    "date": "2026-04-17T22:37:36.000Z",
-    "originalFileName": "ORDEN DE COMRA 007902.pdf.pdf",
-    "storedFileName": "posible_documento_20260417231447226_3.pdf",
-    "tipoDetectado": "pendiente",
-    "filePath": "/files/inbox/2026/04/posible_documento_20260417231447226_3.pdf",
-    "relativePath": "inbox/2026/04/posible_documento_20260417231447226_3.pdf",
-    "mimeType": "application/pdf",
-    "tamano_bytes": "765 kB"
-  }
-]
+Perfecto. Esa aclaración cambia la regla y la vuelve más sólida:
+OC y requerimiento de compra: los genera tu empresa
+guías: las genera normalmente el proveedor/emisor
+facturas: pueden venir digitales o escaneadas
+el documento principal del grupo sigue siendo la factura
+la OC sirve como amarre fuerte entre documentos
+Con eso, la estrategia correcta ya no es “adivinar todo por palabras sueltas”, sino aplicar prioridad de origen + prioridad documental.
+Regla nueva de clasificación
+1. Prioridad por tipo
+Hazla así, en este orden:
+orden_compra
+requerimiento_compra
+guia
+factura
+nota_credito
+otro
+¿Por qué así?
+Porque una OC o un requerimiento interno casi siempre mencionan la palabra “factura”, pero no por eso son factura.
+Regla por origen esperado
+Orden de compra
+Si el documento contiene cosas como:
+ORDEN DE COMPRA
+logo o razón social de tu empresa
+campos tipo ATENCION, SOLICITANTE, CENTRO DE COSTOS, LUGAR DE ENTREGA
+entonces debe ser orden_compra.
+Requerimiento de compra
+Si contiene:
+REQUERIMIENTO DE COMPRA
+REQ
+área solicitante
+aprobaciones internas
+campos de necesidad interna
+entonces debe ser requerimiento_compra.
+Guía
+Si contiene:
+GUIA DE REMISION
+GUIA DE REMISION ELECTRONICA
+PUNTO DE PARTIDA
+PUNTO DE LLEGADA
+MOTIVO DEL TRASLADO
+entonces debe ser guia.
+Factura
+Solo debe ser factura si hay evidencia fuerte como:
+FACTURA ELECTRONICA
+FACTURA
+serie tipo F001, F231, F002
+totales, IGV, operación gravada, forma de pago
+Lo más importante: ya no usar regex genérico para serie y número
+Ese fue tu mayor problema.
+Debe ser por tipo documental
+Si es factura
+buscar solo patrones tipo:
+F001-00011006
+F231-0101440
+F002-00000254
+Si es guía
+buscar solo:
+T001-00002145
+T002-00280
+Si es OC
+buscar:
+ORDEN DE COMPRA N° 007902
+OC 007902
+Si es requerimiento
+buscar:
+RC 12345
+REQ 12345
+el patrón real que uses internamente
+Cómo debe agruparse el correo
+Tu correo debe procesarse así:
+Paso 1
+Clasificar todos los adjuntos correctamente.
+Paso 2
+Identificar la factura principal.
+Paso 3
+Extraer de la factura:
+fecha de emisión
+cliente destino
+proveedor/emisor
+OC relacionada si existe
+Paso 4
+Buscar en el resto del correo:
+guía con la misma OC
+OC con ese número
+requerimiento asociado si existe
+Paso 5
+Asignar el mismo grupo_codigo a todos.
+Resultado esperado para este caso
+Debe quedar así:
+Plain text
+04-0001 F002 00000254 20538549071 OMEGA POWER S A C FACTURA.pdf
+04-0001 T002 00280 20538549071 OMEGA POWER S A C GUIA.pdf
+04-0001 OC 007902 20538549071 OMEGA POWER S A C ORDEN_COMPRA.pdf
+Y si aparece requerimiento:
+Plain text
+04-0001 RC 00XXX BBTI S A C REQUERIMIENTO_COMPRA.pdf
+Qué debes cambiar ahora en tu código
+1. detect_document_type()
+Reemplázalo por una versión estricta:
+Python
+def detect_document_type(text: str, original_name: str) -> str:
+    text_u = text.upper()
+    name_u = original_name.upper()
+
+    if (
+        "ORDEN DE COMPRA" in text_u
+        or "ORDEN DE COMRA" in text_u
+        or "ORDEN DE COMPRA" in name_u
+        or "ORDEN DE COMRA" in name_u
+    ):
+        return "orden_compra"
+
+    if (
+        "REQUERIMIENTO DE COMPRA" in text_u
+        or "REQUERIMIENTO" in text_u
+        or "REQ" in name_u
+    ):
+        return "requerimiento_compra"
+
+    if (
+        "GUIA DE REMISION" in text_u
+        or "GUÍA DE REMISIÓN" in text_u
+        or "GUIA DE REMISION ELECTRONICA" in text_u
+        or "GUÍA DE REMISIÓN ELECTRÓNICA" in text_u
+        or "PUNTO DE PARTIDA" in text_u
+        or "PUNTO DE LLEGADA" in text_u
+    ):
+        return "guia"
+
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or "FACTURA ELECTRÓNICA" in text_u
+        or re.search(r"\bF\d{3,4}-\d{3,}\b", text_u)
+    ):
+        return "factura"
+
+    if (
+        "NOTA DE CREDITO" in text_u
+        or "NOTA DE CRÉDITO" in text_u
+        or "NOTA DE DEBITO" in text_u
+        or "NOTA DE DÉBITO" in text_u
+    ):
+        return "nota_credito"
+
+    return "otro"
+2. extract_basic_fields()
+Debe depender de doc_type:
+Python
+def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
+    text_u = text.upper()
+    doc_type = detect_document_type(text, original_name)
+
+    ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
+    if not ruc:
+        ruc = _search(r"\b([0-9]{11})\b", text_u)
+
+    serie = None
+    numero = None
+    oc = None
+
+    if doc_type == "factura":
+        patrones = [
+            r"\b(F\d{3,4})[- ]([0-9]{3,})\b",
+        ]
+    elif doc_type == "guia":
+        patrones = [
+            r"\b(T\d{3,4})[- ]([0-9]{3,})\b",
+        ]
+    elif doc_type == "orden_compra":
+        patrones = [
+            r"\bORDEN DE COMPRA\s*N[°º: ]*([0-9]{3,})\b",
+            r"\bOC[:\s]*([0-9]{3,})\b",
+        ]
+    elif doc_type == "requerimiento_compra":
+        patrones = [
+            r"\bRC[:\s-]*([0-9]{3,})\b",
+            r"\bREQ[:\s-]*([0-9]{3,})\b",
+        ]
+    else:
+        patrones = []
+
+    for patron in patrones:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            if doc_type in ("orden_compra", "requerimiento_compra"):
+                serie = "OC" if doc_type == "orden_compra" else "REQ"
+                numero = m.group(1).strip()
+            else:
+                serie = m.group(1).strip()
+                numero = m.group(2).strip()
+            break
+
+    oc_match = re.search(r"\bOC[:\s]*([0-9]{3,})\b", text_u, re.IGNORECASE)
+    if oc_match:
+        oc = oc_match.group(1).strip()
+
+    fecha_emision = _search(
+        r"\bFECHA(?: DE EMISION| DE EMISIÓN)?[:\s]*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
+        text_u
+    )
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
+
+    importe = _search(
+        r"\b(?:TOTAL|TOTAL S/|TOTAL USD \$|TOTAL \(USD \$\))[:\sS/$]*([0-9]+(?:[.,][0-9]{2})?)\b",
+        text_u,
+    )
+
+    return {
+        "tipo_documental": doc_type,
+        "ruc": ruc,
+        "serie": serie,
+        "numero": numero,
+        "fecha_emision": fecha_emision,
+        "importe": importe,
+        "oc": oc,
+    }
+3. Renombrado final
+Amplía build_final_name():
+Python
+def build_final_name(
+    grupo_codigo: str,
+    serie: str | None,
+    numero: str | None,
+    ruc_emisor: str | None,
+    razon_social_emisor: str | None,
+    tipo_documental: str,
+    fallback_name: str,
+) -> str:
+    ext = Path(fallback_name).suffix.lower() or ".pdf"
+
+    serie_txt = (serie or "").strip()
+    numero_txt = (numero or "").strip()
+    ruc_txt = (ruc_emisor or "").strip()
+    razon_txt = sanitize_filename((razon_social_emisor or "").strip()) or "SIN_RAZON_SOCIAL"
+
+    tipo_map = {
+        "factura": "FACTURA",
+        "guia": "GUIA",
+        "orden_compra": "ORDEN_COMPRA",
+        "requerimiento_compra": "REQUERIMIENTO_COMPRA",
+        "nota_credito": "NOTA_CREDITO",
+        "otro": "OTRO",
+    }
+
+    tipo_txt = tipo_map.get(tipo_documental, "OTRO")
+
+    parts = [grupo_codigo]
+    if serie_txt:
+        parts.append(serie_txt)
+    if numero_txt:
+        parts.append(numero_txt)
+    if ruc_txt:
+        parts.append(ruc_txt)
+    parts.append(razon_txt)
+    parts.append(tipo_txt)
+
+    return sanitize_filename(" ".join(parts)) + ext
+Qué sigue después
+Con esto, tu siguiente mejora ya no es OCR, sino agrupar por factura + OC.
+La lógica sería:
+si una factura tiene OC 007902
+y hay una guía con OC 007902
+y hay una OC 007902
+entonces los tres documentos comparten grupo
+Mi recomendación concreta ahora
+El siguiente paso es modificar procesar_pendientes.py para que:
+procese todos los docs del correo_id
+identifique la factura principal
+use OC como pivote de agrupación
+renombre guía y OC con el mismo grupo
+Ese es el paso correcto que sigue.
