@@ -1,41 +1,22 @@
-$ python procesar_pendientes.py
-Pendientes encontrados: 3
-[ERROR] No existe archivo: C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\no_identificados\2026\04\posible_documento_20260416204138431_1.pdf
-[OCR OK] documento_id=3 archivo=posible_documento_20260416204138431_3.pdf
-[OK] documento_id=3 tipo=guia archivo=GUIA_373_5446.pdf
-[OCR OK] documento_id=5 archivo=posible_documento_20260416204138431_5.pdf
-[OK] documento_id=5 tipo=factura archivo=FACTURA_20538549071_981_453.pdf
-(venv) 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+Exacto, esos son los cambios correctos.
+Hazlos en procesar_pendientes.py, guarda y vuelve a correr:
+Bash
+python procesar_pendientes.py
+Luego revisa estas dos consultas:
+SQL
 SELECT id, estado_documento, tipo_documental, serie, numero, ruc, fecha_emision
-gestiondocumental-# FROM documentos
-gestiondocumental-# ORDER BY id;
- id | estado_documento | tipo_documental | serie |  numero  |     ruc     | fecha_emision
-----+------------------+-----------------+-------+----------+-------------+---------------
-  1 | error            |                 |       |          |             |
-  2 | clasificado      | factura         | F001  | 00011006 | 20563293587 |
-  3 | clasificado      | guia            | 373   | 5446     | 20538549071 |
-  4 | clasificado      | factura         | F231  | 0101440  | 20100084172 | 2026-10-04
-  5 | clasificado      | factura         | 981   | 453      | 20538549071 | 2026-04-15
-(5 rows)
-
-
-gestiondocumental=# SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo FROM archivos ORDER BY id;
- id | documento_id |           nombre_archivo_actual           |                             ruta_temporal                             | estado
-_archivo
-----+--------------+-------------------------------------------+-----------------------------------------------------------------------+-------
----------
-  1 |            1 | posible_documento_20260416204138431_1.pdf | no_identificados/2026/04/posible_documento_20260416204138431_1.pdf    | error
-  2 |            2 | FACTURA_20563293587_F001_00011006.pdf     | pendientes_clasificados/2026/04/FACTURA_20563293587_F001_00011006.pdf | renomb
-rado
-  3 |            3 | GUIA_373_5446.pdf                         | pendientes_clasificados/2026/04/GUIA_373_5446.pdf                     | renomb
-rado
-  4 |            4 | FACTURA_20100084172_F231_0101440.pdf      | pendientes_clasificados/2026/04/FACTURA_20100084172_F231_0101440.pdf  | renomb
-rado
-  5 |            5 | FACTURA_20538549071_981_453.pdf           | pendientes_clasificados/2026/04/FACTURA_20538549071_981_453.pdf       | renomb
-rado
-(5 rows)
-
-
-gestiondocumental=#
-
+FROM documentos
+ORDER BY id;
+SQL
+SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo
+FROM archivos
+ORDER BY id;
+Lo que espero ver después del cambio es algo así:
+documento 1 → guia
+documento 3 → guia
+documento 5 → orden_compra
+y en archivos nombres parecidos a:
+GUIA_T001_00002145.pdf
+GUIA_T002_00280.pdf
+OC_007902.pdf
+Si vuelve a fallar, ya no debería ser por fecha; ahí revisaríamos si el número o la serie se están extrayendo bien. Pégame la salida de esas consultas y seguimos.
