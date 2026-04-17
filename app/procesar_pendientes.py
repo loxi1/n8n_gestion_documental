@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import os
+import platform
+import subprocess
 from pathlib import Path
 
 from core.config import (
     STORAGE_DIR,
     OCR_TMP_DIR,
-    PENDIENTES_CLASIFICADOS_DIR,
-    NO_IDENTIFICADOS_DIR,
 )
 from core.db import get_cursor
 from core.extractor_pdf import extract_text_from_pdf
 from core.classifier import extract_basic_fields
 from core.file_manager import build_temp_classified_name, move_file
-from core.ocr_service import run_ocr
 
 
 SQL_SELECT_PENDING = """
@@ -58,16 +58,78 @@ def resolve_absolute_path(relative_path: str) -> Path:
     return STORAGE_DIR / relative_path
 
 
-def move_to_no_identificados(pdf_path: Path, fallback_name: str) -> tuple[str, str]:
+def to_wsl_path(path: Path) -> str:
+    """
+    Convierte:
+    C:\\D\\Proyectos\\...  -> /mnt/c/D/Proyectos/...
+    """
+    raw = str(path.resolve()).replace("\\", "/")
+    if len(raw) >= 2 and raw[1] == ":":
+        drive = raw[0].lower()
+        rest = raw[2:]
+        return f"/mnt/{drive}{rest}"
+    return raw
+
+
+def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+
+    system_name = platform.system().lower()
+
+    # En Windows usaremos WSL
+    if "windows" in system_name:
+        input_wsl = to_wsl_path(input_pdf)
+        output_wsl = to_wsl_path(output_pdf)
+
+        cmd = [
+            "wsl",
+            "bash",
+            "-lc",
+            f'export PATH="$HOME/venvs/ocrpdf/bin:$PATH" && '
+            f'ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
+        ]
+    else:
+        # En Ubuntu producción
+        cmd = [
+            "ocrmypdf",
+            "-l", "spa",
+            "--force-ocr",
+            str(input_pdf),
+            str(output_pdf),
+        ]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            print("[OCR ERROR STDOUT]")
+            print(result.stdout)
+            print("[OCR ERROR STDERR]")
+            print(result.stderr)
+            return False
+
+        return True
+
+    except Exception as exc:
+        print(f"[OCR EXCEPTION] {exc}")
+        return False
+
+
+def move_to_bucket(pdf_path: Path, bucket: str, fallback_name: str) -> tuple[str, str]:
     year = pdf_path.parent.parent.name
     month = pdf_path.parent.name
-    destino_relativo = f"no_identificados/{year}/{month}/{fallback_name}"
+    destino_relativo = f"{bucket}/{year}/{month}/{fallback_name}"
     destino_abs = STORAGE_DIR / destino_relativo
     move_file(pdf_path, destino_abs)
     return fallback_name, destino_relativo
 
 
-def procesar_documento(item: dict) -> None:
+def process_one_document(item: dict) -> None:
     documento_id = item["documento_id"]
     archivo_id = item["archivo_id"]
     ruta_temporal = item["ruta_temporal"]
@@ -101,27 +163,33 @@ def procesar_documento(item: dict) -> None:
     try:
         text = extract_text_from_pdf(pdf_path)
     except Exception as exc:
-        print(f"[WARN] Error lectura directa PDF {pdf_path}: {exc}")
+        print(f"[WARN] Error leyendo PDF directo {pdf_path.name}: {exc}")
 
     # Si no hay texto, intentar OCR
     if not text.strip():
-        ocr_output = OCR_TMP_DIR / pdf_path.parent.parent.name / pdf_path.parent.name / pdf_path.name
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
+
         ocr_ok = run_ocr(pdf_path, ocr_output)
 
         if ocr_ok and ocr_output.exists():
             try:
                 text = extract_text_from_pdf(ocr_output)
                 if text.strip():
-                    # reemplazamos el original por el OCRado
-                    move_file(ocr_output, pdf_path)
                     print(f"[OCR OK] documento_id={documento_id} archivo={pdf_path.name}")
                 else:
                     print(f"[OCR WARN] OCR generado pero sin texto útil: {pdf_path.name}")
             except Exception as exc:
-                print(f"[OCR ERROR] No se pudo leer OCR: {exc}")
+                print(f"[OCR READ ERROR] {exc}")
 
+    # Si sigue sin texto, mover a no_identificados
     if not text.strip():
-        nuevo_nombre, destino_relativo = move_to_no_identificados(pdf_path, nombre_archivo_actual)
+        nuevo_nombre, destino_relativo = move_to_bucket(
+            pdf_path,
+            "no_identificados",
+            nombre_archivo_actual,
+        )
 
         with get_cursor(commit=True) as (_, cur):
             cur.execute(
@@ -147,10 +215,11 @@ def procesar_documento(item: dict) -> None:
                 },
             )
 
-        print(f"[WARN] No identificado: {pdf_path.name}")
+        print(f"[WARN] No identificado: documento_id={documento_id} archivo={pdf_path.name}")
         return
 
     fields = extract_basic_fields(text, nombre_archivo_original)
+
     tipo_documental = fields["tipo_documental"]
     estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
 
@@ -165,12 +234,10 @@ def procesar_documento(item: dict) -> None:
     year = pdf_path.parent.parent.name
     month = pdf_path.parent.name
 
-    if estado_documento == "clasificado":
-        destino_relativo = f"pendientes_clasificados/{year}/{month}/{nuevo_nombre}"
-    else:
-        destino_relativo = f"no_identificados/{year}/{month}/{nuevo_nombre}"
-
+    bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
+    destino_relativo = f"{bucket}/{year}/{month}/{nuevo_nombre}"
     destino_abs = STORAGE_DIR / destino_relativo
+
     move_file(pdf_path, destino_abs)
 
     with get_cursor(commit=True) as (_, cur):
@@ -187,7 +254,6 @@ def procesar_documento(item: dict) -> None:
                 "documento_id": documento_id,
             },
         )
-
         cur.execute(
             SQL_UPDATE_ARCHIVO,
             {
@@ -199,7 +265,8 @@ def procesar_documento(item: dict) -> None:
         )
 
     print(
-        f"[OK] documento_id={documento_id} tipo={tipo_documental} archivo={nuevo_nombre}"
+        f"[OK] documento_id={documento_id} tipo={tipo_documental} "
+        f"archivo={nuevo_nombre}"
     )
 
 
@@ -215,7 +282,7 @@ def main() -> None:
     print(f"Pendientes encontrados: {len(rows)}")
 
     for row in rows:
-        procesar_documento(row)
+        process_one_document(row)
 
 
 if __name__ == "__main__":

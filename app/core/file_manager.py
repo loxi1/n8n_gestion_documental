@@ -18,8 +18,14 @@ def build_temp_classified_name(
 ) -> str:
     ext = Path(fallback_name).suffix.lower() or ".pdf"
 
-    if tipo_documental and ruc and serie and numero:
-        return sanitize_filename(f"{tipo_documental.upper()}_{ruc}_{serie}_{numero}{ext}")
+    if tipo_documental == "factura" and ruc and serie and numero:
+        return sanitize_filename(f"FACTURA_{ruc}_{serie}_{numero}{ext}")
+
+    if tipo_documental == "guia" and serie and numero:
+        return sanitize_filename(f"GUIA_{serie}_{numero}{ext}")
+
+    if tipo_documental == "orden_compra" and numero:
+        return sanitize_filename(f"OC_{numero}{ext}")
 
     stem = sanitize_filename(Path(fallback_name).stem)
     return f"DOC_{stem}{ext}"
