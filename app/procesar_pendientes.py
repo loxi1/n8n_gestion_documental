@@ -13,6 +13,8 @@ from core.db import get_cursor
 from core.extractor_pdf import extract_text_from_pdf
 from core.classifier import extract_basic_fields
 from core.file_manager import build_temp_classified_name, move_file
+import re
+from datetime import datetime
 
 
 SQL_SELECT_PENDING = """
@@ -125,6 +127,55 @@ def move_to_bucket(pdf_path: Path, bucket: str, fallback_name: str) -> tuple[str
     move_file(pdf_path, destino_abs)
     return fallback_name, destino_relativo
 
+def normalize_date(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    raw = value.strip().upper()
+
+    meses = {
+        "ENE": "01",
+        "FEB": "02",
+        "MAR": "03",
+        "ABR": "04",
+        "MAY": "05",
+        "JUN": "06",
+        "JUL": "07",
+        "AGO": "08",
+        "SEP": "09",
+        "OCT": "10",
+        "NOV": "11",
+        "DIC": "12",
+    }
+
+    # 14-ABR-2026
+    m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
+    if m:
+        day, mon_txt, year = m.groups()
+        mon = meses.get(mon_txt)
+        if mon:
+            return f"{year}-{mon}-{day}"
+
+    # 14/04/2026
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
+    if m:
+        day, mon, year = m.groups()
+        return f"{year}-{mon}-{day}"
+
+    # 14-04-2026
+    m = re.match(r"^(\d{2})-(\d{2})-(\d{4})$", raw)
+    if m:
+        day, mon, year = m.groups()
+        return f"{year}-{mon}-{day}"
+
+    # 2026-04-15
+    try:
+        dt = datetime.strptime(raw, "%Y-%m-%d")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+
+    return None
 
 def process_one_document(item: dict) -> None:
     documento_id = item["documento_id"]
@@ -217,6 +268,8 @@ def process_one_document(item: dict) -> None:
 
     fields = extract_basic_fields(text, nombre_archivo_original)
 
+    fecha_emision_normalizada = normalize_date(fields["fecha_emision"])
+
     tipo_documental = fields["tipo_documental"]
     estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
 
@@ -245,7 +298,7 @@ def process_one_document(item: dict) -> None:
                 "ruc": fields["ruc"],
                 "serie": fields["serie"],
                 "numero": fields["numero"],
-                "fecha_emision": fields["fecha_emision"],
+                "fecha_emision": fecha_emision_normalizada,
                 "importe": fields["importe"],
                 "estado_documento": estado_documento,
                 "documento_id": documento_id,
