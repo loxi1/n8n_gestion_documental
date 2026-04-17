@@ -1,86 +1,111 @@
-Perfecto, ya encontramos el problema exacto:
-Qué pasa
-Tu ocrmypdf está instalado en:
-Plain text
-/root/venvs/ocrpdf/bin/ocrmypdf
-pero cuando llamas wsl ... desde PowerShell o desde Python, WSL entra con tu usuario por defecto, no como root.
-Entonces intenta ejecutar un archivo dentro de /root/... y por eso da:
-Plain text
-Permission denied
-La mejor solución
-Mueve el entorno OCR al usuario normal loxi1
-No lo dejes en /root.
-Eso te va a evitar problemas ahora y después.
-Haz esto dentro de WSL
-Entra a WSL como tu usuario normal loxi1, no como root.
-Primero verifica:
-Bash
-whoami
-echo $HOME
-Debería salir algo como:
-Plain text
-loxi1
-/home/loxi1
-Luego crea el nuevo venv en tu home
-Bash
-mkdir -p ~/venvs
-python3 -m venv ~/venvs/ocrpdf
-source ~/venvs/ocrpdf/bin/activate
-pip install --upgrade pip
-pip install ocrmypdf pypdf
-Verifica
-Bash
-which ocrmypdf
-ocrmypdf --version
-Debería quedar algo como:
-Plain text
-/home/loxi1/venvs/ocrpdf/bin/ocrmypdf
-Luego prueba desde PowerShell
-PowerShell
-wsl bash -lc "/home/loxi1/venvs/ocrpdf/bin/ocrmypdf --version"
-Si responde bien, ya quedó solucionado.
-Qué cambiar en tu procesar_pendientes.py
-Donde pusimos:
+Sí, ya vi el problema exacto en tu repo: procesar_pendientes.py toma fields["fecha_emision"] y la manda directo al UPDATE documentos, sin normalizarla antes. Por eso PostgreSQL revienta cuando recibe "14-ABR-2026" como date. �
+GitHub
+Además, tu OCR ya está funcionando bien desde WSL, porque el script quedó configurado para usar /home/loxi1/venvs/ocrpdf/bin/ocrmypdf en Windows y ya te devolvió [OCR OK]. �
+GitHub
+Qué hay que hacer
+Agregar una función que convierta fechas como:
+14-ABR-2026
+14/04/2026
+2026-04-15
+a formato ISO:
+2026-04-14
+y recién eso guardar en la BD.
+Cambio exacto en procesar_pendientes.py
+1. Agrega estos imports arriba
 Python
-f'/root/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
+import re
+from datetime import datetime
+2. Agrega esta función debajo de to_wsl_path() o antes de process_one_document()
+Python
+def normalize_date(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    raw = value.strip().upper()
+
+    meses = {
+        "ENE": "01",
+        "FEB": "02",
+        "MAR": "03",
+        "ABR": "04",
+        "MAY": "05",
+        "JUN": "06",
+        "JUL": "07",
+        "AGO": "08",
+        "SEP": "09",
+        "OCT": "10",
+        "NOV": "11",
+        "DIC": "12",
+    }
+
+    # 14-ABR-2026
+    m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
+    if m:
+        day, mon_txt, year = m.groups()
+        mon = meses.get(mon_txt)
+        if mon:
+            return f"{year}-{mon}-{day}"
+
+    # 14/04/2026
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
+    if m:
+        day, mon, year = m.groups()
+        return f"{year}-{mon}-{day}"
+
+    # 14-04-2026
+    m = re.match(r"^(\d{2})-(\d{2})-(\d{4})$", raw)
+    if m:
+        day, mon, year = m.groups()
+        return f"{year}-{mon}-{day}"
+
+    # 2026-04-15
+    try:
+        dt = datetime.strptime(raw, "%Y-%m-%d")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+
+    return None
+3. Dentro de process_one_document(), después de esta línea:
+Python
+fields = extract_basic_fields(text, nombre_archivo_original)
+agrega:
+Python
+fecha_emision_normalizada = normalize_date(fields["fecha_emision"])
+4. Luego cambia esta parte del cur.execute(SQL_UPDATE_DOCUMENTO, {...})
+donde hoy tienes:
+Python
+"fecha_emision": fields["fecha_emision"],
 cámbialo por:
 Python
-f'/home/loxi1/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
-Alternativa rápida, si no quieres reinstalar
-Podrías ejecutar WSL como root:
-PowerShell
-wsl -u root bash -lc "/root/venvs/ocrpdf/bin/ocrmypdf --version"
-y en Python usar:
-Python
-cmd = [
-    "C:\\Windows\\System32\\wsl.exe",
-    "-u", "root",
-    "bash",
-    "-lc",
-    f'/root/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
-]
-Pero no te lo recomiendo
-Porque:
-es más sucio
-te acostumbra a correr OCR como root
-luego en producción no querrás eso
-Mi recomendación final
-Hazlo bien desde ya:
-crea el venv en /home/loxi1/venvs/ocrpdf
-reinstala ocrmypdf y pypdf
-prueba desde PowerShell
-cambia la ruta en Python
-Comandos exactos
-En WSL como loxi1
+"fecha_emision": fecha_emision_normalizada,
+Hazlo en ambos lugares si actualizas documento en más de un bloque.
+Qué va a pasar después
+Con eso:
+14-ABR-2026 → 2026-04-14
+2026-04-15 se queda bien
+PostgreSQL ya no se quejará por formato de fecha
+Lo bueno de tu estado actual
+Tu OCR local ya quedó resuelto.
+Tu file_manager.py ya está listo para renombrar como:
+FACTURA_...
+GUIA_...
+OC_... �
+GitHub
+Y tu config.py ya tiene la estructura mínima correcta para storage/files y ocr_tmp. �
+GitHub
+Siguiente paso
+Haz ese cambio de normalización de fecha y vuelve a ejecutar:
 Bash
-mkdir -p ~/venvs
-python3 -m venv ~/venvs/ocrpdf
-source ~/venvs/ocrpdf/bin/activate
-pip install --upgrade pip
-pip install ocrmypdf pypdf
-which ocrmypdf
-ocrmypdf --version
-En PowerShell
-PowerShell
-wsl bash -lc "/home/loxi1/venvs/ocrpdf/bin/ocrmypdf --version"
-Cuando te funcione ese último comando, seguimos con el cambio en procesar_pendientes.py.
+python procesar_pendientes.py
+Luego revisa:
+SQL
+SELECT id, estado_documento, tipo_documental, serie, numero, ruc, fecha_emision
+FROM documentos
+ORDER BY id;
+y
+SQL
+SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo
+FROM archivos
+ORDER BY id;
+Pégame esa salida y seguimos con el siguiente ajuste.
