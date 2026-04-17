@@ -1,111 +1,251 @@
-Ese error es normal: proveedor_id ya existe en documentos, así que no debes volver a agregarlo.
-Hazlo así
-Ejecuta solo las columnas que faltan:
+Perfecto. Continuemos con lo que ya te deja listo para renombrar y mover.
+1. SQL para alias de clientes destino
+Primero revisa los IDs:
 SQL
-ALTER TABLE documentos
-ADD COLUMN IF NOT EXISTS cliente_destino_id BIGINT NULL REFERENCES clientes_destino(id),
-ADD COLUMN IF NOT EXISTS grupo_codigo VARCHAR(20),
-ADD COLUMN IF NOT EXISTS correlativo_mes INTEGER,
-ADD COLUMN IF NOT EXISTS es_principal BOOLEAN NOT NULL DEFAULT FALSE,
-ADD COLUMN IF NOT EXISTS documento_principal_id BIGINT NULL REFERENCES documentos(id),
-ADD COLUMN IF NOT EXISTS nombre_final TEXT,
-ADD COLUMN IF NOT EXISTS ruta_windows_final TEXT;
-Y si quieres confirmar después:
+SELECT id, abreviatura, nombre_oficial
+FROM clientes_destino
+ORDER BY id;
+Luego inserta alias. Ajusta los cliente_destino_id si tus IDs salen distintos:
 SQL
-SELECT column_name, data_type, character_maximum_length, is_nullable
-FROM information_schema.columns
-WHERE table_name = 'documentos'
-ORDER BY ordinal_position;
-Sobre Starsoft
-Tu decisión de no tocar la base me parece prudente.
-Mi opinión
-Si la garantía o soporte del sistema puede verse afectado, yo no haría escrituras ni cambios estructurales.
-Lo más razonable sería:
-solo lectura
-idealmente con un usuario de solo consulta
-y mejor aún con autorización del proveedor o del área responsable
-Un usuario solo SELECT
-Eso, en principio, suele ser la opción más segura.
-Porque no estás:
-alterando tablas
-creando triggers
-cambiando datos
-modificando estructura
-Pero igual, si te dijeron que “manipular la base” afecta garantía, yo lo tomaría con cuidado y lo validaría formalmente.
-Mi recomendación concreta
-Sí intentaría esto:
-pedir un usuario con permisos mínimos:
-SQL
-GRANT SELECT ON ...
-solo a las tablas o vistas necesarias.
-No intentaría:
-updates
-inserts
-deletes
-funciones
-procedimientos
-cambios de esquema
-Mejor estrategia para tu caso
-Como por ahora el objetivo es:
-clasificar PDFs
-agruparlos
-moverlos
-mostrar estados
-entonces no necesitas Starsoft todavía para avanzar fuerte.
-Puedes dejar Starsoft como una fase posterior:
-Fase actual
-OCR
-clasificación
-proveedor
-cliente destino
-grupo documental
-nombre final
-ruta Windows final
-Fase futura
-consulta de asiento contable desde Starsoft, si te autorizan
-Qué haría ahora
-1. Crear clientes_destino
-2. Crear clientes_destino_alias
-3. Agregar columnas nuevas a documentos
-4. Implementar detección de cliente destino
-5. Implementar generación de grupo_codigo
-SQL recomendado ahora
-Tabla principal
-SQL
-CREATE TABLE IF NOT EXISTS clientes_destino (
-    id BIGSERIAL PRIMARY KEY,
-    nombre_oficial TEXT NOT NULL,
-    abreviatura VARCHAR(30) NOT NULL UNIQUE,
-    ruc VARCHAR(15),
-    ruta_windows TEXT NOT NULL,
-    descripcion TEXT,
-    estado BOOLEAN NOT NULL DEFAULT TRUE,
-    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
-    actualizado_en TIMESTAMP NOT NULL DEFAULT NOW()
-);
-Alias
-SQL
-CREATE TABLE IF NOT EXISTS clientes_destino_alias (
-    id BIGSERIAL PRIMARY KEY,
-    cliente_destino_id BIGINT NOT NULL REFERENCES clientes_destino(id),
-    alias TEXT NOT NULL,
-    estado BOOLEAN NOT NULL DEFAULT TRUE,
-    creado_en TIMESTAMP NOT NULL DEFAULT NOW()
-);
-Inserts iniciales
-SQL
-INSERT INTO clientes_destino (nombre_oficial, abreviatura, ruta_windows, descripcion)
+INSERT INTO clientes_destino_alias (cliente_destino_id, alias)
 VALUES
-('BB TECNOLOGIA INDUSTRIAL S.A.C.', 'BBTEC', '\\\\servidor\\documentos\\BB TECNOLOGIA INDUSTRIAL SAC', 'Empresa destino'),
-('BBTI S.A.C.', 'BBTI', '\\\\servidor\\documentos\\BBTI SAC', 'Empresa destino'),
-('CONSORCIO CIMA ENERGY', 'CIMA', '\\\\servidor\\documentos\\CONSORCIO CIMA ENERGY', 'Consorcio'),
-('CONSORCIO ILUMINACION TARMA 2025', 'TARMA', '\\\\servidor\\documentos\\CONSORCIO ILUMINACION TARMA 2025', 'Consorcio'),
-('CONSORCIO HUANCAVELICA', 'HUANCA', '\\\\servidor\\documentos\\CONSORCIO HUANCAVELICA', 'Consorcio')
-ON CONFLICT (abreviatura) DO NOTHING;
-Luego los alias.
-Respuesta corta sobre Starsoft
-Sí, un usuario solo lectura sería el camino correcto, pero yo no lo movería todavía sin visto bueno.
-Y mientras tanto, puedes avanzar bastante sin depender de eso.
-Si quieres, en el siguiente mensaje te doy:
-el SQL de clientes_destino_alias
-y las funciones Python para detectar cliente destino y generar la ruta Windows por mes.
+-- BBTI
+(2, 'BBTI S.A.C.'),
+(2, 'BBTI SAC'),
+(2, 'BBTI'),
+
+-- BB TECNOLOGIA INDUSTRIAL
+(1, 'BB TECNOLOGIA INDUSTRIAL S.A.C.'),
+(1, 'BB TECNOLOGIA INDUSTRIAL SAC'),
+(1, 'BB TECNOLOGIA INDUSTRIAL'),
+(1, 'BB TECNOLOGIA'),
+
+-- CONSORCIO CIMA ENERGY
+(3, 'CONSORCIO CIMA ENERGY'),
+(3, 'CIMA ENERGY'),
+
+-- CONSORCIO ILUMINACION TARMA 2025
+(4, 'CONSORCIO ILUMINACION TARMA 2025'),
+(4, 'CONSORCIO TARMA 2025'),
+(4, 'ILUMINACION TARMA 2025'),
+
+-- CONSORCIO HUANCAVELICA
+(5, 'CONSORCIO HUANCAVELICA'),
+(5, 'HUANCAVELICA');
+Y una consulta útil para validar:
+SQL
+SELECT a.id, c.abreviatura, c.nombre_oficial, a.alias
+FROM clientes_destino_alias a
+JOIN clientes_destino c ON c.id = a.cliente_destino_id
+ORDER BY c.id, a.alias;
+2. Función Python para normalizar texto
+Crea app/core/text_utils.py:
+Python
+from __future__ import annotations
+
+import re
+import unicodedata
+
+
+def normalize_text(value: str | None) -> str:
+    if not value:
+        return ""
+
+    text = value.strip().upper()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^\w\s.-]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+3. Función para detectar cliente destino
+Crea app/core/clientes_destino.py:
+Python
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from core.db import get_cursor
+from core.text_utils import normalize_text
+
+
+def extract_cliente_destino_raw(text: str) -> str | None:
+    text_u = normalize_text(text)
+
+    patrones = [
+        r"\bCLIENTE[:\s]+(.+?)(?:\bRUC\b|\bRUC/DOC\b|\bDIRECCION\b|\bDIRECCION:|\bVENDEDOR\b|\bMONEDA\b)",
+        r"\bDESTINATARIO[:\s]+(.+?)(?:\bRUC\b|\bCARGA\b|\bPESO\b|\bCANTIDAD\b)",
+        r"\bSEÑOR\(ES\)[:\s]+(.+?)(?:\bFECHA\b|\bR\.U\.C\b|\bRUC\b|\bATENCION\b)",
+    ]
+
+    for patron in patrones:
+        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+        if m:
+            value = m.group(1).strip(" -:")
+            value = re.sub(r"\s+", " ", value).strip()
+            if value:
+                return value
+
+    return None
+
+
+def find_cliente_destino_by_alias(cliente_raw: str | None) -> dict[str, Any] | None:
+    if not cliente_raw:
+        return None
+
+    cliente_norm = normalize_text(cliente_raw)
+
+    with get_cursor() as (_, cur):
+        cur.execute(
+            """
+            SELECT
+                c.id,
+                c.nombre_oficial,
+                c.abreviatura,
+                c.ruta_windows,
+                a.alias
+            FROM clientes_destino_alias a
+            JOIN clientes_destino c ON c.id = a.cliente_destino_id
+            WHERE c.estado = TRUE
+              AND a.estado = TRUE
+            """
+        )
+        rows = cur.fetchall()
+
+    for row in rows:
+        alias_norm = normalize_text(row["alias"])
+        if alias_norm and alias_norm in cliente_norm:
+            return dict(row)
+
+    for row in rows:
+        alias_norm = normalize_text(row["alias"])
+        if alias_norm and cliente_norm in alias_norm:
+            return dict(row)
+
+    return None
+4. Función para construir ruta Windows por mes
+Crea app/core/windows_path.py:
+Python
+from __future__ import annotations
+
+from datetime import date
+
+
+MESES_ES = {
+    1: "ENERO",
+    2: "FEBRERO",
+    3: "MARZO",
+    4: "ABRIL",
+    5: "MAYO",
+    6: "JUNIO",
+    7: "JULIO",
+    8: "AGOSTO",
+    9: "SEPTIEMBRE",
+    10: "OCTUBRE",
+    11: "NOVIEMBRE",
+    12: "DICIEMBRE",
+}
+
+
+def build_windows_target_path(ruta_base: str, fecha_emision: date | None) -> str | None:
+    if not ruta_base or not fecha_emision:
+        return None
+
+    mes = MESES_ES[fecha_emision.month]
+    return rf"{ruta_base}\{mes}"
+5. Función para generar el correlativo mensual
+Crea app/core/grupo_documental.py:
+Python
+from __future__ import annotations
+
+from datetime import date
+
+from core.db import get_cursor
+
+
+def get_next_correlativo_mes(fecha_emision: date, prefijo: str = "04") -> tuple[int, str]:
+    year = fecha_emision.year
+    month = fecha_emision.month
+
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            """
+            SELECT COALESCE(MAX(correlativo_mes), 0) AS max_corr
+            FROM documentos
+            WHERE fecha_emision IS NOT NULL
+              AND EXTRACT(YEAR FROM fecha_emision) = %s
+              AND EXTRACT(MONTH FROM fecha_emision) = %s
+              AND grupo_codigo LIKE %s
+            """,
+            (year, month, f"{prefijo}-%"),
+        )
+        row = cur.fetchone()
+
+    siguiente = int(row["max_corr"] or 0) + 1
+    grupo_codigo = f"{prefijo}-{siguiente:04d}"
+    return siguiente, grupo_codigo
+6. Función para nombre final
+Agrega en app/core/file_manager.py esto:
+Python
+def build_final_name(
+    grupo_codigo: str,
+    serie: str | None,
+    numero: str | None,
+    ruc_emisor: str | None,
+    razon_social_emisor: str | None,
+    tipo_documental: str,
+    fallback_name: str,
+) -> str:
+    ext = Path(fallback_name).suffix.lower() or ".pdf"
+
+    serie_txt = (serie or "").strip()
+    numero_txt = (numero or "").strip()
+    ruc_txt = (ruc_emisor or "").strip()
+    razon_txt = sanitize_filename((razon_social_emisor or "").strip()) or "SIN_RAZON"
+
+    tipo_map = {
+        "factura": "FACTURA",
+        "guia": "GUIA",
+        "orden_compra": "OC",
+        "nota": "NOTA",
+        "otro": "OTRO",
+    }
+
+    tipo_txt = tipo_map.get(tipo_documental, "OTRO")
+
+    parts = [grupo_codigo]
+
+    if serie_txt:
+        parts.append(serie_txt)
+    if numero_txt:
+        parts.append(numero_txt)
+    if ruc_txt:
+        parts.append(ruc_txt)
+
+    parts.append(razon_txt)
+    parts.append(tipo_txt)
+
+    return sanitize_filename(" ".join(parts)) + ext
+7. Qué haremos luego en procesar_pendientes.py
+La lógica será:
+Clasificar documentos del correo.
+Identificar la factura principal.
+Sacar de la factura:
+fecha_emision
+cliente destino
+correlativo mensual
+grupo_codigo
+Aplicar ese grupo_codigo a todos los documentos del mismo correo_id.
+Generar nombre final.
+Generar ruta Windows final como:
+ruta_windows\ABRIL
+Guardar eso en BD.
+Mover todavía no, primero validamos.
+8. Mi sugerencia inmediata
+Ahora ejecuta:
+SQL
+SELECT id, abreviatura, nombre_oficial
+FROM clientes_destino
+ORDER BY id;
+y luego inserta los alias ajustando los IDs si hace falta.
+Después te paso el siguiente bloque: cómo modificar procesar_pendientes.py para que detecte cliente_destino, genere grupo_codigo y construya nombre_final y ruta_windows_final sin mover aún los archivos.
