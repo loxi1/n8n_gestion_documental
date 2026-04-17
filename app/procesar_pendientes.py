@@ -416,6 +416,22 @@ def process_one_document(item: dict) -> None:
         f"grupo={grupo_codigo} nombre={destino_nombre}"
     )
 
+def select_factura_principal(documentos: list[dict]) -> dict | None:
+    facturas = [d for d in documentos if d.get("tipo_documental") == "factura"]
+
+    if not facturas:
+        return None
+
+    # prioridad: factura con fecha + serie F*
+    facturas.sort(
+        key=lambda d: (
+            0 if d.get("fecha_emision") else 1,
+            0 if str(d.get("serie") or "").upper().startswith("F") else 1,
+            d["documento_id"],
+        )
+    )
+    return facturas[0]
+
 
 def main() -> None:
     with get_cursor() as (_, cur):
