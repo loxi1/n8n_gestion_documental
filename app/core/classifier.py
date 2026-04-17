@@ -14,30 +14,36 @@ def detect_document_type(text: str, original_name: str) -> str:
     name_u = original_name.upper()
 
     if (
-        "FACTURA ELECTRÓNICA" in text_u
-        or "FACTURA ELECTRONICA" in text_u
-        or "FACTURA" in text_u
-        or re.search(r"\bF[0-9A-Z]{2,4}-\d{3,}\b", text_u)
-    ):
-        return "factura"
-
-    if (
-        "GUÍA DE REMISIÓN" in text_u
-        or "GUIA DE REMISION" in text_u
-        or "GUÍA DE REMISION" in text_u
-        or "GUIA DE REMISIÓN" in text_u
-        or "GUIA" in name_u
-    ):
-        return "guia"
-
-    if (
         "ORDEN DE COMPRA" in text_u
         or "ORDEN DE COMRA" in text_u
         or "ORDEN DE COMPRA" in name_u
         or "ORDEN DE COMRA" in name_u
-        or re.search(r"\bOC\b", text_u)
     ):
         return "orden_compra"
+
+    if (
+        "REQUERIMIENTO DE COMPRA" in text_u
+        or "REQUERIMIENTO" in text_u
+        or "REQ" in name_u
+    ):
+        return "requerimiento_compra"
+
+    if (
+        "GUIA DE REMISION" in text_u
+        or "GUÍA DE REMISIÓN" in text_u
+        or "GUIA DE REMISION ELECTRONICA" in text_u
+        or "GUÍA DE REMISIÓN ELECTRÓNICA" in text_u
+        or "PUNTO DE PARTIDA" in text_u
+        or "PUNTO DE LLEGADA" in text_u
+    ):
+        return "guia"
+
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or "FACTURA ELECTRÓNICA" in text_u
+        or re.search(r"\bF\d{3,4}-\d{3,}\b", text_u)
+    ):
+        return "factura"
 
     if (
         "NOTA DE CREDITO" in text_u
@@ -45,14 +51,57 @@ def detect_document_type(text: str, original_name: str) -> str:
         or "NOTA DE DEBITO" in text_u
         or "NOTA DE DÉBITO" in text_u
     ):
-        return "nota"
+        return "nota_credito"
+
+    return "otro"def detect_document_type(text: str, original_name: str) -> str:
+    text_u = text.upper()
+    name_u = original_name.upper()
+
+    if (
+        "ORDEN DE COMPRA" in text_u
+        or "ORDEN DE COMRA" in text_u
+        or "ORDEN DE COMPRA" in name_u
+        or "ORDEN DE COMRA" in name_u
+    ):
+        return "orden_compra"
+
+    if (
+        "REQUERIMIENTO DE COMPRA" in text_u
+        or "REQUERIMIENTO" in text_u
+        or "REQ" in name_u
+    ):
+        return "requerimiento_compra"
+
+    if (
+        "GUIA DE REMISION" in text_u
+        or "GUÍA DE REMISIÓN" in text_u
+        or "GUIA DE REMISION ELECTRONICA" in text_u
+        or "GUÍA DE REMISIÓN ELECTRÓNICA" in text_u
+        or "PUNTO DE PARTIDA" in text_u
+        or "PUNTO DE LLEGADA" in text_u
+    ):
+        return "guia"
+
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or "FACTURA ELECTRÓNICA" in text_u
+        or re.search(r"\bF\d{3,4}-\d{3,}\b", text_u)
+    ):
+        return "factura"
+
+    if (
+        "NOTA DE CREDITO" in text_u
+        or "NOTA DE CRÉDITO" in text_u
+        or "NOTA DE DEBITO" in text_u
+        or "NOTA DE DÉBITO" in text_u
+    ):
+        return "nota_credito"
 
     return "otro"
 
 
 def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
     text_u = text.upper()
-
     doc_type = detect_document_type(text, original_name)
 
     ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
@@ -61,32 +110,55 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
 
     serie = None
     numero = None
+    oc = None
 
-    patrones_doc = [
-        r"\bNRO\.?\s*([A-Z0-9]{3,5})[- ]([0-9]{3,})\b",
-        r"\bN[°º]\s*([A-Z0-9]{3,5})[- ]([0-9]{3,})\b",
-        r"\b([A-Z0-9]{3,5})[- ]([0-9]{3,})\b",
-    ]
+    if doc_type == "factura":
+        patrones = [
+            r"\b(F\d{3,4})[- ]([0-9]{3,})\b",
+        ]
+    elif doc_type == "guia":
+        patrones = [
+            r"\b(T\d{3,4})[- ]([0-9]{3,})\b",
+        ]
+    elif doc_type == "orden_compra":
+        patrones = [
+            r"\bORDEN DE COMPRA\s*N[°º: ]*([0-9]{3,})\b",
+            r"\bOC[:\s]*([0-9]{3,})\b",
+        ]
+    elif doc_type == "requerimiento_compra":
+        patrones = [
+            r"\bRC[:\s-]*([0-9]{3,})\b",
+            r"\bREQ[:\s-]*([0-9]{3,})\b",
+        ]
+    else:
+        patrones = []
 
-    for patron in patrones_doc:
-        match = re.search(patron, text_u, re.IGNORECASE)
-        if match:
-            serie = match.group(1).strip()
-            numero = match.group(2).strip()
+    for patron in patrones:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            if doc_type in ("orden_compra", "requerimiento_compra"):
+                serie = "OC" if doc_type == "orden_compra" else "REQ"
+                numero = m.group(1).strip()
+            else:
+                serie = m.group(1).strip()
+                numero = m.group(2).strip()
             break
 
+    oc_match = re.search(r"\bOC[:\s]*([0-9]{3,})\b", text_u, re.IGNORECASE)
+    if oc_match:
+        oc = oc_match.group(1).strip()
+
     fecha_emision = _search(
-        r"\bFECHA(?: DE EMISI[ÓO]N)?[:\s]*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
+        r"\bFECHA(?: DE EMISION| DE EMISIÓN)?[:\s]*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
         text_u
     )
     if not fecha_emision:
-        fecha_emision = _search(
-            r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b",
-            text_u
-        )
+        fecha_emision = _search(r"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
 
     importe = _search(
-        r"\b(?:TOTAL|NETO A PAGAR|TOTAL S/|TOTAL USD \$|TOTAL \(USD \$\))[:\sS/$]*([0-9]+(?:[.,][0-9]{2})?)\b",
+        r"\b(?:TOTAL|TOTAL S/|TOTAL USD \$|TOTAL \(USD \$\))[:\sS/$]*([0-9]+(?:[.,][0-9]{2})?)\b",
         text_u,
     )
 
@@ -97,4 +169,5 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
         "numero": numero,
         "fecha_emision": fecha_emision,
         "importe": importe,
+        "oc": oc,
     }

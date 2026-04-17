@@ -53,20 +53,20 @@ def build_final_name(
         "factura": "FACTURA",
         "guia": "GUIA",
         "orden_compra": "ORDEN_COMPRA",
-        "nota": "NOTA",
+        "requerimiento_compra": "REQUERIMIENTO_COMPRA",
+        "nota_credito": "NOTA_CREDITO",
         "otro": "OTRO",
     }
+
     tipo_txt = tipo_map.get(tipo_documental, "OTRO")
 
     parts = [grupo_codigo]
-
     if serie_txt:
         parts.append(serie_txt)
     if numero_txt:
         parts.append(numero_txt)
     if ruc_txt:
         parts.append(ruc_txt)
-
     parts.append(razon_txt)
     parts.append(tipo_txt)
 
