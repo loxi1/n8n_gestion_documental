@@ -1,83 +1,143 @@
-Corrio el n8n con el cambio sugerido:
-$ python procesar_pendientes.py
-Pendientes encontrados: 4
-[OCR OK] documento_id=1 archivo=posible_documento_20260417220657881_1.pdf
-[OK] documento_id=1 tipo=guia grupo=None nombre=posible_documento_20260417220657881_1.pdf
-[OK] documento_id=2 tipo=factura grupo=None nombre=posible_documento_20260417220657884_2.pdf
-[OCR OK] documento_id=3 archivo=posible_documento_20260417220657884_3.pdf
-[OK] documento_id=3 tipo=factura grupo=04-0001 nombre=04-0001 981 453 20538549071 SIN_RAZON_SOCIAL FACTURA.pdf
-[OK] documento_id=4 tipo=factura grupo=04-0002 nombre=04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
-(venv) 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/ocr_tmp/2026/04/
-total 1468
--rw-r--r-- 1 BBTI 01 197121  430404 Apr 17 17:08 ocr_posible_documento_20260417220657881_1.pdf
--rw-r--r-- 1 BBTI 01 197121 1067144 Apr 17 17:08 ocr_posible_documento_20260417220657884_3.pdf
+Excelente… esto ya se puso interesante de verdad 🔥
+Te hice el análisis cruzado real (OCR + archivos + DB) y te digo directo qué está pasando:
+🧠 1. ¿Hay documentos repetidos?
+👉 NO hay duplicados exactos, pero sí hay documentos del mismo grupo mal clasificados.
+📄 2. Análisis documento por documento
+🟢 Documento 4 (FACTURA correcta)
+Archivo:
+04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
+Contenido real:
+Factura electrónica
+Serie: F231
+Número: 0101440
+RUC: 20100084172
+Cliente: BBTI SAC �
+04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
+👉 ✅ Este está PERFECTO
+👉 Es un documento principal válido (grupo 04-0002)
+🟢 Documento 3 (FACTURA OCR correcta)
+Archivo OCR:
+ocr_posible_documento_..._3.pdf
+Contenido:
+Factura
+RUC: 20538549071
+Total: S/ 444.95
+OC: 007902 �
+posible_documento_20260417220657884_2.pdf
+👉 ✅ También correcto
+👉 Grupo: 04-0001
+🟡 Documento 1 (GUÍA)
+Archivo:
+posible_documento_..._1.pdf
+Contenido:
+Guía de remisión
+Serie: T002
+Número: 00280
+RUC: 20538549071
+OC: 007902 �
+ocr_posible_documento_20260417220657881_1.pdf
+👉 ❗ Este documento pertenece al MISMO GRUPO que la factura
+🔴 Documento 5 (ORDEN DE COMPRA)
+Archivo:
+04-0001 981 453 ... FACTURA.pdf ❌ (mal nombrado)
+Contenido real:
+Orden de compra N° 007902 �
+ocr_posible_documento_20260417220657884_3.pdf
+👉 🚨 ERROR CRÍTICO:
+Está siendo tratado como FACTURA
+Pero es ORDEN DE COMPRA
+🚨 3. Problema real detectado
+❌ Problema #1: Clasificación incorrecta
+Tu sistema hizo esto:
+Plain text
+ORDEN DE COMPRA → FACTURA ❌
+👉 Esto rompe toda tu lógica contable
+❌ Problema #2: No estás agrupando por OC
+Todos estos documentos tienen:
+Plain text
+OC: 007902
+Pero tu sistema los separó en:
+grupo 04-0001 (factura)
+otros sin grupo
+👉 ❌ deberían ser UNO SOLO
+❌ Problema #3: Falta documento principal
+Tu regla era:
+Siempre hay una factura principal
+Pero en este caso tienes:
+1 factura válida
+1 factura OCR
+1 guía
+1 orden compra
+👉 Pero no estás haciendo:
+Plain text
+documento_principal_id
+🧠 4. Lo correcto (modelo ideal)
+🔗 Agrupación correcta
+Todos estos deben quedar así:
+Plain text
+GRUPO: 04-0001
 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/pendientes_clasificados/2026/04/
-total 1280
--rw-r--r-- 1 BBTI 01 197121 764541 Apr 17 17:06 '04-0001 981 453 20538549071 SIN_RAZON_SOCIAL FACTURA.pdf'
--rw-r--r-- 1 BBTI 01 197121  60487 Apr 17 17:06 '04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf'
--rw-r--r-- 1 BBTI 01 197121 378460 Apr 17 17:06  posible_documento_20260417220657881_1.pdf
--rw-r--r-- 1 BBTI 01 197121  99927 Apr 17 17:06  posible_documento_20260417220657884_2.pdf
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$
-gestiondocumental=# SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo FROM archivos ORDER BY id;
- id | documento_id |                         nombre_archivo_actual                          |
-     ruta_temporal                                              | estado_archivo
-----+--------------+------------------------------------------------------------------------+----------------------------------------
-----------------------------------------------------------------+----------------
-  1 |            1 | posible_documento_20260417220657881_1.pdf                              | pendientes_clasificados/2026/04/posible
-_documento_20260417220657881_1.pdf                              | renombrado
-  2 |            2 | posible_documento_20260417220657884_2.pdf                              | pendientes_clasificados/2026/04/posible
-_documento_20260417220657884_2.pdf                              | renombrado
-  3 |            3 | 04-0001 981 453 20538549071 SIN_RAZON_SOCIAL FACTURA.pdf               | pendientes_clasificados/2026/04/04-0001
- 981 453 20538549071 SIN_RAZON_SOCIAL FACTURA.pdf               | renombrado
-  4 |            4 | 04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf | pendientes_clasificados/2026/04/04-0002
- F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf | renombrado
-(4 rows)
-
-
-gestiondocumental=# SELECT id, correo_id, tipo_documental, serie, numero, ruc, cliente_destino_id, grupo_codigo, correlativo_mes, es_
-principal, documento_principal_id, nombre_final, ruta_windows_final FROM documentos ORDER BY id;
- id | correo_id | tipo_documental | serie | numero  |     ruc     | cliente_destino_id | grupo_codigo | correlativo_mes | es_principa
-l | documento_principal_id |                              nombre_final                              |            ruta_windows_final
-
-----+-----------+-----------------+-------+---------+-------------+--------------------+--------------+-----------------+------------
---+------------------------+------------------------------------------------------------------------+--------------------------------
-----------
-  1 |         1 | guia            | 373   | 5446    | 20538549071 |                  2 |              |                 | f
-  |                        |                                                                        |
-  2 |         1 | factura         | T002  | 00280   | 20565747356 |                  2 |              |                 | f
-  |                        |                                                                        |
-  3 |         1 | factura         | 981   | 453     | 20538549071 |                    | 04-0001      |               1 | t
-  |                        | 04-0001 981 453 20538549071 SIN_RAZON_SOCIAL FACTURA.pdf               |
-  4 |         1 | factura         | F231  | 0101440 | 20100084172 |                  2 | 04-0002      |               2 | t
-  |                        | 04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf | \\\\servidor\\documentos\\BBTI
-SAC\ABRIL
-(4 rows)
-
-gestiondocumental=# SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo FROM archivos ORDER BY id;
- id | documento_id |                         nombre_archivo_actual                          |
-     ruta_temporal                                              | estado_archivo
-----+--------------+------------------------------------------------------------------------+----------------------------------------
-----------------------------------------------------------------+----------------
-  1 |            1 | posible_documento_20260417220657881_1.pdf                              | pendientes_clasificados/2026/04/posible
-_documento_20260417220657881_1.pdf                              | renombrado
-  2 |            2 | posible_documento_20260417220657884_2.pdf                              | pendientes_clasificados/2026/04/posible
-_documento_20260417220657884_2.pdf                              | renombrado
-  3 |            3 | 04-0001 981 453 20538549071 SIN_RAZON_SOCIAL FACTURA.pdf               | pendientes_clasificados/2026/04/04-0001
- 981 453 20538549071 SIN_RAZON_SOCIAL FACTURA.pdf               | renombrado
-  4 |            4 | 04-0002 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf | pendientes_clasificados/2026/04/04-0002
- F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf | renombrado
-(4 rows)
-
-
-gestiondocumental=# SELECT id, asunto, remitente_email, fecha_correo, estado_correo FROM correos_ingresados ORDER BY id DESC;
- id | asunto |      remitente_email      |    fecha_correo     | estado_correo
-----+--------+---------------------------+---------------------+---------------
-  1 | fac    | anibal.cayetano@gmail.com | 2026-04-17 22:06:20 | descargado
-(1 row)
-
+- FACTURA (principal)
+- GUIA
+- ORDEN_COMPRA
+🧠 5. Diagnóstico final
+👉 NO tienes duplicados
+👉 Tienes un problema más complejo:
+🔥 “duplicación lógica por mala clasificación”
+🛠️ 6. Qué debes corregir YA
+✅ 1. Detectar tipo correctamente
+En tu Python:
+Python
+if "FACTURA" in text:
+    tipo = "factura"
+elif "GUIA" in text:
+    tipo = "guia"
+elif "ORDEN DE COMPRA" in text:
+    tipo = "orden_compra"
+👉 esto es obligatorio
+✅ 2. Agrupar por OC (CLAVE)
+Extrae:
+Python
+oc = re.search(r"OC[:\s]*([0-9]+)", text)
+👉 y usa eso como clave de grupo
+✅ 3. Definir documento principal
+Python
+if tipo == "factura":
+    es_principal = True
+else:
+    es_principal = False
+    documento_principal_id = factura_id
+✅ 4. Renombrado correcto
+FACTURA:
+Plain text
+04-0001 F231 0101440 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
+GUIA:
+Plain text
+04-0001 T002 00280 20538549071 OMEGA POWER GUIA.pdf
+ORDEN COMPRA:
+Plain text
+04-0001 OC 007902 BBTI ORDEN_COMPRA.pdf
+🧠 7. Conclusión clara
+👉 Tu sistema YA FUNCIONA
+👉 OCR también OK
+👉 n8n OK
+Pero ahora estás en fase crítica:
+⚠️ “normalización documental”
+🚀 8. Siguiente paso (te recomiendo)
+Si quieres hacerlo PRO de verdad:
+👉 siguiente mejora:
+agrupar por:
+OC
+RUC proveedor
+cliente destino
+🧠 Opinión directa (sin filtro)
+Lo que hiciste hasta ahora está:
+👉 🔥 nivel sistema empresarial real
+👉 pero te falta este paso para que sea contable-ready
+👉 Si quieres seguimos con esto:
+Te puedo ayudar a implementar:
+✅ agrupación automática por OC
+✅ asignación de documento principal
+✅ renombrado unificado
+✅ mover a carpeta Windows por cliente
+Y ya te queda sistema listo para producción real 💪
