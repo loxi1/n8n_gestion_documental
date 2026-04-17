@@ -1,22 +1,244 @@
-Exacto, esos son los cambios correctos.
-Hazlos en procesar_pendientes.py, guarda y vuelve a correr:
-Bash
-python procesar_pendientes.py
-Luego revisa estas dos consultas:
+Sí, está mal clasificado, y ya se ve por qué.
+El documento FACTURA_20538549071_981_453.pdf en realidad es una Orden de Compra N.° 007902 de BBTI S.A.C., no una factura. En la imagen se ve claramente el título “Orden de Compra N°:007902”, con fecha 15/04/2026 y proveedor Omega Power S.A.C. �
+FACTURA_20538549071_981_453.pdf
+Además, tus otros dos errores tienen la misma causa:
+GUIA_373_5446.pdf tomó 373-5446 del teléfono, no de la serie/número.
+FACTURA_20538549071_981_453.pdf tomó 981-453 del teléfono, no del documento.
+Y la fecha 2026-10-04 en la factura de Promelsa también está mal interpretada: el PDF dice 10/04/2026, que en este contexto peruano es 10 de abril de 2026, no 4 de octubre. Ese documento sí es una factura electrónica F231-0101440. �
+FACTURA_20100084172_F231_0101440.pdf
+Qué está pasando
+Tu clasificador está cayendo en falsos positivos porque:
+detecta factura si la palabra aparece en cualquier parte del texto
+En una OC puede aparecer en frases como “condición de pago: factura negociable” o “presentación de facturas”, y eso no convierte el documento en factura. En la OC 007902 aparece justamente ese contexto. �
+FACTURA_20538549071_981_453.pdf
+busca serie/número con patrones demasiado abiertos
+Entonces captura teléfonos como:
+373 5446
+981 453
+la fecha está interpretándose con un parser ambiguo
+10/04/2026 debe leerse como YYYY-MM-DD => 2026-04-10.
+Regla de negocio importante
+Tu aclaración cambia bastante el diseño:
+en un correo siempre debe haber una factura, y la fecha de emisión de la factura define la carpeta del mes donde estarán todos los archivos.
+Eso significa que el procesamiento debe ser por grupo correo, no solo por documento suelto.
+La lógica correcta sería:
+identificar dentro del grupo cuál es la factura
+obtener su fecha_emision
+usar esa fecha para definir el bucket del correo completo
+clasificar los demás adjuntos del mismo correo como:
+factura
+guía
+orden_compra
+otro
+Qué debes corregir ahora
+1. Prioridad de clasificación
+En detect_document_type() cambia el orden para que sea:
+orden_compra
+guia
+factura
+nota
+otro
+Porque una OC o una guía pueden mencionar la palabra “factura”, pero siguen siendo OC o guía.
+Usa esta versión:
+Python
+def detect_document_type(text: str, original_name: str) -> str:
+    text_u = text.upper()
+    name_u = original_name.upper()
+
+    # 1) ORDEN DE COMPRA primero
+    if (
+        "ORDEN DE COMPRA" in text_u
+        or "ORDEN DE COMRA" in text_u
+        or "ORDEN DE COMPRA" in name_u
+        or "ORDEN DE COMRA" in name_u
+        or re.search(r"\bOC[:\s-]*0*\d+\b", text_u)
+    ):
+        return "orden_compra"
+
+    # 2) GUIA
+    if (
+        "GUÍA DE REMISIÓN" in text_u
+        or "GUIA DE REMISION" in text_u
+        or "GUÍA DE REMISION" in text_u
+        or "GUIA DE REMISIÓN" in text_u
+        or "GUÍA DE REMISIÓN REMITENTE" in text_u
+        or "GUIA DE REMISION REMITENTE" in text_u
+        or "GUIA" in name_u
+    ):
+        return "guia"
+
+    # 3) FACTURA solo si hay evidencia fuerte
+    if (
+        "FACTURA ELECTRÓNICA" in text_u
+        or "FACTURA ELECTRONICA" in text_u
+        or re.search(r"\bN[°º]?\s*F\d{3,4}-\d+\b", text_u)
+        or re.search(r"\bF\d{3,4}-\d+\b", text_u)
+    ):
+        return "factura"
+
+    # 4) NOTAS
+    if (
+        "NOTA DE CREDITO" in text_u
+        or "NOTA DE CRÉDITO" in text_u
+        or "NOTA DE DEBITO" in text_u
+        or "NOTA DE DÉBITO" in text_u
+    ):
+        return "nota"
+
+    return "otro"
+2. Extracción de serie/número según tipo
+No uses un regex genérico para todos. Extrae según el tipo documental.
+Reemplaza extract_basic_fields() por algo así:
+Python
+def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
+    text_u = text.upper()
+    doc_type = detect_document_type(text, original_name)
+
+    ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
+    if not ruc:
+        ruc = _search(r"\b([0-9]{11})\b", text_u)
+
+    serie = None
+    numero = None
+
+    if doc_type == "factura":
+        patrones = [
+            r"\bN[°º]?\s*(F[0-9A-Z]{3,4})[- ]([0-9]{3,})\b",
+            r"\b(F[0-9A-Z]{3,4})[- ]([0-9]{3,})\b",
+        ]
+    elif doc_type == "guia":
+        patrones = [
+            r"\bNRO\.?\s*(T[0-9A-Z]{3,4})[- ]([0-9]{3,})\b",
+            r"\b(T[0-9A-Z]{3,4})[- ]([0-9]{3,})\b",
+        ]
+    elif doc_type == "orden_compra":
+        patrones = [
+            r"\bORDEN DE COMPRA\s*N[°º: ]*([0-9]{3,})\b",
+            r"\bOC[:\s-]*0*([0-9]{3,})\b",
+        ]
+    else:
+        patrones = []
+
+    for patron in patrones:
+        match = re.search(patron, text_u, re.IGNORECASE)
+        if match:
+            if doc_type == "orden_compra":
+                serie = "OC"
+                numero = match.group(1).strip()
+            else:
+                serie = match.group(1).strip()
+                numero = match.group(2).strip()
+            break
+
+    fecha_emision = _search(
+        r"\bFECHA(?: DE EMISI[ÓO]N)?[:\s]*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
+        text_u
+    )
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
+
+    importe = _search(
+        r"\b(?:TOTAL|NETO A PAGAR|TOTAL S/|TOTAL USD \$|TOTAL \(USD \$\))[:\sS/$]*([0-9]+(?:[.,][0-9]{2})?)\b",
+        text_u,
+    )
+
+    return {
+        "tipo_documental": doc_type,
+        "ruc": ruc,
+        "serie": serie,
+        "numero": numero,
+        "fecha_emision": fecha_emision,
+        "importe": importe,
+    }
+3. Corrige la fecha dd/mm/yyyy
+Tu normalizador debe tratar 10/04/2026 como 2026-04-10, no como mes/día.
+Usa esto:
+Python
+def normalize_date(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    raw = value.strip().upper()
+
+    meses = {
+        "ENE": "01", "FEB": "02", "MAR": "03", "ABR": "04",
+        "MAY": "05", "JUN": "06", "JUL": "07", "AGO": "08",
+        "SEP": "09", "OCT": "10", "NOV": "11", "DIC": "12",
+    }
+
+    m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
+    if m:
+        day, mon_txt, year = m.groups()
+        mon = meses.get(mon_txt)
+        if mon:
+            return f"{year}-{mon}-{day}"
+
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
+    if m:
+        day, mon, year = m.groups()
+        return f"{year}-{mon}-{day}"
+
+    m = re.match(r"^(\d{2})-(\d{2})-(\d{4})$", raw)
+    if m:
+        day, mon, year = m.groups()
+        return f"{year}-{mon}-{day}"
+
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
+    if m:
+        return raw
+
+    return None
+4. Corrige nombres temporales
+En file_manager.py la OC no debe salir como factura.
+Python
+def build_temp_classified_name(
+    tipo_documental: str,
+    ruc: str | None,
+    serie: str | None,
+    numero: str | None,
+    fallback_name: str,
+) -> str:
+    ext = Path(fallback_name).suffix.lower() or ".pdf"
+
+    if tipo_documental == "factura" and ruc and serie and numero:
+        return sanitize_filename(f"FACTURA_{ruc}_{serie}_{numero}{ext}")
+
+    if tipo_documental == "guia" and serie and numero:
+        return sanitize_filename(f"GUIA_{serie}_{numero}{ext}")
+
+    if tipo_documental == "orden_compra" and numero:
+        return sanitize_filename(f"OC_{numero}{ext}")
+
+    stem = sanitize_filename(Path(fallback_name).stem)
+    return f"DOC_{stem}{ext}"
+Sobre la carpeta por mes
+Tu regla de negocio es buena:
+la fecha de emisión de la factura manda el mes para todos los archivos del correo.
+Eso yo no lo implementaría todavía dentro del clasificador individual.
+Primero dejaría bien la clasificación por documento. Luego hacemos una segunda fase:
+agrupar por correo_id
+encontrar el documento factura
+tomar fecha_emision
+recalcular bucket del correo completo
+mover todos los archivos de ese correo al mismo mes
+Qué se ve claro en los documentos
+La OC 007902 es orden de compra, no factura. �
+FACTURA_20538549071_981_453.pdf
+La factura Promelsa F231-0101440 sí es factura electrónica y su fecha es 10/04/2026, no octubre. �
+FACTURA_20100084172_F231_0101440.pdf
+La factura F001-00011006 sí es factura electrónica. �
+FACTURA_20563293587_F001_00011006.pdf
+Siguiente paso
+Haz esos cambios en classifier.py, file_manager.py y normalize_date() dentro de procesar_pendientes.py, y luego vuelve a correr el proceso sobre esos 3 documentos mal clasificados.
+Después revisamos esta consulta:
 SQL
 SELECT id, estado_documento, tipo_documental, serie, numero, ruc, fecha_emision
 FROM documentos
 ORDER BY id;
+y esta:
 SQL
 SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo
 FROM archivos
 ORDER BY id;
-Lo que espero ver después del cambio es algo así:
-documento 1 → guia
-documento 3 → guia
-documento 5 → orden_compra
-y en archivos nombres parecidos a:
-GUIA_T001_00002145.pdf
-GUIA_T002_00280.pdf
-OC_007902.pdf
-Si vuelve a fallar, ya no debería ser por fecha; ahí revisaríamos si el número o la serie se están extrayendo bien. Pégame la salida de esas consultas y seguimos.
