@@ -1,105 +1,35 @@
-Sí, esa es la mejor forma: no hardcodear nada y llevarlo a tablas de configuración.
-Y también me parece bien este flujo:
-extraes RUC del emisor desde el PDF
-buscas en proveedores
-si no existe:
-consultas API RUC
-insertas/actualizas proveedores
-sigues el proceso
-Eso te da un sistema más mantenible.
-Lo que te recomiendo crear
-1. Tabla clientes_destino
-Para las empresas o consorcios a donde fue emitido el documento.
-SQL
-CREATE TABLE clientes_destino (
-    id BIGSERIAL PRIMARY KEY,
-    nombre_oficial TEXT NOT NULL,
-    abreviatura VARCHAR(30) NOT NULL UNIQUE,
-    ruc VARCHAR(15),
-    ruta_windows TEXT NOT NULL,
-    descripcion TEXT,
-    estado BOOLEAN NOT NULL DEFAULT TRUE,
-    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
-    actualizado_en TIMESTAMP NOT NULL DEFAULT NOW()
-);
-2. Tabla clientes_destino_alias
-Porque en los PDFs el nombre puede venir con variantes.
-SQL
-CREATE TABLE clientes_destino_alias (
-    id BIGSERIAL PRIMARY KEY,
-    cliente_destino_id BIGINT NOT NULL REFERENCES clientes_destino(id),
-    alias TEXT NOT NULL,
-    estado BOOLEAN NOT NULL DEFAULT TRUE,
-    creado_en TIMESTAMP NOT NULL DEFAULT NOW()
-);
-Ejemplos:
-BBTI S.A.C.
-BBTI SAC
-BB TECNOLOGIA INDUSTRIAL S.A.C.
-CONSORCIO ILUMINACION TARMA 2025
-3. Tabla tipos_documentales
-Para no dejar tipos “sueltos”.
-SQL
-CREATE TABLE tipos_documentales (
-    id BIGSERIAL PRIMARY KEY,
-    codigo VARCHAR(20) NOT NULL UNIQUE,
-    nombre VARCHAR(100) NOT NULL,
-    abreviatura VARCHAR(20) NOT NULL,
-    descripcion TEXT,
-    estado BOOLEAN NOT NULL DEFAULT TRUE
-);
-Ejemplos:
-factura / FACTURA
-guia / GUIA
-orden_compra / OC
-nota_credito / NC
-requerimiento_compra / REQ
-4. Tabla parametros_documentales
-Para reglas como prefijo 04.
-SQL
-CREATE TABLE parametros_documentales (
-    id BIGSERIAL PRIMARY KEY,
-    codigo VARCHAR(30) NOT NULL UNIQUE,
-    valor TEXT NOT NULL,
-    descripcion TEXT,
-    estado BOOLEAN NOT NULL DEFAULT TRUE,
-    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
-    actualizado_en TIMESTAMP NOT NULL DEFAULT NOW()
-);
-Ejemplos:
-prefijo_factura_oc = 04
-ruta_base_windows = \\servidor\compartido
-usar_anio_en_ruta = 1
-Qué haría con proveedores
-Tu tabla proveedores ya sirve bien para el emisor.
-Plain text
-proveedores = emisor
-clientes_destino = receptor / empresa destino
-Esa separación es correcta.
-Flujo de negocio recomendado
-A. Emisor
-extraer ruc_emisor
-buscar en proveedores
-si no existe:
-consultar API RUC
-insertar proveedor
-B. Cliente destino
-extraer texto de CLIENTE, DESTINATARIO, etc.
-comparar contra clientes_destino_alias
-obtener:
-cliente_destino_id
-abreviatura
-ruta_windows
-C. Grupo documental
-identificar factura principal del correo
-tomar:
-fecha_emision
-cliente_destino
-generar correlativo mensual
-asignar a todos los adjuntos del correo_id
-Campos que agregaría en documentos
-Yo sí ampliaría documentos con esto:
-SQL
+
+gestiondocumental=# SELECT column_name,data_type, character_maximum_length, is_nullable FROM information_schema.columns WHERE table_name = 'doc
+umentos';
+    column_name    |          data_type          | character_maximum_length | is_nullable
+-------------------+-----------------------------+--------------------------+-------------
+ id                | bigint                      |                          | NO
+ correo_id         | bigint                      |                          | YES
+ proveedor_id      | bigint                      |                          | YES
+ tipo_documental   | character varying           |                       30 | YES
+ tipo_doc          | character varying           |                       10 | YES
+ serie             | character varying           |                       20 | YES
+ numero            | character varying           |                       30 | YES
+ ruc               | character varying           |                       15 | YES
+ razon_social      | text                        |                          | YES
+ fecha_emision     | date                        |                          | YES
+ fecha_vencimiento | date                        |                          | YES
+ moneda            | character varying           |                       10 | YES
+ importe           | numeric                     |                          | YES
+ igv               | numeric                     |                          | YES
+ base_imponible    | numeric                     |                          | YES
+ saldo             | numeric                     |                          | YES
+ clave_documental  | text                        |                          | YES
+ estado_documento  | character varying           |                       30 | NO
+ observacion       | text                        |                          | YES
+ creado_en         | timestamp without time zone |                          | NO
+ actualizado_en    | timestamp without time zone |                          | NO
+(21 rows)
+
+error al ejecutar: ERROR:  column "proveedor_id" of relation "documentos" already exists 
+
+SQL state: 42701
+
 ALTER TABLE documentos
 ADD COLUMN proveedor_id BIGINT NULL REFERENCES proveedores(id),
 ADD COLUMN cliente_destino_id BIGINT NULL REFERENCES clientes_destino(id),
@@ -109,48 +39,3 @@ ADD COLUMN es_principal BOOLEAN NOT NULL DEFAULT FALSE,
 ADD COLUMN documento_principal_id BIGINT NULL REFERENCES documentos(id),
 ADD COLUMN nombre_final TEXT,
 ADD COLUMN ruta_windows_final TEXT;
-Ejemplo de uso real
-Factura detectada:
-emisor: Promotores Electricos S A
-ruc emisor: 20100084172
-cliente destino: BBTI S.A.C. �
-FACTURA_20100084172_F231_0101440.pdf
-Entonces:
-proveedor_id → Promotores
-cliente_destino_id → BBTI
-grupo_codigo → 04-0001
-Y nombre final:
-Plain text
-04-0001 F231 0101440 20100084172 Promotores Electricos S A FACTURA.pdf
-La ruta final:
-Plain text
-\\servidor\compartido\BBTI SAC\ABRIL\
-Muy importante sobre el API RUC
-Sí, úsalo como fallback, pero te recomiendo:
-no guardar el token dentro del código
-ponerlo en .env
-cachear resultados en proveedores
-Ejemplo:
-si ya existe el RUC en BD, no consultas API
-solo consultas si no existe
-Eso evita llamadas innecesarias.
-Mi opinión final
-Tu diseño correcto sería:
-proveedores → emisor
-clientes_destino → empresa receptora / carpeta final
-clientes_destino_alias → variantes de nombre
-tipos_documentales → factura, guía, OC, etc.
-parametros_documentales → prefijos y reglas
-documentos → operación concreta y agrupación
-Eso está muy bien diseñado y te deja crecer sin rehacer todo.
-Qué haría yo ahora
-El siguiente paso ideal es:
-crear clientes_destino
-crear clientes_destino_alias
-insertar tus 5 empresas/consorcios
-agregar campos nuevos a documentos
-hacer la función Python:
-detectar_cliente_destino()
-buscar_o_crear_proveedor()
-generar_grupo_codigo()
-Si quieres, te doy ahorita el script SQL completo para crear esas tablas e insertar tus 5 clientes destino.
