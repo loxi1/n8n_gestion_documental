@@ -1,41 +1,111 @@
-
-gestiondocumental=# SELECT column_name,data_type, character_maximum_length, is_nullable FROM information_schema.columns WHERE table_name = 'doc
-umentos';
-    column_name    |          data_type          | character_maximum_length | is_nullable
--------------------+-----------------------------+--------------------------+-------------
- id                | bigint                      |                          | NO
- correo_id         | bigint                      |                          | YES
- proveedor_id      | bigint                      |                          | YES
- tipo_documental   | character varying           |                       30 | YES
- tipo_doc          | character varying           |                       10 | YES
- serie             | character varying           |                       20 | YES
- numero            | character varying           |                       30 | YES
- ruc               | character varying           |                       15 | YES
- razon_social      | text                        |                          | YES
- fecha_emision     | date                        |                          | YES
- fecha_vencimiento | date                        |                          | YES
- moneda            | character varying           |                       10 | YES
- importe           | numeric                     |                          | YES
- igv               | numeric                     |                          | YES
- base_imponible    | numeric                     |                          | YES
- saldo             | numeric                     |                          | YES
- clave_documental  | text                        |                          | YES
- estado_documento  | character varying           |                       30 | NO
- observacion       | text                        |                          | YES
- creado_en         | timestamp without time zone |                          | NO
- actualizado_en    | timestamp without time zone |                          | NO
-(21 rows)
-
-error al ejecutar: ERROR:  column "proveedor_id" of relation "documentos" already exists 
-
-SQL state: 42701
-
+Ese error es normal: proveedor_id ya existe en documentos, así que no debes volver a agregarlo.
+Hazlo así
+Ejecuta solo las columnas que faltan:
+SQL
 ALTER TABLE documentos
-ADD COLUMN proveedor_id BIGINT NULL REFERENCES proveedores(id),
-ADD COLUMN cliente_destino_id BIGINT NULL REFERENCES clientes_destino(id),
-ADD COLUMN grupo_codigo VARCHAR(20),
-ADD COLUMN correlativo_mes INTEGER,
-ADD COLUMN es_principal BOOLEAN NOT NULL DEFAULT FALSE,
-ADD COLUMN documento_principal_id BIGINT NULL REFERENCES documentos(id),
-ADD COLUMN nombre_final TEXT,
-ADD COLUMN ruta_windows_final TEXT;
+ADD COLUMN IF NOT EXISTS cliente_destino_id BIGINT NULL REFERENCES clientes_destino(id),
+ADD COLUMN IF NOT EXISTS grupo_codigo VARCHAR(20),
+ADD COLUMN IF NOT EXISTS correlativo_mes INTEGER,
+ADD COLUMN IF NOT EXISTS es_principal BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS documento_principal_id BIGINT NULL REFERENCES documentos(id),
+ADD COLUMN IF NOT EXISTS nombre_final TEXT,
+ADD COLUMN IF NOT EXISTS ruta_windows_final TEXT;
+Y si quieres confirmar después:
+SQL
+SELECT column_name, data_type, character_maximum_length, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'documentos'
+ORDER BY ordinal_position;
+Sobre Starsoft
+Tu decisión de no tocar la base me parece prudente.
+Mi opinión
+Si la garantía o soporte del sistema puede verse afectado, yo no haría escrituras ni cambios estructurales.
+Lo más razonable sería:
+solo lectura
+idealmente con un usuario de solo consulta
+y mejor aún con autorización del proveedor o del área responsable
+Un usuario solo SELECT
+Eso, en principio, suele ser la opción más segura.
+Porque no estás:
+alterando tablas
+creando triggers
+cambiando datos
+modificando estructura
+Pero igual, si te dijeron que “manipular la base” afecta garantía, yo lo tomaría con cuidado y lo validaría formalmente.
+Mi recomendación concreta
+Sí intentaría esto:
+pedir un usuario con permisos mínimos:
+SQL
+GRANT SELECT ON ...
+solo a las tablas o vistas necesarias.
+No intentaría:
+updates
+inserts
+deletes
+funciones
+procedimientos
+cambios de esquema
+Mejor estrategia para tu caso
+Como por ahora el objetivo es:
+clasificar PDFs
+agruparlos
+moverlos
+mostrar estados
+entonces no necesitas Starsoft todavía para avanzar fuerte.
+Puedes dejar Starsoft como una fase posterior:
+Fase actual
+OCR
+clasificación
+proveedor
+cliente destino
+grupo documental
+nombre final
+ruta Windows final
+Fase futura
+consulta de asiento contable desde Starsoft, si te autorizan
+Qué haría ahora
+1. Crear clientes_destino
+2. Crear clientes_destino_alias
+3. Agregar columnas nuevas a documentos
+4. Implementar detección de cliente destino
+5. Implementar generación de grupo_codigo
+SQL recomendado ahora
+Tabla principal
+SQL
+CREATE TABLE IF NOT EXISTS clientes_destino (
+    id BIGSERIAL PRIMARY KEY,
+    nombre_oficial TEXT NOT NULL,
+    abreviatura VARCHAR(30) NOT NULL UNIQUE,
+    ruc VARCHAR(15),
+    ruta_windows TEXT NOT NULL,
+    descripcion TEXT,
+    estado BOOLEAN NOT NULL DEFAULT TRUE,
+    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
+    actualizado_en TIMESTAMP NOT NULL DEFAULT NOW()
+);
+Alias
+SQL
+CREATE TABLE IF NOT EXISTS clientes_destino_alias (
+    id BIGSERIAL PRIMARY KEY,
+    cliente_destino_id BIGINT NOT NULL REFERENCES clientes_destino(id),
+    alias TEXT NOT NULL,
+    estado BOOLEAN NOT NULL DEFAULT TRUE,
+    creado_en TIMESTAMP NOT NULL DEFAULT NOW()
+);
+Inserts iniciales
+SQL
+INSERT INTO clientes_destino (nombre_oficial, abreviatura, ruta_windows, descripcion)
+VALUES
+('BB TECNOLOGIA INDUSTRIAL S.A.C.', 'BBTEC', '\\\\servidor\\documentos\\BB TECNOLOGIA INDUSTRIAL SAC', 'Empresa destino'),
+('BBTI S.A.C.', 'BBTI', '\\\\servidor\\documentos\\BBTI SAC', 'Empresa destino'),
+('CONSORCIO CIMA ENERGY', 'CIMA', '\\\\servidor\\documentos\\CONSORCIO CIMA ENERGY', 'Consorcio'),
+('CONSORCIO ILUMINACION TARMA 2025', 'TARMA', '\\\\servidor\\documentos\\CONSORCIO ILUMINACION TARMA 2025', 'Consorcio'),
+('CONSORCIO HUANCAVELICA', 'HUANCA', '\\\\servidor\\documentos\\CONSORCIO HUANCAVELICA', 'Consorcio')
+ON CONFLICT (abreviatura) DO NOTHING;
+Luego los alias.
+Respuesta corta sobre Starsoft
+Sí, un usuario solo lectura sería el camino correcto, pero yo no lo movería todavía sin visto bueno.
+Y mientras tanto, puedes avanzar bastante sin depender de eso.
+Si quieres, en el siguiente mensaje te doy:
+el SQL de clientes_destino_alias
+y las funciones Python para detectar cliente destino y generar la ruta Windows por mes.
