@@ -1,60 +1,145 @@
-Lo solicitado:
-gestiondocumental=# SELECT a.id, c.abreviatura, c.nombre_oficial, a.alias FROM clientes_destino_alias a JOIN clientes_destino c ON c.
-id = a.cliente_destino_id ORDER BY c.id, a.alias;
- id | abreviatura |          nombre_oficial          |              alias
-----+-------------+----------------------------------+----------------------------------
-  7 | BBTEC       | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BB TECNOLOGIA
-  6 | BBTEC       | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BB TECNOLOGIA INDUSTRIAL
-  4 | BBTEC       | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BB TECNOLOGIA INDUSTRIAL S.A.C.
-  5 | BBTEC       | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BB TECNOLOGIA INDUSTRIAL SAC
-  3 | BBTI        | BBTI S.A.C.                      | BBTI
-  1 | BBTI        | BBTI S.A.C.                      | BBTI S.A.C.
-  2 | BBTI        | BBTI S.A.C.                      | BBTI SAC
-  9 | CIMA        | CONSORCIO CIMA ENERGY            | CIMA ENERGY
-  8 | CIMA        | CONSORCIO CIMA ENERGY            | CONSORCIO CIMA ENERGY
- 10 | TARMA       | CONSORCIO ILUMINACION TARMA 2025 | CONSORCIO ILUMINACION TARMA 2025
- 11 | TARMA       | CONSORCIO ILUMINACION TARMA 2025 | CONSORCIO TARMA 2025
- 12 | TARMA       | CONSORCIO ILUMINACION TARMA 2025 | ILUMINACION TARMA 2025
- 13 | HUANCA      | CONSORCIO HUANCAVELICA           | CONSORCIO HUANCAVELICA
- 14 | HUANCA      | CONSORCIO HUANCAVELICA           | HUANCAVELICA
-(14 rows)
+Gracias. Esa salida dice algo importante:
+Estado real
+Todavía no se ha aplicado la nueva lógica sobre esos 5 documentos.
+Lo sé porque en documentos siguen todos así:
+cliente_destino_id = NULL
+grupo_codigo = NULL
+correlativo_mes = NULL
+es_principal = false
+nombre_final = NULL
+ruta_windows_final = NULL
+y en archivos siguen los nombres viejos:
+FACTURA_20563293587_F001_00011006.pdf
+GUIA_373_5446.pdf
+FACTURA_20538549071_981_453.pdf
+Si la versión nueva hubiera corrido bien, ya verías al menos:
+cliente_destino_id lleno para la factura Promelsa
+grupo_codigo tipo 04-0001
+es_principal = true en la factura principal
+nombre_final con el formato nuevo
+ruta_windows_final con la carpeta del cliente destino
+Qué significa
+Hay dos posibilidades:
+1. No corriste la versión nueva de procesar_pendientes.py
+o
+2. La corriste, pero no entró a reprocesar esos documentos porque ya están en estado viejo y con rutas ya movidas
+Qué haría ahora
+Vamos a reprocesar solo este correo de forma controlada.
+Paso 1. Resetear esos 5 documentos
+Ejecuta esto:
+SQL
+UPDATE documentos
+SET
+    tipo_documental = NULL,
+    serie = NULL,
+    numero = NULL,
+    ruc = NULL,
+    razon_social = NULL,
+    fecha_emision = NULL,
+    cliente_destino_id = NULL,
+    grupo_codigo = NULL,
+    correlativo_mes = NULL,
+    es_principal = FALSE,
+    documento_principal_id = NULL,
+    nombre_final = NULL,
+    ruta_windows_final = NULL,
+    estado_documento = 'pendiente',
+    actualizado_en = NOW()
+WHERE correo_id = 1;
+Paso 2. Resetear archivos
+SQL
+UPDATE archivos
+SET
+    estado_archivo = 'descargado',
+    actualizado_en = NOW()
+WHERE documento_id IN (
+    SELECT id FROM documentos WHERE correo_id = 1
+);
+Paso 3. Muy importante: devolver los archivos a una carpeta de entrada reproceso
+Ahora mismo tienes:
+1 en no_identificados/...
+4 en pendientes_clasificados/...
+Para que el script los procese limpio, todos deberían estar en una carpeta temporal homogénea, por ejemplo:
+Plain text
+storage/files/reproceso/2026/04/
+Crea carpeta:
+Bash
+mkdir -p storage/files/reproceso/2026/04
+Y mueve los 5 archivos manualmente ahí, por ahora
+dejándolos con sus nombres actuales.
+Luego actualiza la BD con esas rutas.
+Paso 4. Actualizar rutas en BD
+Haz algo así, ajustando cada nombre real:
+SQL
+UPDATE archivos
+SET ruta_temporal = 'reproceso/2026/04/posible_documento_20260416204138431_1.pdf'
+WHERE id = 1;
 
+UPDATE archivos
+SET ruta_temporal = 'reproceso/2026/04/FACTURA_20563293587_F001_00011006.pdf'
+WHERE id = 2;
 
-gestiondocumental=#
-gestiondocumental=# SELECT id, correo_id, tipo_documental, serie, numero, ruc, cliente_destino_id, grupo_codigo, correlativo_mes, es_
-principal, documento_principal_id, nombre_final, ruta_windows_final FROM documentos ORDER BY id;
- id | correo_id | tipo_documental | serie |  numero  |     ruc     | cliente_destino_id | grupo_codigo | correlativo_mes | es_princip
-al | documento_principal_id | nombre_final | ruta_windows_final
-----+-----------+-----------------+-------+----------+-------------+--------------------+--------------+-----------------+-----------
----+------------------------+--------------+--------------------
-  1 |         1 |                 |       |          |             |                    |              |                 | f
-   |                        |              |
-  2 |         1 | factura         | F001  | 00011006 | 20563293587 |                    |              |                 | f
-   |                        |              |
-  3 |         1 | guia            | 373   | 5446     | 20538549071 |                    |              |                 | f
-   |                        |              |
-  4 |         1 | factura         | F231  | 0101440  | 20100084172 |                    |              |                 | f
-   |                        |              |
-  5 |         1 | factura         | 981   | 453      | 20538549071 |                    |              |                 | f
-   |                        |              |
-(5 rows)
+UPDATE archivos
+SET ruta_temporal = 'reproceso/2026/04/GUIA_373_5446.pdf'
+WHERE id = 3;
 
-gestiondocumental=# SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo FROM archivos ORDER BY id;
- id | documento_id |           nombre_archivo_actual           |                             ruta_temporal
-  | estado_archivo
-----+--------------+-------------------------------------------+---------------------------------------------------------------------
---+----------------
-  1 |            1 | posible_documento_20260416204138431_1.pdf | no_identificados/2026/04/posible_documento_20260416204138431_1.pdf
-  | error
-  2 |            2 | FACTURA_20563293587_F001_00011006.pdf     | pendientes_clasificados/2026/04/FACTURA_20563293587_F001_00011006.pd
-f | renombrado
-  3 |            3 | GUIA_373_5446.pdf                         | pendientes_clasificados/2026/04/GUIA_373_5446.pdf
-  | renombrado
-  4 |            4 | FACTURA_20100084172_F231_0101440.pdf      | pendientes_clasificados/2026/04/FACTURA_20100084172_F231_0101440.pdf
-  | renombrado
-  5 |            5 | FACTURA_20538549071_981_453.pdf           | pendientes_clasificados/2026/04/FACTURA_20538549071_981_453.pdf
-  | renombrado
-(5 rows)
+UPDATE archivos
+SET ruta_temporal = 'reproceso/2026/04/FACTURA_20100084172_F231_0101440.pdf'
+WHERE id = 4;
 
-
-gestiondocumental=#
+UPDATE archivos
+SET ruta_temporal = 'reproceso/2026/04/FACTURA_20538549071_981_453.pdf'
+WHERE id = 5;
+Antes de correr de nuevo
+Te recomiendo agregar un debug corto al script, dentro de process_one_document() justo antes del UPDATE documentos:
+Python
+print({
+    "documento_id": documento_id,
+    "tipo_documental": tipo_documental,
+    "serie": fields["serie"],
+    "numero": fields["numero"],
+    "ruc": ruc_emisor,
+    "cliente_raw": cliente_raw,
+    "cliente_match": cliente_match,
+    "grupo_codigo": grupo_codigo,
+    "correlativo_mes": correlativo_mes,
+    "nombre_final": nombre_final,
+    "ruta_windows_final": ruta_windows_final,
+})
+Eso nos dirá si:
+sí detecta cliente destino
+sí genera grupo
+sí arma nombre final
+Observaciones clave de tu data actual
+Documento 4
+Esta factura debería detectar cliente destino BBTI porque en el PDF dice CLIENTE: ... BBTI S.A.C. �
+FACTURA_20100084172_F231_0101440.pdf
+Documento 3
+Sigue mal como GUIA_373_5446.pdf porque tomó el teléfono, no la serie real.
+Documento 5
+Sigue mal como factura; en realidad era OC.
+Entonces sí o sí hay que reprocesar esos 5 con la versión nueva del clasificador.
+Mi recomendación exacta
+No sigas probando sobre los estados actuales ya mezclados.
+Haz un reproceso limpio del correo 1.
+Orden:
+reset SQL
+mover 5 archivos a reproceso/2026/04
+actualizar ruta_temporal
+correr script
+revisar resultados
+Qué quiero ver luego
+Después del reproceso, pega estas dos consultas:
+SQL
+SELECT
+  id, correo_id, tipo_documental, serie, numero, ruc,
+  cliente_destino_id, grupo_codigo, correlativo_mes,
+  es_principal, documento_principal_id, nombre_final, ruta_windows_final
+FROM documentos
+ORDER BY id;
+SQL
+SELECT
+  id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo
+FROM archivos
+ORDER BY id;
+Si quieres, te preparo también el bloque SQL exacto para resetear y dejar listo el correo 1 para reproceso.
