@@ -1,251 +1,60 @@
-Perfecto. Continuemos con lo que ya te deja listo para renombrar y mover.
-1. SQL para alias de clientes destino
-Primero revisa los IDs:
-SQL
-SELECT id, abreviatura, nombre_oficial
-FROM clientes_destino
-ORDER BY id;
-Luego inserta alias. Ajusta los cliente_destino_id si tus IDs salen distintos:
-SQL
-INSERT INTO clientes_destino_alias (cliente_destino_id, alias)
-VALUES
--- BBTI
-(2, 'BBTI S.A.C.'),
-(2, 'BBTI SAC'),
-(2, 'BBTI'),
-
--- BB TECNOLOGIA INDUSTRIAL
-(1, 'BB TECNOLOGIA INDUSTRIAL S.A.C.'),
-(1, 'BB TECNOLOGIA INDUSTRIAL SAC'),
-(1, 'BB TECNOLOGIA INDUSTRIAL'),
-(1, 'BB TECNOLOGIA'),
-
--- CONSORCIO CIMA ENERGY
-(3, 'CONSORCIO CIMA ENERGY'),
-(3, 'CIMA ENERGY'),
-
--- CONSORCIO ILUMINACION TARMA 2025
-(4, 'CONSORCIO ILUMINACION TARMA 2025'),
-(4, 'CONSORCIO TARMA 2025'),
-(4, 'ILUMINACION TARMA 2025'),
-
--- CONSORCIO HUANCAVELICA
-(5, 'CONSORCIO HUANCAVELICA'),
-(5, 'HUANCAVELICA');
-Y una consulta útil para validar:
-SQL
-SELECT a.id, c.abreviatura, c.nombre_oficial, a.alias
-FROM clientes_destino_alias a
-JOIN clientes_destino c ON c.id = a.cliente_destino_id
-ORDER BY c.id, a.alias;
-2. Función Python para normalizar texto
-Crea app/core/text_utils.py:
-Python
-from __future__ import annotations
-
-import re
-import unicodedata
+Lo solicitado:
+gestiondocumental=# SELECT a.id, c.abreviatura, c.nombre_oficial, a.alias FROM clientes_destino_alias a JOIN clientes_destino c ON c.
+id = a.cliente_destino_id ORDER BY c.id, a.alias;
+ id | abreviatura |          nombre_oficial          |              alias
+----+-------------+----------------------------------+----------------------------------
+  7 | BBTEC       | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BB TECNOLOGIA
+  6 | BBTEC       | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BB TECNOLOGIA INDUSTRIAL
+  4 | BBTEC       | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BB TECNOLOGIA INDUSTRIAL S.A.C.
+  5 | BBTEC       | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BB TECNOLOGIA INDUSTRIAL SAC
+  3 | BBTI        | BBTI S.A.C.                      | BBTI
+  1 | BBTI        | BBTI S.A.C.                      | BBTI S.A.C.
+  2 | BBTI        | BBTI S.A.C.                      | BBTI SAC
+  9 | CIMA        | CONSORCIO CIMA ENERGY            | CIMA ENERGY
+  8 | CIMA        | CONSORCIO CIMA ENERGY            | CONSORCIO CIMA ENERGY
+ 10 | TARMA       | CONSORCIO ILUMINACION TARMA 2025 | CONSORCIO ILUMINACION TARMA 2025
+ 11 | TARMA       | CONSORCIO ILUMINACION TARMA 2025 | CONSORCIO TARMA 2025
+ 12 | TARMA       | CONSORCIO ILUMINACION TARMA 2025 | ILUMINACION TARMA 2025
+ 13 | HUANCA      | CONSORCIO HUANCAVELICA           | CONSORCIO HUANCAVELICA
+ 14 | HUANCA      | CONSORCIO HUANCAVELICA           | HUANCAVELICA
+(14 rows)
 
 
-def normalize_text(value: str | None) -> str:
-    if not value:
-        return ""
+gestiondocumental=#
+gestiondocumental=# SELECT id, correo_id, tipo_documental, serie, numero, ruc, cliente_destino_id, grupo_codigo, correlativo_mes, es_
+principal, documento_principal_id, nombre_final, ruta_windows_final FROM documentos ORDER BY id;
+ id | correo_id | tipo_documental | serie |  numero  |     ruc     | cliente_destino_id | grupo_codigo | correlativo_mes | es_princip
+al | documento_principal_id | nombre_final | ruta_windows_final
+----+-----------+-----------------+-------+----------+-------------+--------------------+--------------+-----------------+-----------
+---+------------------------+--------------+--------------------
+  1 |         1 |                 |       |          |             |                    |              |                 | f
+   |                        |              |
+  2 |         1 | factura         | F001  | 00011006 | 20563293587 |                    |              |                 | f
+   |                        |              |
+  3 |         1 | guia            | 373   | 5446     | 20538549071 |                    |              |                 | f
+   |                        |              |
+  4 |         1 | factura         | F231  | 0101440  | 20100084172 |                    |              |                 | f
+   |                        |              |
+  5 |         1 | factura         | 981   | 453      | 20538549071 |                    |              |                 | f
+   |                        |              |
+(5 rows)
 
-    text = value.strip().upper()
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = re.sub(r"[^\w\s.-]", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-3. Función para detectar cliente destino
-Crea app/core/clientes_destino.py:
-Python
-from __future__ import annotations
-
-import re
-from typing import Any
-
-from core.db import get_cursor
-from core.text_utils import normalize_text
-
-
-def extract_cliente_destino_raw(text: str) -> str | None:
-    text_u = normalize_text(text)
-
-    patrones = [
-        r"\bCLIENTE[:\s]+(.+?)(?:\bRUC\b|\bRUC/DOC\b|\bDIRECCION\b|\bDIRECCION:|\bVENDEDOR\b|\bMONEDA\b)",
-        r"\bDESTINATARIO[:\s]+(.+?)(?:\bRUC\b|\bCARGA\b|\bPESO\b|\bCANTIDAD\b)",
-        r"\bSEÑOR\(ES\)[:\s]+(.+?)(?:\bFECHA\b|\bR\.U\.C\b|\bRUC\b|\bATENCION\b)",
-    ]
-
-    for patron in patrones:
-        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
-        if m:
-            value = m.group(1).strip(" -:")
-            value = re.sub(r"\s+", " ", value).strip()
-            if value:
-                return value
-
-    return None
+gestiondocumental=# SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo FROM archivos ORDER BY id;
+ id | documento_id |           nombre_archivo_actual           |                             ruta_temporal
+  | estado_archivo
+----+--------------+-------------------------------------------+---------------------------------------------------------------------
+--+----------------
+  1 |            1 | posible_documento_20260416204138431_1.pdf | no_identificados/2026/04/posible_documento_20260416204138431_1.pdf
+  | error
+  2 |            2 | FACTURA_20563293587_F001_00011006.pdf     | pendientes_clasificados/2026/04/FACTURA_20563293587_F001_00011006.pd
+f | renombrado
+  3 |            3 | GUIA_373_5446.pdf                         | pendientes_clasificados/2026/04/GUIA_373_5446.pdf
+  | renombrado
+  4 |            4 | FACTURA_20100084172_F231_0101440.pdf      | pendientes_clasificados/2026/04/FACTURA_20100084172_F231_0101440.pdf
+  | renombrado
+  5 |            5 | FACTURA_20538549071_981_453.pdf           | pendientes_clasificados/2026/04/FACTURA_20538549071_981_453.pdf
+  | renombrado
+(5 rows)
 
 
-def find_cliente_destino_by_alias(cliente_raw: str | None) -> dict[str, Any] | None:
-    if not cliente_raw:
-        return None
-
-    cliente_norm = normalize_text(cliente_raw)
-
-    with get_cursor() as (_, cur):
-        cur.execute(
-            """
-            SELECT
-                c.id,
-                c.nombre_oficial,
-                c.abreviatura,
-                c.ruta_windows,
-                a.alias
-            FROM clientes_destino_alias a
-            JOIN clientes_destino c ON c.id = a.cliente_destino_id
-            WHERE c.estado = TRUE
-              AND a.estado = TRUE
-            """
-        )
-        rows = cur.fetchall()
-
-    for row in rows:
-        alias_norm = normalize_text(row["alias"])
-        if alias_norm and alias_norm in cliente_norm:
-            return dict(row)
-
-    for row in rows:
-        alias_norm = normalize_text(row["alias"])
-        if alias_norm and cliente_norm in alias_norm:
-            return dict(row)
-
-    return None
-4. Función para construir ruta Windows por mes
-Crea app/core/windows_path.py:
-Python
-from __future__ import annotations
-
-from datetime import date
-
-
-MESES_ES = {
-    1: "ENERO",
-    2: "FEBRERO",
-    3: "MARZO",
-    4: "ABRIL",
-    5: "MAYO",
-    6: "JUNIO",
-    7: "JULIO",
-    8: "AGOSTO",
-    9: "SEPTIEMBRE",
-    10: "OCTUBRE",
-    11: "NOVIEMBRE",
-    12: "DICIEMBRE",
-}
-
-
-def build_windows_target_path(ruta_base: str, fecha_emision: date | None) -> str | None:
-    if not ruta_base or not fecha_emision:
-        return None
-
-    mes = MESES_ES[fecha_emision.month]
-    return rf"{ruta_base}\{mes}"
-5. Función para generar el correlativo mensual
-Crea app/core/grupo_documental.py:
-Python
-from __future__ import annotations
-
-from datetime import date
-
-from core.db import get_cursor
-
-
-def get_next_correlativo_mes(fecha_emision: date, prefijo: str = "04") -> tuple[int, str]:
-    year = fecha_emision.year
-    month = fecha_emision.month
-
-    with get_cursor(commit=True) as (_, cur):
-        cur.execute(
-            """
-            SELECT COALESCE(MAX(correlativo_mes), 0) AS max_corr
-            FROM documentos
-            WHERE fecha_emision IS NOT NULL
-              AND EXTRACT(YEAR FROM fecha_emision) = %s
-              AND EXTRACT(MONTH FROM fecha_emision) = %s
-              AND grupo_codigo LIKE %s
-            """,
-            (year, month, f"{prefijo}-%"),
-        )
-        row = cur.fetchone()
-
-    siguiente = int(row["max_corr"] or 0) + 1
-    grupo_codigo = f"{prefijo}-{siguiente:04d}"
-    return siguiente, grupo_codigo
-6. Función para nombre final
-Agrega en app/core/file_manager.py esto:
-Python
-def build_final_name(
-    grupo_codigo: str,
-    serie: str | None,
-    numero: str | None,
-    ruc_emisor: str | None,
-    razon_social_emisor: str | None,
-    tipo_documental: str,
-    fallback_name: str,
-) -> str:
-    ext = Path(fallback_name).suffix.lower() or ".pdf"
-
-    serie_txt = (serie or "").strip()
-    numero_txt = (numero or "").strip()
-    ruc_txt = (ruc_emisor or "").strip()
-    razon_txt = sanitize_filename((razon_social_emisor or "").strip()) or "SIN_RAZON"
-
-    tipo_map = {
-        "factura": "FACTURA",
-        "guia": "GUIA",
-        "orden_compra": "OC",
-        "nota": "NOTA",
-        "otro": "OTRO",
-    }
-
-    tipo_txt = tipo_map.get(tipo_documental, "OTRO")
-
-    parts = [grupo_codigo]
-
-    if serie_txt:
-        parts.append(serie_txt)
-    if numero_txt:
-        parts.append(numero_txt)
-    if ruc_txt:
-        parts.append(ruc_txt)
-
-    parts.append(razon_txt)
-    parts.append(tipo_txt)
-
-    return sanitize_filename(" ".join(parts)) + ext
-7. Qué haremos luego en procesar_pendientes.py
-La lógica será:
-Clasificar documentos del correo.
-Identificar la factura principal.
-Sacar de la factura:
-fecha_emision
-cliente destino
-correlativo mensual
-grupo_codigo
-Aplicar ese grupo_codigo a todos los documentos del mismo correo_id.
-Generar nombre final.
-Generar ruta Windows final como:
-ruta_windows\ABRIL
-Guardar eso en BD.
-Mover todavía no, primero validamos.
-8. Mi sugerencia inmediata
-Ahora ejecuta:
-SQL
-SELECT id, abreviatura, nombre_oficial
-FROM clientes_destino
-ORDER BY id;
-y luego inserta los alias ajustando los IDs si hace falta.
-Después te paso el siguiente bloque: cómo modificar procesar_pendientes.py para que detecte cliente_destino, genere grupo_codigo y construya nombre_final y ruta_windows_final sin mover aún los archivos.
+gestiondocumental=#
