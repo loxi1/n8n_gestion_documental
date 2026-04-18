@@ -113,13 +113,9 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
     oc = None
 
     if doc_type == "factura":
-        patrones = [
-            r"\b(F\d{3,4})[- ]([0-9]{3,})\b",
-        ]
+        patrones = [r"\b(F\d{3,4})[- ]([0-9]{3,})\b"]
     elif doc_type == "guia":
-        patrones = [
-            r"\b(T\d{3,4})[- ]([0-9]{3,})\b",
-        ]
+        patrones = [r"\b(T\d{3,4})[- ]([0-9]{3,})\b"]
     elif doc_type == "orden_compra":
         patrones = [
             r"\bORDEN DE COMPRA\s*N[°º: ]*([0-9]{3,})\b",
@@ -136,12 +132,18 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
     for patron in patrones:
         m = re.search(patron, text_u, re.IGNORECASE)
         if m:
-            if doc_type in ("orden_compra", "requerimiento_compra"):
-                serie = "OC" if doc_type == "orden_compra" else "REQ"
-                numero = m.group(1).strip()
-            else:
+            if doc_type == "factura":
                 serie = m.group(1).strip()
                 numero = m.group(2).strip()
+            elif doc_type == "guia":
+                serie = m.group(1).strip()
+                numero = m.group(2).strip()
+            elif doc_type == "orden_compra":
+                serie = "OC"
+                numero = m.group(1).strip()
+            elif doc_type == "requerimiento_compra":
+                serie = "REQ"
+                numero = m.group(1).strip()
             break
 
     oc_match = re.search(r"\bOC[:\s]*([0-9]{3,})\b", text_u, re.IGNORECASE)

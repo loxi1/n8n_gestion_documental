@@ -104,16 +104,17 @@ def build_operation_key(
     return f"{correo_id}|DOC|{tipo_documental or 'SIN_TIPO'}|{ruc_txt}|{cli_txt}"
 
 
-def select_factura_principal(documentos: list[dict]) -> dict | None:
-    facturas = [d for d in documentos if d.get("tipo_documental") == "factura"]
+def select_factura_principal(items: list[dict]) -> dict | None:
+    facturas = [x for x in items if x["fields"]["tipo_documental"] == "factura"]
     if not facturas:
         return None
 
+    # Preferir la que tenga OC y cliente destino
     facturas.sort(
-        key=lambda d: (
-            0 if d.get("fecha_emision") else 1,
-            0 if str(d.get("serie") or "").upper().startswith("F") else 1,
-            d["documento_id"],
+        key=lambda x: (
+            0 if x["fields"].get("oc") else 1,
+            0 if x.get("cliente_match") else 1,
+            0 if x["fields"].get("serie") else 1,
         )
     )
     return facturas[0]
