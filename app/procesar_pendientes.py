@@ -22,6 +22,27 @@ from core.grupo_documental import (
 from core.text_utils import normalize_text
 from core.windows_path import build_windows_target_path
 
+SQL_SELECT_PENDING = """
+SELECT
+    d.id AS documento_id,
+    d.correo_id,
+    d.proveedor_id,
+    d.tipo_documental,
+    d.serie,
+    d.numero,
+    d.ruc,
+    d.razon_social,
+    d.fecha_emision,
+    d.estado_documento,
+    a.id AS archivo_id,
+    a.ruta_temporal,
+    a.nombre_archivo_actual,
+    a.nombre_archivo_original
+FROM documentos d
+JOIN archivos a ON a.documento_id = d.id
+WHERE d.estado_documento IN ('pendiente', 'no_identificado', 'clasificado', 'error')
+ORDER BY d.id ASC;
+"""
 
 SQL_SELECT_CORREOS_PENDIENTES = """
 SELECT DISTINCT correo_id
