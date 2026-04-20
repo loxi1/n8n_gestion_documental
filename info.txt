@@ -1,13 +1,106 @@
-error:
- python procesar_pendientes.py
-Traceback (most recent call last):
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 12, in <module>
-    from core.classifier import extract_basic_fields
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\core\classifier.py", line 56
-    return "otro"def detect_document_type(text: str, original_name: str) -> str:
-                 ^^^
-SyntaxError: invalid syntax
-(venv) 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ 
-revisar el documento procesar_pendientes.py
+Sí, el error apunta casi seguro a esto:
+Problema probable
+En get_pending_rows() estás usando:
+Python
+cur.execute(SQL_SELECT_PENDING)
+pero SQL_SELECT_PENDING:
+no existe
+quedó con otro nombre
+o se borró accidentalmente al reemplazar el archivo
+Por el traceback, el fallo ocurre exactamente al evaluar SQL_SELECT_PENDING, no en la consulta contra PostgreSQL.
+Qué revisar ahora
+1. Busca esta constante en procesar_pendientes.py
+Debe existir algo así, una sola vez, fuera de funciones:
+Python
+SQL_SELECT_PENDING = """
+SELECT
+    d.id AS documento_id,
+    d.correo_id,
+    d.proveedor_id,
+    d.tipo_documental,
+    d.serie,
+    d.numero,
+    d.ruc,
+    d.razon_social,
+    d.fecha_emision,
+    d.estado_documento,
+    a.id AS archivo_id,
+    a.ruta_temporal,
+    a.nombre_archivo_actual,
+    a.nombre_archivo_original
+FROM documentos d
+JOIN archivos a ON a.documento_id = d.id
+WHERE d.estado_documento IN ('pendiente', 'no_identificado', 'clasificado', 'error')
+ORDER BY d.id ASC;
+"""
+Si no está, agrégala.
+2. Verifica que no tenga otro nombre
+Tal vez la dejaste como:
+Python
+SQL_SELECT_PENDIENTES
+o
+Python
+SQL_SELECT_DOCUMENTOS
+Si es así, o cambias la constante, o cambias la llamada:
+Python
+cur.execute(SQL_SELECT_PENDING)
+por el nombre real.
+3. Verifica que esté a nivel global
+Debe estar fuera de cualquier función, no adentro de main() ni adentro de otra función.
+Correcto:
+Python
+SQL_SELECT_PENDING = """..."""
+
+def get_pending_rows():
+    ...
+Incorrecto:
+Python
+def main():
+    SQL_SELECT_PENDING = """..."""
+Prueba rápida
+En Git Bash, dentro de app/:
+Bash
+grep -n "SQL_SELECT_PENDING" procesar_pendientes.py
+Deberías ver al menos 2 coincidencias:
+una donde se define
+otra donde se usa
+Si solo sale una, entonces está faltando la definición o el uso.
+Solución rápida
+Te dejo el bloque mínimo para pegar arriba de tus funciones, debajo de imports:
+Python
+SQL_SELECT_PENDING = """
+SELECT
+    d.id AS documento_id,
+    d.correo_id,
+    d.proveedor_id,
+    d.tipo_documental,
+    d.serie,
+    d.numero,
+    d.ruc,
+    d.razon_social,
+    d.fecha_emision,
+    d.estado_documento,
+    a.id AS archivo_id,
+    a.ruta_temporal,
+    a.nombre_archivo_actual,
+    a.nombre_archivo_original
+FROM documentos d
+JOIN archivos a ON a.documento_id = d.id
+WHERE d.estado_documento IN ('pendiente', 'no_identificado', 'clasificado', 'error')
+ORDER BY d.id ASC;
+"""
+Después
+Corre esto para validar sintaxis:
+Bash
+python -m py_compile procesar_pendientes.py
+Si no devuelve nada, vuelve a probar:
+Bash
+python procesar_pendientes.py
+Si quieres ir más rápido
+Pégame estas dos salidas:
+Bash
+grep -n "SQL_SELECT_PENDING" procesar_pendientes.py
+y
+Bash
+head -n 80 procesar_pendientes.py
+y te digo exactamente qué línea corregir.
