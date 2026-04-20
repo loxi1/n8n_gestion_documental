@@ -71,10 +71,12 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
     if doc_type == "factura":
         patrones = [r"\b(F\d{3,4})[- ]([0-9]{3,})\b"]
     elif doc_type == "guia":
-        patrones = [r"\b(T\d{3,4})[- ]([0-9]{3,})\b"]
+        patrones = [
+            r"\b(TO?\d{3,4})[- ]([0-9]{3,})\b",
+        ]
     elif doc_type == "orden_compra":
         patrones = [
-            r"\bORDEN DE COMPRA\s*N[°º: ]*([0-9]{3,})\b",
+            r"\bORDEN DE COMPRA\s*N[^0-9]{0,5}([0-9]{3,})\b",
             r"\bOC[:\s]*([0-9]{3,})\b",
         ]
     elif doc_type == "requerimiento_compra":
@@ -94,6 +96,7 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
             elif doc_type == "guia":
                 serie = m.group(1).strip()
                 numero = m.group(2).strip()
+                serie = serie.replace("TO", "T", 1)
             elif doc_type == "orden_compra":
                 serie = "OC"
                 numero = m.group(1).strip()
