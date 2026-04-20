@@ -1,16 +1,79 @@
-Perfecto, ahora sí estás tomando una decisión de nivel profesional 👌
-Vamos a dejar esto bien sólido para producción.
-🎯 OBJETIVO FINAL
-Formato estándar:
+Yo te recomiendo esto:
+Recomendación práctica
+Sí usar espacios entre bloques principales, pero normalizar el contenido interno para que no haya caos.
+Formato recomendado
 Plain text
-{GRUPO} {TIPO} {IDENTIFICADOR_REAL} {RUC} {RAZON_SOCIAL}.pdf
-Ejemplo real:
+04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+Por qué así
+Espacios entre bloques
+Se ve más legible para humanos:
+grupo
+tipo
+serie
+número
+RUC
+razón social
+Guion bajo dentro de valores compuestos
+Evita problemas con:
+nombres muy largos
+dobles espacios
+copiado en scripts
+búsquedas automáticas
+red compartida Windows
+Lo que no te recomiendo
+Todo con espacios
 Plain text
-04-0001 FACTURA F002 00000254 20538549071 OMEGA POWER S A C.pdf
-04-0001 GUIA T002 00280 20538549071 OMEGA POWER S A C.pdf
-04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA POWER S A C.pdf
-🔧 1. MODIFICAR build_final_name()
-Reemplaza completamente tu función por esta versión:
+04-0001 ORDEN COMPRA 007902 OMEGA POWER S A C.pdf
+Se ve bonito, pero para automatización y parsing luego es más frágil.
+Todo con guiones
+Plain text
+04-0001-FACTURA-F002-00000254-20538549071-OMEGA-POWER-S-A-C.pdf
+Se vuelve más duro de leer.
+Mi propuesta final
+Usa esta convención:
+espacios para separar campos
+guion bajo dentro de textos compuestos
+Ejemplo:
+Plain text
+04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 REQUERIMIENTO_COMPRA 001245 20565747356 BBTI_S_A_C.pdf
+Mejora pro de orden visual
+Sí, conviene dejar el tipo inmediatamente después del grupo:
+Plain text
+04-0001 FACTURA ...
+04-0001 GUIA ...
+04-0001 ORDEN_COMPRA ...
+porque así, al ordenar por nombre:
+primero se agrupan por 04-0001
+luego ves el tipo documental rápido
+Mejora que te sugiero aplicar ya
+Cambia sanitize_filename() para:
+quitar caracteres prohibidos
+convertir múltiples espacios a uno
+luego reemplazar espacios internos por _ solo en textos libres
+Por ejemplo, en file_manager.py:
+Python
+import re
+from pathlib import Path
+
+
+def sanitize_filename(name: str) -> str:
+    name = re.sub(r'[<>:"/\\|?*]+', " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+
+def normalize_token(value: str | None) -> str:
+    if not value:
+        return ""
+    value = sanitize_filename(value)
+    value = value.replace(" ", "_")
+    return value
+Y luego en build_final_name() usar:
 Python
 from pathlib import Path
 
@@ -29,40 +92,27 @@ def build_final_name(
         "factura": "FACTURA",
         "guia": "GUIA",
         "orden_compra": "ORDEN_COMPRA",
-        "requerimiento_compra": "REQUERIMIENTO",
+        "requerimiento_compra": "REQUERIMIENTO_COMPRA",
         "nota_credito": "NOTA_CREDITO",
         "otro": "OTRO",
     }
 
     tipo_txt = tipo_map.get(tipo_documental, "OTRO")
-
-    serie_txt = (serie or "").strip()
-    numero_txt = (numero or "").strip()
-    ruc_txt = (ruc_emisor or "").strip()
-
-    razon_txt = sanitize_filename(
-        (razon_social_emisor or "").strip()
-    ) or "SIN_RAZON_SOCIAL"
+    serie_txt = normalize_token(serie)
+    numero_txt = normalize_token(numero)
+    ruc_txt = normalize_token(ruc_emisor)
+    razon_txt = normalize_token(razon_social_emisor) or "SIN_RAZON_SOCIAL"
 
     parts = [grupo_codigo, tipo_txt]
 
-    # lógica por tipo
-    if tipo_documental == "factura":
+    if tipo_documental in ["factura", "guia"]:
         if serie_txt:
             parts.append(serie_txt)
         if numero_txt:
             parts.append(numero_txt)
-
-    elif tipo_documental == "guia":
-        if serie_txt:
-            parts.append(serie_txt)
+    elif tipo_documental in ["orden_compra", "requerimiento_compra", "nota_credito"]:
         if numero_txt:
             parts.append(numero_txt)
-
-    elif tipo_documental in ["orden_compra", "requerimiento_compra"]:
-        if numero_txt:
-            parts.append(numero_txt)
-
     else:
         if serie_txt:
             parts.append(serie_txt)
@@ -74,63 +124,13 @@ def build_final_name(
 
     parts.append(razon_txt)
 
-    return sanitize_filename(" ".join(parts)) + ext
-🔧 2. CAMBIO EN process_correo()
-Reemplaza SOLO esta parte:
-❌ Antes
-Python
-nombre_final = build_final_name(
-    grupo_codigo=grupo_codigo,
-    serie=fields["serie"],
-    numero=fields["numero"],
-    ruc_emisor=ruc_emisor,
-    razon_social_emisor=razon_social_emisor,
-    tipo_documental=tipo_documental,
-    fallback_name=doc["nombre_archivo_actual"],
-)
-✅ Después
-Python
-nombre_final = build_final_name(
-    grupo_codigo=grupo_codigo,
-    tipo_documental=tipo_documental,
-    serie=fields["serie"],
-    numero=fields["numero"],
-    ruc_emisor=ruc_emisor,
-    razon_social_emisor=razon_social_emisor,
-    fallback_name=doc["nombre_archivo_actual"],
-)
-👉 Importante: cambió el orden y agregamos tipo_documental como parámetro principal.
-🧠 RESULTADO ESPERADO
-Para tu caso real:
-Factura:
-Plain text
-04-0001 FACTURA F002 00000254 20538549071 OMEGA POWER S A C.pdf
-Guía:
-Plain text
-04-0001 GUIA T002 00280 20538549071 OMEGA POWER S A C.pdf
-Orden de compra:
-Plain text
-04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA POWER S A C.pdf
-🚀 MEJORA EXTRA (RECOMENDADA)
-Si quieres dejarlo aún más pro, puedes agregar esto después:
-Orden visual consistente
-Plain text
-04-0001 FACTURA ...
-04-0001 GUIA ...
-04-0001 ORDEN_COMPRA ...
-👉 Así en el explorador quedan ordenados automáticamente.
-⚠️ ERROR QUE EVITAMOS
-Con esto evitamos:
-❌ perder números reales de guía/OC
-❌ duplicar información de factura
-❌ problemas en auditoría
-❌ confusión en validación
-🧩 SIGUIENTE PASO (te lo recomiendo)
-Cuando confirmes que esto funciona:
-👉 Te ayudo a implementar:
-mover automáticamente a Windows share por cliente destino
-separar por meses (ENERO, FEBRERO…)
-control de duplicados (hash SHA256)
-dashboard de estado documental
-Si quieres, en el siguiente paso hacemos:
-👉 “mover automáticamente a red Windows por cliente destino + mes” (ya estás a 1 paso de producción real).
+    return " ".join(parts) + ext
+Mi opinión final
+La mejor mezcla para ti es:
+espacios entre bloques
+guiones bajos dentro de nombres compuestos
+Eso se ve profesional, ordenado y sigue siendo robusto para scripts y red Windows.
+Si quieres, el siguiente paso te lo dejo ya aplicado también para:
+truncar nombres muy largos
+quitar tildes
+normalizar S.A.C. a S_A_C automáticamente.
