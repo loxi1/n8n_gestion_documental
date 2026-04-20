@@ -1,130 +1,73 @@
-Ya vi el problema principal en tu procesar_pendientes.py.
-No tienes documentos repetidos de negocio. En ese correo hay 3 documentos reales:
-una factura F002-00000254 de OMEGA POWER S.A.C. emitida a BBTI S.A.C. �
-F F002-00000254.pdf
-una guía T002-00280 también de OMEGA POWER S.A.C. para BBTI S.A.C. y ligada a OC 007902 �
-ocr_posible_documento_20260417231447226_1.pdf
-una orden de compra 007902 generada por BBTI S.A.C. para OMEGA POWER S.A.C. �
-04-0001 981 453 20538549071 SIN_RAZON_SOCIAL FACTURA.pdf
-Qué está mal en tu código
-El fallo clave está aquí, dentro de process_correo():
-Python
-nombre_final = build_final_name(
-    grupo_codigo=grupo_codigo,
-    serie=fields["serie"],
-    numero=fields["numero"],
-    ruc_emisor=ruc_emisor,
-    razon_social_emisor=razon_social_emisor,
-    tipo_documental=tipo_documental,
-    fallback_name=doc["nombre_archivo_actual"],
-)
-Ahí estás armando el nombre con los datos del documento actual.
-Pero tu regla de negocio dice otra cosa:
-todos los documentos del grupo deben heredar la base de la factura principal y solo cambiar el sufijo final (FACTURA, GUIA, ORDEN_COMPRA, etc.).
-O sea, para guía y OC no deberías usar su propia serie/número, sino los de la factura principal.
-Cómo debe funcionar
-Para este correo, la base correcta es la factura:
-serie: F002
-número: 00000254
-RUC emisor: 20538549071
-razón social: OMEGA POWER S.A.C. �
-F F002-00000254.pdf
-Entonces los 3 nombres deberían salir así:
+Yo te recomiendo no usar exactamente el mismo nombre base de la factura para todos.
+La mejor regla es esta:
+Recomendación
+Mantén al inicio el asiento/grupo contable para agrupar, pero después usa los datos reales de cada documento.
+O sea:
 Plain text
-04-0001 F002 00000254 20538549071 OMEGA POWER S A C FACTURA.pdf
-04-0001 F002 00000254 20538549071 OMEGA POWER S A C GUIA.pdf
-04-0001 F002 00000254 20538549071 OMEGA POWER S A C ORDEN_COMPRA.pdf
-No así:
-04-0001 T002 00280 ... GUIA.pdf
-04-0001 OC 007902 ... ORDEN_COMPRA.pdf
-porque tú pediste que todos compartan “todo lo mismo de la factura” y solo cambie el tipo.
-Qué debes cambiar
-1. Dentro de process_correo()
-Después de encontrar factura_principal, guarda sus datos base:
-Python
-factura_fields = factura_principal["fields"]
-factura_ruc = factura_fields["ruc"]
-factura_serie = factura_fields["serie"]
-factura_numero = factura_fields["numero"]
-factura_razon_social = factura_principal["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
-2. Reemplaza este bloque:
-Python
-nombre_final = build_final_name(
-    grupo_codigo=grupo_codigo,
-    serie=fields["serie"],
-    numero=fields["numero"],
-    ruc_emisor=ruc_emisor,
-    razon_social_emisor=razon_social_emisor,
-    tipo_documental=tipo_documental,
-    fallback_name=doc["nombre_archivo_actual"],
-)
-por este:
-Python
-nombre_final = build_final_name(
-    grupo_codigo=grupo_codigo,
-    serie=factura_serie,
-    numero=factura_numero,
-    ruc_emisor=factura_ruc,
-    razon_social_emisor=factura_razon_social,
-    tipo_documental=tipo_documental,
-    fallback_name=doc["nombre_archivo_actual"],
-)
-3. Ajusta build_final_name() en file_manager.py
-Para que solo cambie el tipo documental al final:
-Python
-def build_final_name(
-    grupo_codigo: str,
-    serie: str | None,
-    numero: str | None,
-    ruc_emisor: str | None,
-    razon_social_emisor: str | None,
-    tipo_documental: str,
-    fallback_name: str,
-) -> str:
-    ext = Path(fallback_name).suffix.lower() or ".pdf"
-
-    serie_txt = (serie or "").strip()
-    numero_txt = (numero or "").strip()
-    ruc_txt = (ruc_emisor or "").strip()
-    razon_txt = sanitize_filename((razon_social_emisor or "").strip()) or "SIN_RAZON_SOCIAL"
-
-    tipo_map = {
-        "factura": "FACTURA",
-        "guia": "GUIA",
-        "orden_compra": "ORDEN_COMPRA",
-        "requerimiento_compra": "REQUERIMIENTO_COMPRA",
-        "nota_credito": "NOTA_CREDITO",
-        "otro": "OTRO",
-    }
-
-    tipo_txt = tipo_map.get(tipo_documental, "OTRO")
-
-    parts = [grupo_codigo]
-
-    if serie_txt:
-        parts.append(serie_txt)
-    if numero_txt:
-        parts.append(numero_txt)
-    if ruc_txt:
-        parts.append(ruc_txt)
-
-    parts.append(razon_txt)
-    parts.append(tipo_txt)
-
-    return sanitize_filename(" ".join(parts)) + ext
-Otro detalle importante
-Tu process_correo() procesa un solo grupo por correo.
-Eso está bien por ahora si cada correo trae una sola operación, pero si un correo trae 2 facturas distintas, se te va a mezclar todo. Más adelante habrá que agrupar por:
-correo_id
-OC
-y/o la factura principal
-Pero para este caso actual sí sirve.
-Recomendación práctica ahora
-Haz solo este ajuste de heredar la base de la factura y vuelve a correr limpio.
-Resultado esperado
-Con los archivos de este correo, deberías ver algo así:
+04-0001 FACTURA F002 00000254 20538549071 OMEGA POWER S A C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA POWER S A C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA POWER S A C.pdf
+Por qué esta opción es mejor
+Si todos comparten el prefijo 04-0001, ya quedan agrupados visualmente.
+No necesitas repetir exactamente la serie y número de la factura en la guía y en la OC para lograr agrupación.
+En cambio, si a todos les pones los datos de la factura:
 Plain text
-04-0001 F002 00000254 20538549071 OMEGA POWER S A C FACTURA.pdf
-04-0001 F002 00000254 20538549071 OMEGA POWER S A C GUIA.pdf
-04-0001 F002 00000254 20538549071 OMEGA POWER S A C ORDEN_COMPRA.pdf
-Si quieres, en el siguiente mensaje te devuelvo tu función process_correo() ya reescrita completa, lista para pegar.
+04-0001 F002 00000254 ... FACTURA
+04-0001 F002 00000254 ... GUIA
+04-0001 F002 00000254 ... ORDEN_COMPRA
+pierdes información valiosa:
+la guía ya no muestra su número real T002-00280
+la OC ya no muestra su número real 007902
+validar manualmente se vuelve más difícil
+buscar una guía específica o una OC específica se complica
+Lo ideal en documental
+Que el nombre responda a dos preguntas al mismo tiempo:
+1. ¿A qué grupo pertenece?
+Eso lo responde el prefijo:
+Plain text
+04-0001
+2. ¿Qué documento exacto es?
+Eso lo responde el resto:
+FACTURA F002 00000254
+GUIA T002 00280
+ORDEN_COMPRA 007902
+Mi opinión práctica
+Para contabilidad, auditoría y validación, esta forma es más fuerte:
+Plain text
+{GRUPO} {TIPO} {IDENTIFICADOR_REAL} {RUC_EMISOR} {EMISOR}.pdf
+Ejemplo
+Plain text
+04-0001 FACTURA F002 00000254 20538549071 OMEGA POWER S A C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA POWER S A C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA POWER S A C.pdf
+Ventajas
+quedan agrupados por 04-0001
+cada documento conserva su identidad real
+es más fácil revisar faltantes
+si alguien te pide “la guía T002-00280”, la ubicas rápido
+si te piden “la OC 007902”, también
+Cuándo sí usaría el mismo nombre base de la factura
+Solo si el objetivo fuera exclusivamente archivo visual simple y no importara identificar el documento exacto.
+Pero en tu caso sí importa, porque estás trabajando con:
+validación documental
+contabilidad
+múltiples áreas
+trazabilidad real
+Entonces yo no lo haría.
+Mi recomendación final
+Haz esto:
+Prefijo común
+Plain text
+04-0001
+Después, datos reales del documento
+Plain text
+FACTURA F002 00000254 ...
+GUIA T002 00280 ...
+ORDEN_COMPRA 007902 ...
+Esa combinación te da lo mejor de ambos mundos:
+agrupación
+trazabilidad
+La regla que yo aprobaría para producción sería:
+Plain text
+{ASIENTO_CONTABLE_O_GRUPO} {TIPO_DOCUMENTO} {SERIE_O_CODIGO} {NUMERO} {RUC_EMISOR} {RAZON_SOCIAL_EMISOR}.pdf
+Si quieres, te propongo ahora el formato final exacto para cada tipo: factura, guía, OC, requerimiento y nota de crédito.
