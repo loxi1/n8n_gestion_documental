@@ -162,3 +162,183 @@ la factura principal define el grupo
 la guía y la OC heredan el grupo
 cada documento conserve sus propios datos reales
 todos salgan con el formato visual pro que acabamos de definir.
+
+Perfecto. Entonces dejemos process_correo() alineado con la regla final:
+mismo grupo_codigo para todos los docs del correo/grupo
+cada documento conserva sus datos reales
+nombre visual pro:
+espacios entre bloques
+_ dentro de bloques
+la factura principal define:
+grupo_codigo
+cliente_destino
+ruta_windows_final
+Qué debe hacer process_correo()
+Para un correo como el de Omega:
+factura → F002-00000254
+guía → T002-00280
+OC → 007902
+debe producir:
+Plain text
+04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+Reemplaza tu función process_correo() por esta
+Python
+def process_correo(items: list[dict]) -> None:
+    enriched = [enrich_document(x) for x in items]
+
+    factura_principal = select_factura_principal(enriched)
+    if not factura_principal:
+        print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
+        return
+
+    fecha_principal = factura_principal["fecha_emision_date"]
+    if not fecha_principal:
+        print(f"[WARN] correo_id={items[0]['correo_id']} factura sin fecha")
+        return
+
+    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
+
+    cliente_match = factura_principal.get("cliente_match")
+    cliente_destino_id = cliente_match["id"] if cliente_match else None
+
+    ruta_windows_final = None
+    if cliente_match:
+        ruta_windows_final = build_windows_target_path(
+            cliente_match["ruta_windows"],
+            fecha_principal,
+        )
+
+    documento_principal_id = factura_principal["documento_id"]
+
+    for doc in enriched:
+        fields = doc["fields"]
+        tipo_documental = fields["tipo_documental"]
+        ruc_emisor = fields["ruc"]
+        razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
+        proveedor_id = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+
+        es_principal = doc["documento_id"] == documento_principal_id
+        documento_principal_ref = None if es_principal else documento_principal_id
+
+        cliente_id_final = (
+            doc["cliente_match"]["id"]
+            if doc.get("cliente_match")
+            else cliente_destino_id
+        )
+
+        nombre_final = build_final_name(
+            grupo_codigo=grupo_codigo,
+            tipo_documental=tipo_documental,
+            serie=fields["serie"],
+            numero=fields["numero"],
+            ruc_emisor=ruc_emisor,
+            razon_social_emisor=razon_social_emisor,
+            fallback_name=doc["nombre_archivo_actual"],
+        )
+
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+
+        estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
+        bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
+
+        destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO,
+                {
+                    "proveedor_id": proveedor_id,
+                    "cliente_destino_id": cliente_id_final,
+                    "tipo_documental": tipo_documental,
+                    "serie": fields["serie"],
+                    "numero": fields["numero"],
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social_emisor,
+                    "fecha_emision": doc["fecha_emision_norm"],
+                    "importe": fields["importe"],
+                    "estado_documento": estado_documento,
+                    "grupo_codigo": grupo_codigo,
+                    "correlativo_mes": correlativo_mes,
+                    "es_principal": es_principal,
+                    "documento_principal_id": documento_principal_ref,
+                    "nombre_final": nombre_final,
+                    "ruta_windows_final": ruta_windows_final,
+                    "documento_id": doc["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": nombre_final,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": "renombrado",
+                    "archivo_id": doc["archivo_id"],
+                },
+            )
+
+        print(
+            f"[OK] correo={doc['correo_id']} "
+            f"doc={doc['documento_id']} "
+            f"tipo={tipo_documental} "
+            f"grupo={grupo_codigo} "
+            f"nombre={nombre_final}"
+        )
+Qué revisar también
+Tu build_final_name() debe llamarse con esta firma:
+Python
+build_final_name(
+    grupo_codigo,
+    tipo_documental,
+    serie,
+    numero,
+    ruc_emisor,
+    razon_social_emisor,
+    fallback_name,
+)
+Si tu función tiene otro orden de parámetros, ajústalo.
+Importante: no usar ya la base de la factura para todos
+Con esta mejora, cada documento queda agrupado por el prefijo:
+Plain text
+04-0001
+pero mantiene su dato real:
+factura → F002 00000254
+guía → T002 00280
+orden compra → 007902
+Eso es justo lo que decidiste y es la mejor opción.
+Resultado esperado
+Para el caso Omega debería quedar así:
+Plain text
+04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+Siguiente paso
+Después de cambiar esta función:
+limpia pendientes_clasificados/2026/04
+limpia ocr_tmp/2026/04
+resetea BD de prueba si hace falta
+vuelve a correr n8n
+corre:
+Bash
+python procesar_pendientes.py
+Luego pega estas dos consultas:
+SQL
+SELECT
+  id, correo_id, tipo_documental, serie, numero, ruc,
+  cliente_destino_id, grupo_codigo, correlativo_mes,
+  es_principal, documento_principal_id, nombre_final, ruta_windows_final
+FROM documentos
+ORDER BY id;
+SQL
+SELECT
+  id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo
+FROM archivos
+ORDER BY id;
