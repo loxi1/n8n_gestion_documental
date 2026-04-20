@@ -1,1 +1,126 @@
-aqui este el archivo en el repo: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/classifier.py
+Sí, ya revisé tu classifier.py del repo y la lógica base ya está bastante mejor que antes. En este orden detecta:
+orden_compra
+requerimiento_compra
+guia
+factura
+nota_credito
+otro
+y además ya extrae por tipo:
+factura → F...-...
+guía → T...-...
+OC → OC ... o ORDEN DE COMPRA ... �
+GitHub
+Mi conclusión
+El classifier.py actual no explica por sí solo el resultado malo anterior de:
+981 453 como factura
+373 5446 como guía
+Porque esos valores sí son los errores viejos que tú querías evitar, y el archivo actual ya no usa regex genérico para todos los tipos. �
+GitHub
+Eso apunta a una de estas dos cosas:
+1. Corriste una versión vieja del proceso
+Muy probable, porque los nombres malos coinciden con la lógica antigua.
+2. El problema está en procesar_pendientes.py
+Es decir:
+clasifica bien
+pero luego arma mal el nombre
+o toma campos viejos
+o no está usando fields["serie"] / fields["numero"] correctos
+Lo que sí valida el repo y los PDFs
+Orden de compra
+El archivo de OC dice claramente:
+Orden de Compra N*:007902
+proveedor: OMEGA POWER S.A.C.
+RUC: 20538549071
+Así que este documento debe salir como:
+Plain text
+OC 007902 ...
+y no como factura.
+Guía
+La guía OCRada muestra claramente:
+GUÍA DE REMISIÓN ELECTRÓNICA
+TO002-00280
+OC 007902
+destinatario BBTI S.A.C.
+Así que aquí el valor bueno es:
+serie: T002 o TO002 según normalices
+número: 00280
+y no 373 / 5446.
+Factura
+La factura muestra:
+Factura Electronica
+F002-00000254
+cliente BBTI S.A.C.
+RUC emisor 20538549071
+Así que aquí el valor correcto es:
+serie: F002
+número: 00000254
+Mi opinión directa
+Tu classifier.py ya va en la dirección correcta, pero todavía le haría 3 ajustes.
+Ajuste 1: permitir TO002 y normalizar a T002
+En la guía OCRada aparece TO002-00280
+Tu regex actual para guía es:
+Python
+r"\b(T\d{3,4})[- ]([0-9]{3,})\b"
+Eso puede fallar si el OCR mete una O extra. Yo cambiaría eso a:
+Python
+elif doc_type == "guia":
+    patrones = [
+        r"\b(TO?\d{3,4})[- ]([0-9]{3,})\b",
+    ]
+y luego normalizar:
+Python
+if doc_type == "guia" and serie:
+    serie = serie.replace("TO", "T", 1)
+Ajuste 2: factura más estricta
+Ahora detectas factura con solo:
+"FACTURA ELECTRONICA"
+"FACTURA ELECTRÓNICA"
+o regex F...-... �
+GitHub
+Eso está bien, pero yo quitaría cualquier ambigüedad futura y dejaría que solo sea factura si aparece una serie válida F..., no solo la palabra factura.
+Ajuste 3: OC también debe capturar N*:007902
+En la OC OCRada aparece exactamente:
+Plain text
+Orden de Compra N*:007902
+Tu regex actual:
+Python
+r"\bORDEN DE COMPRA\s*N[°º: ]*([0-9]{3,})\b"
+puede no capturar bien el *. Yo la haría más tolerante:
+Python
+r"\bORDEN DE COMPRA\s*N[^0-9]{0,5}([0-9]{3,})\b"
+Lo más importante
+El classifier.py del repo ya no debería producir por sí solo estos nombres malos:
+04-0001 981 453 ... FACTURA.pdf
+GUIA_373_5446.pdf
+Así que ahora yo revisaría procesar_pendientes.py, porque ahí seguramente está ocurriendo una de estas:
+usa datos viejos de BD
+renombra antes de reclasificar
+arma nombre_final con campos anteriores
+no procesa por correo completo antes de renombrar
+Recomendación exacta
+Haz estos cambios mínimos en classifier.py:
+Python
+elif doc_type == "guia":
+    patrones = [
+        r"\b(TO?\d{3,4})[- ]([0-9]{3,})\b",
+    ]
+y dentro del bloque:
+Python
+elif doc_type == "guia":
+    serie = m.group(1).strip()
+    numero = m.group(2).strip()
+    serie = serie.replace("TO", "T", 1)
+Y para OC:
+Python
+elif doc_type == "orden_compra":
+    patrones = [
+        r"\bORDEN DE COMPRA\s*N[^0-9]{0,5}([0-9]{3,})\b",
+        r"\bOC[:\s]*([0-9]{3,})\b",
+    ]
+Mi lectura final
+No hay documentos repetidos reales
+hay 1 factura + 1 guía + 1 OC
+el classifier.py del repo ya mejoró bastante
+el siguiente sospechoso principal es procesar_pendientes.py
+y al classifier.py le faltan solo pequeños ajustes para OCR sucio
+Si quieres, el siguiente paso es que revisemos procesar_pendientes.py del repo y te señalo exactamente dónde se está armando mal el nombre_final.
