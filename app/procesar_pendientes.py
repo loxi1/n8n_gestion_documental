@@ -377,8 +377,24 @@ def save_processed_document(item: dict) -> None:
 
 def process_correo(items: list[dict]) -> None:
     enriched = [enrich_document(x) for x in items]
+    print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
+    for d in enriched:
+        print({
+            "documento_id": d["documento_id"],
+            "archivo": d["nombre_archivo_actual"],
+            "tipo": d["fields"]["tipo_documental"],
+            "serie": d["fields"]["serie"],
+            "numero": d["fields"]["numero"],
+            "ruc": d["fields"]["ruc"],
+            "oc": d["fields"].get("oc"),
+            "cliente_raw": d.get("cliente_raw"),
+            "cliente_match": d.get("cliente_match"),
+            "fecha": d.get("fecha_emision_norm"),
+        })
 
     factura_principal = select_factura_principal(enriched)
+    print("[DEBUG] factura_principal =", factura_principal)
+    
     if not factura_principal:
         print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
         return

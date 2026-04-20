@@ -1,125 +1,137 @@
-Sí, hagamos un regreso limpio.
-Lo que muestran esas consultas es:
-el documento 4 sí se procesó bien
-los documentos 1, 2 y 3 ni siquiera fueron procesados por Python
-por eso siguen:
-tipo_documental = NULL
-nombre_final = NULL
-estado_archivo = descargado
-en inbox/2026/04/
-O sea, el problema no es el renombrado final, sino que esos 3 no entraron al procesamiento del correo 1.
-Lo más probable
-Tu process_correo() está saliendo por esta condición:
-Python
-factura_principal = select_factura_principal(enriched)
-if not factura_principal:
-    print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
-    return
-y por eso todo el correo 1 queda sin tocar.
-Mi recomendación
-Sí: borra todo de prueba y vuelve a correr, pero esta vez con una mini validación intermedia.
-Plan limpio
-1. Limpia BD de prueba
-Conserva:
-proveedores
-clientes_destino
-clientes_destino_alias
-Limpia:
-archivos
-documentos
-correos_ingresados
-2. Limpia carpetas de prueba
-Vacía:
-storage/files/inbox/
-storage/files/pendientes_clasificados/
-storage/files/no_identificados/
-storage/files/ocr_tmp/
-3. Vuelve a correr n8n
-4. Antes de correr Python, valida que en BD existan los documentos
-5. Corre Python
-6. Si vuelve a fallar el correo 1, metemos debug solo en:
-enrich_document()
-select_factura_principal()
-Te dejo el regreso limpio paso a paso
-A. SQL para limpiar
-Ejecuta esto en PostgreSQL:
-SQL
-TRUNCATE TABLE archivos RESTART IDENTITY CASCADE;
-TRUNCATE TABLE documentos RESTART IDENTITY CASCADE;
-TRUNCATE TABLE correos_ingresados RESTART IDENTITY CASCADE;
-B. Limpiar carpetas desde Git Bash
-Desde la raíz n8n-local:
-Bash
-rm -rf storage/files/inbox/*
-rm -rf storage/files/pendientes_clasificados/*
-rm -rf storage/files/no_identificados/*
-rm -rf storage/files/ocr_tmp/*
-Luego recrea la estructura base si quieres:
-Bash
-mkdir -p storage/files/inbox
-mkdir -p storage/files/pendientes_clasificados
-mkdir -p storage/files/no_identificados
-mkdir -p storage/files/ocr_tmp
-C. Corre n8n
-Haz que vuelva a descargar el correo y sus adjuntos.
-Luego valida con:
-SQL
-SELECT id, asunto, remitente_email, fecha_correo, estado_correo
-FROM correos_ingresados
-ORDER BY id;
+se ejecuto n8n y se obtubo
+gestiondocumental=# SELECT id, asunto, remitente_email, fecha_correo, estado_correo FROM correos_ingresados ORDER BY id;
+ id | asunto  |      remitente_email      |    fecha_correo     | estado_correo
+----+---------+---------------------------+---------------------+---------------
+  1 | factura | anibal.cayetano@gmail.com | 2026-04-20 15:54:45 | descargado
+(1 row)
 
-SELECT id, correo_id, estado_documento
-FROM documentos
-ORDER BY id;
 
-SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo
-FROM archivos
-ORDER BY id;
-Si ahí ya aparecen 3 o 4 documentos correctamente, seguimos.
-Antes de correr Python, mete este debug
-En process_correo(), justo después de:
-Python
-enriched = [enrich_document(x) for x in items]
-agrega temporalmente esto:
-Python
-print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
-for d in enriched:
-    print({
-        "documento_id": d["documento_id"],
-        "archivo": d["nombre_archivo_actual"],
-        "tipo": d["fields"]["tipo_documental"],
-        "serie": d["fields"]["serie"],
-        "numero": d["fields"]["numero"],
-        "ruc": d["fields"]["ruc"],
-        "oc": d["fields"].get("oc"),
-        "cliente_raw": d.get("cliente_raw"),
-        "cliente_match": d.get("cliente_match"),
-        "fecha": d.get("fecha_emision_norm"),
-    })
-Y luego, justo después de:
-Python
-factura_principal = select_factura_principal(enriched)
-agrega:
-Python
-print("[DEBUG] factura_principal =", factura_principal)
-Qué buscamos con eso
-Queremos ver si para el correo 1 ocurre alguna de estas:
-la factura entra como otro
-la factura entra como guia
-select_factura_principal() no encuentra ninguna factura
-enrich_document() está devolviendo campos vacíos
-Mi sospecha real ahora
-Tu problema no está en build_final_name().
-Tu problema probablemente está en una de estas dos:
-1. select_factura_principal()
-Puede estar filtrando demasiado.
-2. enrich_document()
-Puede que el OCR o la extracción esté clasificando mal la factura del correo 1.
-Qué hacemos ya
-Haz este regreso limpio:
-truncar tablas
-limpiar carpetas
-correr n8n
-correr Python con el debug que te dejé
-pegarme la salida de consola de python procesar_pendientes.py
-Con eso ya no adivinamos nada y encontramos exactamente por qué el correo 1 no entra.
+gestiondocumental=# SELECT id, correo_id, estado_documento FROM documentos ORDER BY id;
+ id | correo_id | estado_documento
+----+-----------+------------------
+  1 |         1 | pendiente
+  2 |         1 | pendiente
+  3 |         1 | pendiente
+(3 rows)
+
+
+gestiondocumental=# SELECT id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo FROM archivos ORDER BY id;
+ id | documento_id |           nombre_archivo_actual           |                      ruta_temporal                      | estado_arc
+hivo
+----+--------------+-------------------------------------------+---------------------------------------------------------+-----------
+-----
+  1 |            1 | posible_documento_20260420155542165_1.pdf | inbox/2026/04/posible_documento_20260420155542165_1.pdf | descargado
+  2 |            2 | posible_documento_20260420155542166_2.pdf | inbox/2026/04/posible_documento_20260420155542166_2.pdf | descargado
+  3 |            3 | posible_documento_20260420155542166_3.pdf | inbox/2026/04/posible_documento_20260420155542166_3.pdf | descargado
+(3 rows)
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/inbox/2026/04/
+total 1220
+-rw-r--r-- 1 BBTI 01 197121  99927 Apr 20 10:57 posible_documento_20260420155542165_1.pdf
+-rw-r--r-- 1 BBTI 01 197121 378460 Apr 20 10:57 posible_documento_20260420155542166_2.pdf
+-rw-r--r-- 1 BBTI 01 197121 764541 Apr 20 10:57 posible_documento_20260420155542166_3.pdf
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$
+
+
+se corrio procesar_pendientes
+$ python procesar_pendientes.py
+Correos pendientes encontrados: 1
+[INFO] procesando correo_id=1 documentos=3
+[DEBUG] correo_id=1 enriquecidos:
+{'documento_id': 1, 'archivo': 'posible_documento_20260420155542165_1.pdf', 'tipo': 'orden_compra', 'serie': None, 'numero': None, 'ruc': '20565747356', 'oc': None, 'cliente_raw': 'BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-16'}
+{'documento_id': 2, 'archivo': 'posible_documento_20260420155542166_2.pdf', 'tipo': 'guia', 'serie': 'T002', 'numero': '00280', 'ruc': '20538549071', 'oc': '007902', 'cliente_raw': 'CARGA BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-15'}
+{'documento_id': 3, 'archivo': 'posible_documento_20260420155542166_3.pdf', 'tipo': 'orden_compra', 'serie': 'OC', 'numero': '007902', 'ruc': '20538549071', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': '2026-04-15'}
+[DEBUG] factura_principal = None
+[WARN] correo_id=1 sin factura principal
+(venv) 
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+$ 
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/inbox/2026/04/
+total 1220
+-rw-r--r-- 1 BBTI 01 197121  99927 Apr 20 10:57 posible_documento_20260420155542165_1.pdf
+-rw-r--r-- 1 BBTI 01 197121 378460 Apr 20 10:57 posible_documento_20260420155542166_2.pdf
+-rw-r--r-- 1 BBTI 01 197121 764541 Apr 20 10:57 posible_documento_20260420155542166_3.pdf
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/no_identificados/
+total 0
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/ocr_tmp/2026/04/
+total 1468
+-rw-r--r-- 1 BBTI 01 197121  430403 Apr 20 11:03 ocr_posible_documento_20260420155542166_2.pdf
+-rw-r--r-- 1 BBTI 01 197121 1067144 Apr 20 11:04 ocr_posible_documento_20260420155542166_3.pdf
+
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_clasificados/
+total 0
+
+
+gestiondocumental=# SELECT * FROM archivos ORDER BY id;
+ id | documento_id | correo_id |    nombre_archivo_original    |           nombre_archivo_actual           | extension |    mime_type
+    | tamano_bytes | hash_sha256 |                      ruta_temporal                      | ruta_final | es_principal | estado_archi
+vo |         creado_en          |       actualizado_en
+----+--------------+-----------+-------------------------------+-------------------------------------------+-----------+-------------
+----+--------------+-------------+---------------------------------------------------------+------------+--------------+-------------
+---+----------------------------+----------------------------
+  1 |            1 |         1 | F F002-00000254.pdf           | posible_documento_20260420155542165_1.pdf | .pdf      | application/
+pdf |              |             | inbox/2026/04/posible_documento_20260420155542165_1.pdf |            | t            | descargado
+   | 2026-04-20 10:57:55.238315 | 2026-04-20 10:57:55.238315
+  2 |            2 |         1 | GUIA T002-00280 FIRMADO.pdf   | posible_documento_20260420155542166_2.pdf | .pdf      | application/
+pdf |              |             | inbox/2026/04/posible_documento_20260420155542166_2.pdf |            | t            | descargado
+   | 2026-04-20 10:57:55.238315 | 2026-04-20 10:57:55.238315
+  3 |            3 |         1 | ORDEN DE COMRA 007902.pdf.pdf | posible_documento_20260420155542166_3.pdf | .pdf      | application/
+pdf |              |             | inbox/2026/04/posible_documento_20260420155542166_3.pdf |            | t            | descargado
+   | 2026-04-20 10:57:55.238315 | 2026-04-20 10:57:55.238315
+(3 rows)
+
+
+gestiondocumental=# SELECT * FROM documentos ORDER BY id;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero | ruc | razon_social | fecha_emision | fecha_vencimiento
+ | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |         c
+reado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_princ
+ipal_id | nombre_final | ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+--------+-----+--------------+---------------+------------------
+-+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+----------
+------------------+----------------------------+--------------------+--------------+-----------------+--------------+----------------
+--------+--------------+--------------------
+  1 |         1 |              |                 |          |       |        |     |              |               |
+ |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-2
+0 10:57:48.932729 | 2026-04-20 10:57:48.932729 |                    |              |                 | f            |
+        |              |
+  2 |         1 |              |                 |          |       |        |     |              |               |
+ |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-2
+0 10:57:48.932729 | 2026-04-20 10:57:48.932729 |                    |              |                 | f            |
+        |              |
+  3 |         1 |              |                 |          |       |        |     |              |               |
+ |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-2
+0 10:57:48.932729 | 2026-04-20 10:57:48.932729 |                    |              |                 | f            |
+        |              |
+(3 rows)
+
+
+gestiondocumental=# SELECT * FROM archivos ORDER BY id;
+ id | documento_id | correo_id |    nombre_archivo_original    |           nombre_archivo_actual           | extension |    mime_type
+    | tamano_bytes | hash_sha256 |                      ruta_temporal                      | ruta_final | es_principal | estado_archi
+vo |         creado_en          |       actualizado_en
+----+--------------+-----------+-------------------------------+-------------------------------------------+-----------+-------------
+----+--------------+-------------+---------------------------------------------------------+------------+--------------+-------------
+---+----------------------------+----------------------------
+  1 |            1 |         1 | F F002-00000254.pdf           | posible_documento_20260420155542165_1.pdf | .pdf      | application/
+pdf |              |             | inbox/2026/04/posible_documento_20260420155542165_1.pdf |            | t            | descargado
+   | 2026-04-20 10:57:55.238315 | 2026-04-20 10:57:55.238315
+  2 |            2 |         1 | GUIA T002-00280 FIRMADO.pdf   | posible_documento_20260420155542166_2.pdf | .pdf      | application/
+pdf |              |             | inbox/2026/04/posible_documento_20260420155542166_2.pdf |            | t            | descargado
+   | 2026-04-20 10:57:55.238315 | 2026-04-20 10:57:55.238315
+  3 |            3 |         1 | ORDEN DE COMRA 007902.pdf.pdf | posible_documento_20260420155542166_3.pdf | .pdf      | application/
+pdf |              |             | inbox/2026/04/posible_documento_20260420155542166_3.pdf |            | t            | descargado
+   | 2026-04-20 10:57:55.238315 | 2026-04-20 10:57:55.238315
+(3 rows)
+
+por favor hacer el analisis. ademas revisar el repo y validar los archivos pdf en sus repectivas carpetas
