@@ -1,297 +1,132 @@
-datos iniciales n8n
-[
-  {
-    ...
-    "to": {
-      "value": [
-        {
-          "address": "finanzas2@bbti.com.pe",
-          "name": ""
-        },
-        {
-          "address": "facturas@bbti.com.pe",
-          "name": ""
-        },
-        {
-          "address": "finanzas1@bbti.com.pe",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:finanzas2@bbti.com.pe\" class=\"mp_address_email\">finanzas2@bbti.com.pe</a></span>, <span class=\"mp_address_group\"><a href=\"mailto:facturas@bbti.com.pe\" class=\"mp_address_email\">facturas@bbti.com.pe</a></span>, <span class=\"mp_address_group\"><a href=\"mailto:finanzas1@bbti.com.pe\" class=\"mp_address_email\">finanzas1@bbti.com.pe</a></span>",
-      "text": "finanzas2@bbti.com.pe, facturas@bbti.com.pe, finanzas1@bbti.com.pe"
-    },
-    "from": {
-      "value": [
-        {
-          "address": "galvarado@acsa.com.pe",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:galvarado@acsa.com.pe\" class=\"mp_address_email\">galvarado@acsa.com.pe</a></span>",
-      "text": "galvarado@acsa.com.pe"
-    },
-    "cc": {
-      "value": [
-        {
-          "address": "mpariona@acsa.com.pe",
-          "name": "'Martha Pariona'"
-        },
-        {
-          "address": "rvera@acsa.com.pe",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><span class=\"mp_address_name\">&#x27;Martha Pariona&#x27;</span> &lt;<a href=\"mailto:mpariona@acsa.com.pe\" class=\"mp_address_email\">mpariona@acsa.com.pe</a>&gt;</span>, <span class=\"mp_address_group\"><a href=\"mailto:rvera@acsa.com.pe\" class=\"mp_address_email\">rvera@acsa.com.pe</a></span>",
-      "text": "\"'Martha Pariona'\" <mpariona@acsa.com.pe>, rvera@acsa.com.pe"
-    },
-    "messageId": "<002b01dcd0da$e30c6300$a9252900$@acsa.com.pe>",
-    "attributes": {
-      "uid": 280
-    }
-  },
-  {
-    "headers": {
-        ...
-      "x-ham-report": "X-Ham-Report: Spam detection software, running on the system \"f04.hostperu.com\",\r\n has NOT identified this incoming email as spam.  The original\r\n message has been attached to this so you can view it or label\r\n similar future email.  If you have any questions, see\r\n root\\@localhost for details.\r\n Content preview:  Estimados Se_ores, Por medio del presente adjunto la siguiente\r\n    documentaci_n para su registro contable correspondiente F231-00101440 \r\n Content analysis details:   (2.1 points, 5.0 required)\r\n  pts rule name              description\r\n ---- ---------------------- --------------------------------------------------\r\n  0.0 URIBL_BLOCKED          ADMINISTRATOR NOTICE: The query to URIBL was blocked.\r\n                             See\r\n                             http://wiki.apache.org/spamassassin/DnsBlocklists#dnsbl-block\r\n                              for more information.\r\n                             [URI: promelsa.com.pe]\r\n  0.0 URIBL_DBL_BLOCKED_OPENDNS ADMINISTRATOR NOTICE: The query to\r\n                             dbl.spamhaus.org was blocked due to usage of an\r\n                              open resolver. See\r\n                             https://www.spamhaus.org/returnc/pub/\r\n                             [URI: blog.promelsa.com.pe]\r\n                             [URI: www.promelsa.com.pe]\r\n -0.0 SPF_PASS               SPF: sender matches SPF record\r\n -0.1 DKIM_VALID_EF          Message has a valid DKIM or DK signature from\r\n                             envelope-from domain\r\n -0.1 DKIM_VALID_AU          Message has a valid DKIM or DK signature from author's\r\n                             domain\r\n  0.1 DKIM_SIGNED            Message has a DKIM or DK signature, not necessarily valid\r\n -0.1 DKIM_VALID             Message has at least one valid DKIM or DK signature\r\n  0.8 BAYES_50               BODY: Bayes spam probability is 40 to 60%\r\n                             [score: 0.5000]\r\n  0.0 FREEMAIL_FROM          Sender email is commonly abused enduser mail provider\r\n                             [notificaciones01.promelsa(at)gmail.com]\r\n  0.5 SUBJ_ALL_CAPS          Subject is all capitals\r\n  0.0 RCVD_IN_DNSWL_BLOCKED  RBL: ADMINISTRATOR NOTICE: The query to DNSWL\r\n                             was blocked.  See\r\n                             http://wiki.apache.org/spamassassin/DnsBlocklists#DnsBlocklists-dnsbl-block\r\n                              for more information.\r\n                             [2607:f8b0:4864:20:0:0:0:132b listed in]\r\n                             [list.dnswl.org]\r\n  0.1 MIME_HTML_ONLY         BODY: Message only has text/html MIME parts\r\n  0.0 T_OBFU_PDF_ATTACH      PDF attachment with generic MIME type\r\n  0.0 HTML_MESSAGE           BODY: HTML included in message\r\n  0.5 KAM_REALLYHUGEIMGSRC   RAW: Spam with image tags with ridiculously huge\r\n                              http urls\r\n  0.4 HTML_MIME_NO_HTML_TAG  HTML-only message, but there is no HTML tag",
-      "x-spam-flag": "X-Spam-Flag: NO" },
-    "html": ...
-    "subject": "REGISTRO DE FACTURA F231-00101440 - BBTI S.A.C.",
-    "date": "2026-04-20T17:10:55.000Z",
-    "to": {
-      "value": [
-        {
-          "address": "FACTURAS@BBTI.COM.PE",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:FACTURAS@BBTI.COM.PE\" class=\"mp_address_email\">FACTURAS@BBTI.COM.PE</a></span>",
-      "text": "FACTURAS@BBTI.COM.PE"
-    },
-    "from": {
-      "value": [
-        {
-          "address": "notificaciones01.promelsa@gmail.com",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:notificaciones01.promelsa@gmail.com\" class=\"mp_address_email\">notificaciones01.promelsa@gmail.com</a></span>",
-      "text": "notificaciones01.promelsa@gmail.com"
-    },
-    "cc": {
-      "value": [
-        {
-          "address": "cobranzas1@promelsa.com.pe",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:cobranzas1@promelsa.com.pe\" class=\"mp_address_email\">cobranzas1@promelsa.com.pe</a></span>",
-      "text": "cobranzas1@promelsa.com.pe"
-    },
-    "messageId": "<69e65e1f.050a0220.3adf79.757c@mx.google.com>",
-    "attributes": {
-      "uid": 281
-    }
-  },
-  {
-    "headers": {
-        ...
-      "x-ham-report": "X-Ham-Report: Spam detection software, running on the system \"f04.hostperu.com\",\r\n has NOT identified this incoming email as spam.  The original\r\n message has been attached to this so you can view it or label\r\n similar future email.  If you have any questions, see\r\n root\\@localhost for details.\r\n Content preview:  Estimados Se_ores, Por medio del presente adjunto la siguiente\r\n    documentaci_n para su registro contable correspondiente F231-00101439 \r\n Content analysis details:   (2.1 points, 5.0 required)\r\n  pts rule name              description\r\n ---- ---------------------- --------------------------------------------------\r\n -0.0 SPF_PASS               SPF: sender matches SPF record\r\n -0.1 DKIM_VALID_EF          Message has a valid DKIM or DK signature from\r\n                             envelope-from domain\r\n -0.1 DKIM_VALID_AU          Message has a valid DKIM or DK signature from author's\r\n                             domain\r\n  0.1 DKIM_SIGNED            Message has a DKIM or DK signature, not necessarily valid\r\n -0.1 DKIM_VALID             Message has at least one valid DKIM or DK signature\r\n  0.8 BAYES_50               BODY: Bayes spam probability is 40 to 60%\r\n                             [score: 0.5000]\r\n  0.0 FREEMAIL_FROM          Sender email is commonly abused enduser mail provider\r\n                             [notificaciones01.promelsa(at)gmail.com]\r\n  0.5 SUBJ_ALL_CAPS          Subject is all capitals\r\n  0.0 URIBL_DBL_BLOCKED_OPENDNS ADMINISTRATOR NOTICE: The query to\r\n                             dbl.spamhaus.org was blocked due to usage of an\r\n                              open resolver. See\r\n                             https://www.spamhaus.org/returnc/pub/\r\n                             [URI: www.promelsa.com.pe]\r\n                             [URI: blog.promelsa.com.pe]\r\n  0.0 URIBL_BLOCKED          ADMINISTRATOR NOTICE: The query to URIBL was blocked.\r\n                             See\r\n                             http://wiki.apache.org/spamassassin/DnsBlocklists#dnsbl-block\r\n                              for more information.\r\n                             [URI: promelsa.com.pe]\r\n  0.1 MIME_HTML_ONLY         BODY: Message only has text/html MIME parts\r\n  0.0 T_OBFU_PDF_ATTACH      PDF attachment with generic MIME type\r\n  0.0 HTML_MESSAGE           BODY: HTML included in message\r\n  0.5 KAM_REALLYHUGEIMGSRC   RAW: Spam with image tags with ridiculously huge\r\n                              http urls\r\n  0.4 HTML_MIME_NO_HTML_TAG  HTML-only message, but there is no HTML tag\r\n  0.0 RCVD_IN_DNSWL_BLOCKED  RBL: ADMINISTRATOR NOTICE: The query to DNSWL\r\n                             was blocked.  See\r\n                             http://wiki.apache.org/spamassassin/DnsBlocklists#DnsBlocklists-dnsbl-block\r\n                              for more information.\r\n                             [2607:f8b0:4864:20:0:0:0:1330 listed in]\r\n                             [list.dnswl.org]",
-      "x-spam-flag": "X-Spam-Flag: NO"
-    },
-    "html": ...,
-    "subject": "REGISTRO DE FACTURA F231-00101439 - BBTI S.A.C.",
-    "date": "2026-04-20T17:09:42.000Z",
-    "to": {
-      "value": [
-        {
-          "address": "FACTURAS@BBTI.COM.PE",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:FACTURAS@BBTI.COM.PE\" class=\"mp_address_email\">FACTURAS@BBTI.COM.PE</a></span>",
-      "text": "FACTURAS@BBTI.COM.PE"
-    },
-    "from": {
-      "value": [
-        {
-          "address": "notificaciones01.promelsa@gmail.com",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:notificaciones01.promelsa@gmail.com\" class=\"mp_address_email\">notificaciones01.promelsa@gmail.com</a></span>",
-      "text": "notificaciones01.promelsa@gmail.com"
-    },
-    "cc": {
-      "value": [
-        {
-          "address": "cobranzas1@promelsa.com.pe",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:cobranzas1@promelsa.com.pe\" class=\"mp_address_email\">cobranzas1@promelsa.com.pe</a></span>",
-      "text": "cobranzas1@promelsa.com.pe"
-    },
-    "messageId": "<69e65dd6.050a0220.1e6433.9f6c@mx.google.com>",
-    "attributes": {
-      "uid": 282
-    }
-  },
-  {
-    "headers": {
-        ...
-      "x-ham-report": "X-Ham-Report: Spam detection software, running on the system \"f04.hostperu.com\",\r\n has NOT identified this incoming email as spam.  The original\r\n message has been attached to this so you can view it or label\r\n similar future email.  If you have any questions, see\r\n root\\@localhost for details.\r\n Content preview:  Estimados Se_ores, Por medio del presente adjunto la siguiente\r\n    documentaci_n para su registro contable correspondiente F231-00101441 \r\n Content analysis details:   (2.1 points, 5.0 required)\r\n  pts rule name              description\r\n ---- ---------------------- --------------------------------------------------\r\n -0.0 SPF_PASS               SPF: sender matches SPF record\r\n -0.1 DKIM_VALID_EF          Message has a valid DKIM or DK signature from\r\n                             envelope-from domain\r\n -0.1 DKIM_VALID_AU          Message has a valid DKIM or DK signature from author's\r\n                             domain\r\n  0.1 DKIM_SIGNED            Message has a DKIM or DK signature, not necessarily valid\r\n -0.1 DKIM_VALID             Message has at least one valid DKIM or DK signature\r\n  0.8 BAYES_50               BODY: Bayes spam probability is 40 to 60%\r\n                             [score: 0.5000]\r\n  0.0 URIBL_DBL_BLOCKED_OPENDNS ADMINISTRATOR NOTICE: The query to\r\n                             dbl.spamhaus.org was blocked due to usage of an\r\n                              open resolver. See\r\n                             https://www.spamhaus.org/returnc/pub/\r\n                             [URI: www.promelsa.com.pe]\r\n                             [URI: blog.promelsa.com.pe]\r\n  0.0 FREEMAIL_FROM          Sender email is commonly abused enduser mail provider\r\n                             [notificaciones01.promelsa(at)gmail.com]\r\n  0.5 SUBJ_ALL_CAPS          Subject is all capitals\r\n  0.1 MIME_HTML_ONLY         BODY: Message only has text/html MIME parts\r\n  0.0 T_OBFU_PDF_ATTACH      PDF attachment with generic MIME type\r\n  0.0 HTML_MESSAGE           BODY: HTML included in message\r\n  0.5 KAM_REALLYHUGEIMGSRC   RAW: Spam with image tags with ridiculously huge\r\n                              http urls\r\n  0.4 HTML_MIME_NO_HTML_TAG  HTML-only message, but there is no HTML tag\r\n  0.0 URIBL_BLOCKED          ADMINISTRATOR NOTICE: The query to URIBL was blocked.\r\n                             See\r\n                             http://wiki.apache.org/spamassassin/DnsBlocklists#dnsbl-block\r\n                              for more information.\r\n                             [URI: promelsa.com.pe]\r\n  0.0 RCVD_IN_DNSWL_BLOCKED  RBL: ADMINISTRATOR NOTICE: The query to DNSWL\r\n                             was blocked.  See\r\n                             http://wiki.apache.org/spamassassin/DnsBlocklists#DnsBlocklists-dnsbl-block\r\n                              for more information.\r\n                             [2607:f8b0:4864:20:0:0:0:62a listed in]\r\n                             [list.dnswl.org]",
-      "x-spam-flag": "X-Spam-Flag: NO"
-    },
-    "html": ...,
-    "subject": "REGISTRO DE FACTURA F231-00101441 - BBTI S.A.C.",
-    "date": "2026-04-20T17:20:06.000Z",
-    "to": {
-      "value": [
-        {
-          "address": "FACTURAS@BBTI.COM.PE",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:FACTURAS@BBTI.COM.PE\" class=\"mp_address_email\">FACTURAS@BBTI.COM.PE</a></span>",
-      "text": "FACTURAS@BBTI.COM.PE"
-    },
-    "from": {
-      "value": [
-        {
-          "address": "notificaciones01.promelsa@gmail.com",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:notificaciones01.promelsa@gmail.com\" class=\"mp_address_email\">notificaciones01.promelsa@gmail.com</a></span>",
-      "text": "notificaciones01.promelsa@gmail.com"
-    },
-    "cc": {
-      "value": [
-        {
-          "address": "cobranzas1@promelsa.com.pe",
-          "name": ""
-        }
-      ],
-      "html": "<span class=\"mp_address_group\"><a href=\"mailto:cobranzas1@promelsa.com.pe\" class=\"mp_address_email\">cobranzas1@promelsa.com.pe</a></span>",
-      "text": "cobranzas1@promelsa.com.pe"
-    },
-    "messageId": "<69e66046.170a0220.2d112a.a365@mx.google.com>",
-    "attributes": {
-      "uid": 283
-    }
-  }
-]
-validar con este contexto.
+Perfecto, vamos por partes y bien práctico 🔥 (esto ya es nivel PRO n8n)
+🧠 1. ¿Cada cuánto revisa el Email Trigger (IMAP)?
+El nodo Email Trigger en n8n NO usa cron como tal, trabaja en modo:
+👉 “escucha continua” (IDLE)
+Es decir:
+Se queda conectado al servidor IMAP
+Espera nuevos correos en tiempo real
+Por eso se queda “pensando infinito” → y está bien ✔️
+🚨 Entonces… ¿por qué parece que se cuelga?
+No está colgado.
+Está en este estado:
 
-Ya quedó claro el problema real: no es solo el clasificador.
-Tu mayor fallo ahora mismo está en n8n / guardado de archivos.
-Qué pasó realmente
-1. Estás reutilizando rutas de archivo entre correos distintos
-Mira esto en archivos:
-correo 1 usa:
-posible_documento_20260420192419958_2.pdf
-posible_documento_20260420192419958_3.pdf
-correo 4 usa:
-posible_documento_20260420192419958_1.pdf
-posible_documento_20260420192419958_2.pdf
-posible_documento_20260420192419958_3.pdf
-correo 7 usa otra vez:
-posible_documento_20260420192419958_1.pdf
-..._2.pdf
-..._3.pdf
-correo 10 usa otra vez lo mismo.
-Eso significa que varios registros de BD apuntan al mismo archivo físico.
-Consecuencia
-Cuando procesas el correo 1, los archivos 2 y 3 ya no necesariamente son “sus” archivos originales.
-En realidad estás leyendo el contenido del archivo que quedó más reciente en inbox, porque varias filas comparten la misma ruta.
-Por eso luego salen errores como:
-Plain text
-InputFileError: File not found - .../posible_documento_20260420192419958_2.pdf
-porque ya lo moviste al procesar otro correo, y los otros registros siguen apuntando a esa ruta vieja.
-Diagnóstico principal
-Problema A — colisión de nombres en n8n
-Tu naming actual en n8n no garantiza unicidad global por correo/mensaje/adjunto.
-Problema B — process_correo() mueve archivos mientras otros correos aún apuntan a ellos
-Como varias filas comparten la misma ruta, cuando uno se mueve, los demás se rompen.
-Problema C — tu agrupación por correo_id solo funciona si cada correo tiene sus propios archivos únicos
-Ahora mismo eso no se cumple.
-Lo más importante que debes corregir primero
-Antes de tocar más Python:
-corrige n8n para que cada adjunto tenga un nombre único por mensaje.
-Cómo debe ser el nombre temporal en n8n
-Tu nombre temporal debe incluir algo único del correo, por ejemplo:
-messageId
-o correo_id
-y el índice del adjunto
-Recomendación
-En el Code node que genera storedFileName, usa algo así:
-JavaScript
-const safeMessageId = (messageId || "sinmsg")
-  .replace(/[<>:"/\\|?*@=+\s]/g, "_")
-  .slice(0, 80);
+Waiting for new emails...
+👉 Eso significa:
+No hay correos nuevos
+Está escuchando
+No termina nunca (por diseño)
+⚙️ 2. Si quieres que revise cada cierto tiempo (modo polling)
+Ahí sí debes cambiar la estrategia:
+✅ Opción A (RECOMENDADA): usar CRON + Email Read
+En vez de usar Email Trigger, haces esto:
+🔁 Flujo correcto:
 
-const newFileName = `posible_documento_${safeMessageId}_${index + 1}.pdf`;
-O mejor todavía:
-JavaScript
-const stamp = `${year}${month}${day}${hour}${minute}${second}${ms}`;
-const safeMessageId = (messageId || "sinmsg")
-  .replace(/[<>:"/\\|?*@=+\s]/g, "_")
-  .slice(0, 50);
+Cron → Email Read IMAP → Code (tu lógica)
+🕒 Nodo CRON ejemplo
+Mode: Every X minutes
+Ejemplo:
+cada 1 minuto
+cada 5 minutos
+📥 Nodo: Email Read (IMAP)
+Configuración clave:
+Operation: Get All
+Mailbox: INBOX
+Options:
+✅ Only Unread
+✅ Download Attachments
+Limit: 10 o 20
+👉 Esto evita que procese miles de correos
+🔥 Ventajas de este enfoque
+✔ Control total del tiempo
+✔ No se queda “colgado”
+✔ Puedes re-ejecutar manualmente
+✔ Ideal para pipelines (como el tuyo de facturas)
+⚡ 3. ¿Cuándo usar Email Trigger entonces?
+Usa Email Trigger solo si quieres:
+Procesamiento en tiempo real
+Automatización continua tipo servidor
+Pero:
+❌ No sirve para debug cómodo
+❌ No sirve para ejecuciones manuales
+❌ Parece “colgado”
+🧪 4. Por qué en manual “se queda pensando”
+Cuando haces esto:
+👉 “Execute Workflow”
+y tienes un Email Trigger
+Entonces n8n:
+abre conexión IMAP
+espera correos
+nunca termina
+💡 Es normal → no es error
+💡 SOLUCIÓN PARA DEBUG
+👉 Usa esto:
+Temporalmente reemplaza:
 
-const newFileName = `posible_documento_${stamp}_${safeMessageId}_${index + 1}.pdf`;
-Resultado
-Así cada archivo queda único, por ejemplo:
-Plain text
-posible_documento_20260420192419958_CAFtAZZA..._1.pdf
-posible_documento_20260420192419958_CAFtAZZA..._2.pdf
-y nunca más dos correos distintos compartirán la misma ruta.
-Qué hacer ahora mismo
-Paso 1
-Detén pruebas sobre esta corrida mezclada.
-Paso 2
-Corrige n8n para nombres únicos por adjunto y por correo.
-Paso 3
-Vacía nuevamente:
-archivos
-documentos
-correos_ingresados
-y limpia carpetas:
+Email Trigger ❌
+por:
+
+Manual Trigger ✅
+→ Email Read IMAP
+Así:
+ejecutas cuando quieres
+ves datos
+pruebas tu lógica
+🧩 5. Arquitectura PRO (tu caso facturas)
+Te dejo cómo debería quedar tu flujo final 🔥
+🧱 Flujo completo
+
+CRON (cada 2 min)
+   ↓
+Email Read IMAP
+   ↓
+Code (clasificación factura ✔)
+   ↓
+IF (es factura)
+   ↓
+Split:
+   ├── SI → Guardar PDF/XML
+   │        ↓
+   │     Extraer datos
+   │        ↓
+   │     DB (MySQL)
+   │
+   └── NO → carpeta no_identificados
+🧠 6. Bonus importante (muy importante en tu caso)
+⚠️ Marca como leído después de procesar
+Si no haces esto: 👉 procesarás el mismo correo siempre
+Solución:
+En Email Read:
+activar:
+Mark as Read
+O después:
+usar nodo: 👉 Email → Mark as Read
+🚀 7. Recomendación para tu sistema
+Dado lo que estás construyendo (clasificación + facturas):
+👉 Te recomiendo:
+✔ NO usar Email Trigger
+✔ Usar Cron + Email Read
+✔ Controlar tú la frecuencia
+Ejemplo ideal:
+cada 2 minutos → producción
+cada 10 segundos → pruebas
+🧩 8. ¿Por qué tu enfoque es correcto?
+Lo que estás armando es básicamente:
+👉 un mini sistema de recepción contable automatizado
+Tipo:
+SAP Inbox
+Odoo Document Processing
+OCR pipelines
+Y lo estás haciendo con: 👉 n8n + lógica personalizada 🔥
+👉 Siguiente paso (si quieres)
+En el siguiente mensaje te puedo armar:
+🔥 “Flujo completo exportable JSON de n8n”
+con:
+Cron
+Email Read
+Clasificación (tu código)
+Guardado de archivos
+separación:
 inbox
-ocr_tmp
-pendientes_clasificados
 no_identificados
-Paso 4
-Vuelve a descargar solo un conjunto pequeño de correos de prueba.
-Paso 5
-Recién ahí corre procesar_pendientes.py.
-Sobre lo que se ve en esta corrida actual
-Correo 1
-Tiene 3 documentos, pero por la colisión de rutas se mezcló contenido.
-Aun así, el debug mostró esto:
-doc 1: factura F010-00011002, RUC 20514753483
-doc 2: orden de compra
-doc 3: factura F231-01014, RUC 20100084172
-Eso ya es sospechoso, porque un mismo correo terminó con dos facturas de proveedores distintos.
-Lo más probable es que no eran realmente del mismo correo, sino que quedaron cruzados por los nombres temporales repetidos.
-Correo 4, 7 y 10
-Se rompen porque los archivos que necesitan ya fueron movidos o ya no existen en inbox.
-Hay otro ajuste que sí conviene hacer
-En process_correo() no deberías reprocesar correos cuyos archivos ya no existen en inbox y fueron movidos por otra corrida.
-Pero eso se arregla de raíz cuando cada registro tenga su propio archivo único.
-Mi recomendación final, en orden
-1. Prioridad máxima: n8n
-Corrige el nombre temporal de guardado.
-2. Luego limpia todo
-BD + carpetas.
-3. Vuelve a probar
-Con 1 o 2 correos nada más.
-4. Después refinamos Python
-Porque ahora mismo el Python está trabajando sobre datos contaminados por colisión de archivos.
-Respuesta concreta
-Tu análisis actual muestra que:
-el clasificador sí detecta varias cosas bien
-pero la corrida está contaminada porque múltiples registros apuntan al mismo archivo temporal
-por eso se mezclan correos, documentos y movimientos de archivo
-Entonces:
-la corrección urgente está en n8n, no en OCR ni en PostgreSQL.
-Pégame el código actual de tu nodo Code de n8n donde armas storedFileName, y te lo devuelvo corregido para que no vuelva a pasar.
+👉 listo para importar en n8n
+Solo dime: “sí, dame el flujo completo”
