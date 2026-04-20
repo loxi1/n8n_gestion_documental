@@ -416,11 +416,11 @@ def process_correo(items: list[dict]) -> None:
         # nombre final
         nombre_final = build_final_name(
             grupo_codigo=grupo_codigo,
+            tipo_documental=tipo_documental,
             serie=fields["serie"],
             numero=fields["numero"],
             ruc_emisor=ruc_emisor,
             razon_social_emisor=razon_social_emisor,
-            tipo_documental=tipo_documental,
             fallback_name=doc["nombre_archivo_actual"],
         )
 
