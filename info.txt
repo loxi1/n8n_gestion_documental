@@ -1,16 +1,79 @@
-Perfecto, ahora sí estás tomando una decisión de nivel profesional 👌
-Vamos a dejar esto bien sólido para producción.
-🎯 OBJETIVO FINAL
-Formato estándar:
+Yo te recomiendo esto:
+Recomendación práctica
+Sí usar espacios entre bloques principales, pero normalizar el contenido interno para que no haya caos.
+Formato recomendado
 Plain text
-{GRUPO} {TIPO} {IDENTIFICADOR_REAL} {RUC} {RAZON_SOCIAL}.pdf
-Ejemplo real:
+04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+Por qué así
+Espacios entre bloques
+Se ve más legible para humanos:
+grupo
+tipo
+serie
+número
+RUC
+razón social
+Guion bajo dentro de valores compuestos
+Evita problemas con:
+nombres muy largos
+dobles espacios
+copiado en scripts
+búsquedas automáticas
+red compartida Windows
+Lo que no te recomiendo
+Todo con espacios
 Plain text
-04-0001 FACTURA F002 00000254 20538549071 OMEGA POWER S A C.pdf
-04-0001 GUIA T002 00280 20538549071 OMEGA POWER S A C.pdf
-04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA POWER S A C.pdf
-🔧 1. MODIFICAR build_final_name()
-Reemplaza completamente tu función por esta versión:
+04-0001 ORDEN COMPRA 007902 OMEGA POWER S A C.pdf
+Se ve bonito, pero para automatización y parsing luego es más frágil.
+Todo con guiones
+Plain text
+04-0001-FACTURA-F002-00000254-20538549071-OMEGA-POWER-S-A-C.pdf
+Se vuelve más duro de leer.
+Mi propuesta final
+Usa esta convención:
+espacios para separar campos
+guion bajo dentro de textos compuestos
+Ejemplo:
+Plain text
+04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 REQUERIMIENTO_COMPRA 001245 20565747356 BBTI_S_A_C.pdf
+Mejora pro de orden visual
+Sí, conviene dejar el tipo inmediatamente después del grupo:
+Plain text
+04-0001 FACTURA ...
+04-0001 GUIA ...
+04-0001 ORDEN_COMPRA ...
+porque así, al ordenar por nombre:
+primero se agrupan por 04-0001
+luego ves el tipo documental rápido
+Mejora que te sugiero aplicar ya
+Cambia sanitize_filename() para:
+quitar caracteres prohibidos
+convertir múltiples espacios a uno
+luego reemplazar espacios internos por _ solo en textos libres
+Por ejemplo, en file_manager.py:
+Python
+import re
+from pathlib import Path
+
+
+def sanitize_filename(name: str) -> str:
+    name = re.sub(r'[<>:"/\\|?*]+', " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+
+def normalize_token(value: str | None) -> str:
+    if not value:
+        return ""
+    value = sanitize_filename(value)
+    value = value.replace(" ", "_")
+    return value
+Y luego en build_final_name() usar:
 Python
 from pathlib import Path
 
