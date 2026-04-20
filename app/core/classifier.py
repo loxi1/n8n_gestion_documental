@@ -9,6 +9,28 @@ def _search(pattern: str, text: str, flags: int = re.IGNORECASE) -> str | None:
     return match.group(1).strip() if match else None
 
 
+def is_factura(text: str, original_name: str) -> bool:
+    text_u = text.upper()
+    name_u = original_name.upper()
+
+    patrones_factura = [
+        r"\bF\d{3,4}[- ]\d{3,}\b",
+        r"\bN[°º]\s*F\d{3,4}[- ]\d{3,}\b",
+        r"\bNRO\.?\s*F\d{3,4}[- ]\d{3,}\b",
+    ]
+
+    if "FACTURA ELECTRONICA" in text_u or "FACTURA ELECTRÓNICA" in text_u:
+        return True
+
+    for patron in patrones_factura:
+        if re.search(patron, text_u, re.IGNORECASE):
+            return True
+        if re.search(patron, name_u, re.IGNORECASE):
+            return True
+
+    return False
+
+
 def detect_document_type(text: str, original_name: str) -> str:
     text_u = text.upper()
     name_u = original_name.upper()
@@ -38,11 +60,7 @@ def detect_document_type(text: str, original_name: str) -> str:
     ):
         return "guia"
 
-    if (
-        "FACTURA ELECTRONICA" in text_u
-        or "FACTURA ELECTRÓNICA" in text_u
-        or re.search(r"\bF\d{3,4}-\d{3,}\b", text_u)
-    ):
+    if is_factura(text, original_name):
         return "factura"
 
     if (
@@ -60,7 +78,9 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
     text_u = text.upper()
     doc_type = detect_document_type(text, original_name)
 
-    ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
+    ruc = _search(r"\bRUC[:\sN°º.]*([0-9]{11})\b", text_u)
+    if not ruc:
+        ruc = _search(r"\bR\.U\.C\.?\s*N[°º.]?\s*([0-9]{11})\b", text_u)
     if not ruc:
         ruc = _search(r"\b([0-9]{11})\b", text_u)
 
@@ -69,10 +89,14 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
     oc = None
 
     if doc_type == "factura":
-        patrones = [r"\b(F\d{3,4})[- ]([0-9]{3,})\b"]
+        patrones = [
+            r"\b(F\d{3,4})[- ](\d{3,})\b",
+            r"\bN[°º]\s*(F\d{3,4})[- ](\d{3,})\b",
+            r"\bNRO\.?\s*(F\d{3,4})[- ](\d{3,})\b",
+        ]
     elif doc_type == "guia":
         patrones = [
-            r"\b(TO?\d{3,4})[- ]([0-9]{3,})\b",
+            r"\b(TO?\d{3,4})[- ](\d{3,})\b",
         ]
     elif doc_type == "orden_compra":
         patrones = [
@@ -94,9 +118,8 @@ def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
                 serie = m.group(1).strip()
                 numero = m.group(2).strip()
             elif doc_type == "guia":
-                serie = m.group(1).strip()
+                serie = m.group(1).strip().replace("TO", "T", 1)
                 numero = m.group(2).strip()
-                serie = serie.replace("TO", "T", 1)
             elif doc_type == "orden_compra":
                 serie = "OC"
                 numero = m.group(1).strip()

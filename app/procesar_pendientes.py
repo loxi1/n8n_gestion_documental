@@ -6,7 +6,7 @@ import subprocess
 from datetime import datetime, date
 from pathlib import Path
 
-from core.config import STORAGE_DIR, OCR_TMP_DIR
+from core.config import STORAGE_DIR, OCR_TMP_DIR, APISPERU_TOKEN
 from core.db import get_cursor
 from core.extractor_pdf import extract_text_from_pdf
 from core.classifier import extract_basic_fields
@@ -84,6 +84,28 @@ SET
     actualizado_en = NOW()
 WHERE id = %(archivo_id)s;
 """
+
+
+def fetch_proveedor_from_api(ruc: str) -> dict | None:
+    if not ruc or not APISPERU_TOKEN:
+        return None
+
+    url = f"https://dniruc.apisperu.com/api/v1/ruc/{ruc}?token={APISPERU_TOKEN}"
+
+    try:
+        resp = requests.get(url, timeout=15)
+        if resp.status_code != 200:
+            return None
+
+        data = resp.json()
+        return {
+            "ruc": data.get("ruc"),
+            "nombre": data.get("razonSocial"),
+            "direccion": data.get("direccion"),
+        }
+    except Exception as exc:
+        print(f"[API RUC ERROR] ruc={ruc} error={exc}")
+        return None
 
 
 def resolve_absolute_path(relative_path: str) -> Path:
@@ -176,26 +198,42 @@ def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
         return False
 
 
-def get_or_create_proveedor(ruc: str | None, razon_social: str | None) -> int | None:
+def get_or_create_proveedor(ruc: str | None, razon_social: str | None = None, direccion: str | None = None) -> dict | None:
     if not ruc:
         return None
 
     with get_cursor(commit=True) as (_, cur):
-        cur.execute("SELECT id FROM proveedores WHERE ruc = %s", (ruc,))
-        row = cur.fetchone()
-        if row:
-            return int(row["id"])
-
         cur.execute(
-            """
-            INSERT INTO proveedores (ruc, nombre, creado_en, actualizado_en)
-            VALUES (%s, %s, NOW(), NOW())
-            RETURNING id
-            """,
-            (ruc, razon_social),
+            "SELECT id, ruc, nombre, direccion FROM proveedores WHERE ruc = %s",
+            (ruc,),
         )
         row = cur.fetchone()
-        return int(row["id"]) if row else None
+        if row:
+            return dict(row)
+
+    api_data = fetch_proveedor_from_api(ruc)
+
+    nombre_final = None
+    direccion_final = None
+
+    if api_data:
+        nombre_final = api_data.get("nombre")
+        direccion_final = api_data.get("direccion")
+    else:
+        nombre_final = razon_social or "SIN_RAZON_SOCIAL"
+        direccion_final = direccion
+
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            """
+            INSERT INTO proveedores (ruc, nombre, direccion, creado_en, actualizado_en)
+            VALUES (%s, %s, %s, NOW(), NOW())
+            RETURNING id, ruc, nombre, direccion
+            """,
+            (ruc, nombre_final, direccion_final),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
 
 
 def try_extract_razon_social(text: str, fallback: str | None = None) -> str:
@@ -299,7 +337,12 @@ def process_one_document(item: dict) -> dict | None:
 
     razon_social = try_extract_razon_social(text, item.get("razon_social"))
     ruc = fields["ruc"]
-    proveedor_id = get_or_create_proveedor(ruc, razon_social)
+
+    proveedor = get_or_create_proveedor(ruc, razon_social)
+    proveedor_id = proveedor["id"] if proveedor else None
+    if proveedor and proveedor.get("nombre"):
+        razon_social = proveedor["nombre"]
+
     oc = extract_oc(text)
 
     operation_key = build_operation_key(
@@ -394,7 +437,7 @@ def process_correo(items: list[dict]) -> None:
 
     factura_principal = select_factura_principal(enriched)
     print("[DEBUG] factura_principal =", factura_principal)
-    
+
     if not factura_principal:
         print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
         return
@@ -423,7 +466,11 @@ def process_correo(items: list[dict]) -> None:
         tipo_documental = fields["tipo_documental"]
         ruc_emisor = fields["ruc"]
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
-        proveedor_id = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+        proveedor_id = proveedor["id"] if proveedor else None
+
+        if proveedor and proveedor.get("nombre"):
+            razon_social_emisor = proveedor["nombre"]
 
         es_principal = doc["documento_id"] == documento_principal_id
         documento_principal_ref = None if es_principal else documento_principal_id

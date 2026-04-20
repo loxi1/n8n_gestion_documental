@@ -1,332 +1,237 @@
-Perfecto. Te dejo los cambios listos para pegar.
-1. app/core/classifier.py
-Reemplázalo completo por esta versión:
-Python
-from __future__ import annotations
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/inbox/2026/04/
+total 428
+-rw-r--r-- 1 BBTI 01 197121  86071 Apr 20 14:24 posible_documento_20260420192419957_1.pdf
+-rw-r--r-- 1 BBTI 01 197121  60479 Apr 20 14:24 posible_documento_20260420192419958_1.pdf
+-rw-r--r-- 1 BBTI 01 197121  63632 Apr 20 14:24 posible_documento_20260420192419958_2.pdf
+-rw-r--r-- 1 BBTI 01 197121 217948 Apr 20 14:24 posible_documento_20260420192419958_3.pdf
 
-import re
-from typing import Any
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/no_identificados/
+total 0
 
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/ocr_tmp/
+total 0
 
-def _search(pattern: str, text: str, flags: int = re.IGNORECASE) -> str | None:
-    match = re.search(pattern, text, flags)
-    return match.group(1).strip() if match else None
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/
+inbox/                   no_identificados/        ocr_tmp/                 pendientes_clasificados/
 
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_clasificados/
+total 0
 
-def is_factura(text: str, original_name: str) -> bool:
-    text_u = text.upper()
-    name_u = original_name.upper()
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$
 
-    patrones_factura = [
-        r"\bF\d{3,4}[- ]\d{3,}\b",
-        r"\bN[°º]\s*F\d{3,4}[- ]\d{3,}\b",
-        r"\bNRO\.?\s*F\d{3,4}[- ]\d{3,}\b",
-    ]
-
-    if "FACTURA ELECTRONICA" in text_u or "FACTURA ELECTRÓNICA" in text_u:
-        return True
-
-    for patron in patrones_factura:
-        if re.search(patron, text_u, re.IGNORECASE):
-            return True
-        if re.search(patron, name_u, re.IGNORECASE):
-            return True
-
-    return False
-
-
-def detect_document_type(text: str, original_name: str) -> str:
-    text_u = text.upper()
-    name_u = original_name.upper()
-
-    if (
-        "ORDEN DE COMPRA" in text_u
-        or "ORDEN DE COMRA" in text_u
-        or "ORDEN DE COMPRA" in name_u
-        or "ORDEN DE COMRA" in name_u
-    ):
-        return "orden_compra"
-
-    if (
-        "REQUERIMIENTO DE COMPRA" in text_u
-        or "REQUERIMIENTO" in text_u
-        or "REQ" in name_u
-    ):
-        return "requerimiento_compra"
-
-    if (
-        "GUIA DE REMISION" in text_u
-        or "GUÍA DE REMISIÓN" in text_u
-        or "GUIA DE REMISION ELECTRONICA" in text_u
-        or "GUÍA DE REMISIÓN ELECTRÓNICA" in text_u
-        or "PUNTO DE PARTIDA" in text_u
-        or "PUNTO DE LLEGADA" in text_u
-    ):
-        return "guia"
-
-    if is_factura(text, original_name):
-        return "factura"
-
-    if (
-        "NOTA DE CREDITO" in text_u
-        or "NOTA DE CRÉDITO" in text_u
-        or "NOTA DE DEBITO" in text_u
-        or "NOTA DE DÉBITO" in text_u
-    ):
-        return "nota_credito"
-
-    return "otro"
+gestiondocumental=# SELECT * FROM archivos ORDER BY id;
+ id | documento_id | correo_id |     nombre_archivo_original      |                            nombre_archivo_actual
+  | extension |    mime_type    | tamano_bytes | hash_sha256 |                                                ruta_temporal
+                             | ruta_final | es_principal | estado_archivo |         creado_en         |       actualizado_en
+----+--------------+-----------+----------------------------------+----------------------------------------------------------------------------
+--+-----------+-----------------+--------------+-------------+---------------------------------------------------------------------------------
+-----------------------------+------------+--------------+----------------+---------------------------+----------------------------
+  1 |            1 |         1 | 20514753483-01-F010-00011002.pdf | 04-0001 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pd
+f | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F010 00011002 20514753483 CORPOR
+ACION_PROMATISA_SOCIEDAD.pdf |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:06.900691
+  2 |            2 |         1 | OC 007900.pdf                    | 04-0001 ORDEN_COMPRA SIN_RAZON_SOCIAL.pdf
+  | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ORDEN_COMPRA SIN_RAZON_SOCIAL.pdf
+                             |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:06.936771
+  3 |            3 |         1 | GR001-8745.pdf                   | 04-0001 FACTURA F231 01014 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+  | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231 01014 20100084172 PROMOTORE
+S_ELECTRICOS_S_A.pdf         |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:07.000754
+  4 |            4 |         4 | 20100084172-01-F231-0101440.pdf  | 04-0001 FACTURA F231 0101441 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+  | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231 0101441 20100084172 PROMOTO
+RES_ELECTRICOS_S_A.pdf       |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:09.239431
+  5 |            5 |         4 | 007864.pdf                       | 04-0001 OTRO SIN_RAZON_SOCIAL.pdf
+  | .pdf      | application/pdf |              |             | no_identificados/2026/04/04-0001 OTRO SIN_RAZON_SOCIAL.pdf
+                             |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:09.265304
+  6 |            6 |         4 | F231-00101440.pdf                | 04-0001 FACTURA SIN_RAZON_SOCIAL.pdf
+  | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA SIN_RAZON_SOCIAL.pdf
+                             |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:09.28949
+  7 |            7 |         7 | 20100084172-01-F231-0101439.pdf  | posible_documento_20260420192419958_1.pdf
+  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_1.pdf
+                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
+  8 |            8 |         7 | 007800.pdf                       | posible_documento_20260420192419958_2.pdf
+  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_2.pdf
+                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
+  9 |            9 |         7 | F231-00101439.pdf                | posible_documento_20260420192419958_3.pdf
+  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_3.pdf
+                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
+ 10 |           10 |        10 | 20100084172-01-F231-0101441.pdf  | posible_documento_20260420192419958_1.pdf
+  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_1.pdf
+                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
+ 11 |           11 |        10 | 007854.pdf                       | posible_documento_20260420192419958_2.pdf
+  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_2.pdf
+                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
+ 12 |           12 |        10 | F231-00101441.pdf                | posible_documento_20260420192419958_3.pdf
+  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_3.pdf
+                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
+(12 rows)
 
 
-def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
-    text_u = text.upper()
-    doc_type = detect_document_type(text, original_name)
-
-    ruc = _search(r"\bRUC[:\sN°º.]*([0-9]{11})\b", text_u)
-    if not ruc:
-        ruc = _search(r"\bR\.U\.C\.?\s*N[°º.]?\s*([0-9]{11})\b", text_u)
-    if not ruc:
-        ruc = _search(r"\b([0-9]{11})\b", text_u)
-
-    serie = None
-    numero = None
-    oc = None
-
-    if doc_type == "factura":
-        patrones = [
-            r"\b(F\d{3,4})[- ](\d{3,})\b",
-            r"\bN[°º]\s*(F\d{3,4})[- ](\d{3,})\b",
-            r"\bNRO\.?\s*(F\d{3,4})[- ](\d{3,})\b",
-        ]
-    elif doc_type == "guia":
-        patrones = [
-            r"\b(TO?\d{3,4})[- ](\d{3,})\b",
-        ]
-    elif doc_type == "orden_compra":
-        patrones = [
-            r"\bORDEN DE COMPRA\s*N[^0-9]{0,5}([0-9]{3,})\b",
-            r"\bOC[:\s]*([0-9]{3,})\b",
-        ]
-    elif doc_type == "requerimiento_compra":
-        patrones = [
-            r"\bRC[:\s-]*([0-9]{3,})\b",
-            r"\bREQ[:\s-]*([0-9]{3,})\b",
-        ]
-    else:
-        patrones = []
-
-    for patron in patrones:
-        m = re.search(patron, text_u, re.IGNORECASE)
-        if m:
-            if doc_type == "factura":
-                serie = m.group(1).strip()
-                numero = m.group(2).strip()
-            elif doc_type == "guia":
-                serie = m.group(1).strip().replace("TO", "T", 1)
-                numero = m.group(2).strip()
-            elif doc_type == "orden_compra":
-                serie = "OC"
-                numero = m.group(1).strip()
-            elif doc_type == "requerimiento_compra":
-                serie = "REQ"
-                numero = m.group(1).strip()
-            break
-
-    oc_match = re.search(r"\bOC[:\s]*([0-9]{3,})\b", text_u, re.IGNORECASE)
-    if oc_match:
-        oc = oc_match.group(1).strip()
-
-    fecha_emision = _search(
-        r"\bFECHA(?: DE EMISION| DE EMISIÓN)?[:\s]*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
-        text_u
-    )
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
-
-    importe = _search(
-        r"\b(?:TOTAL|TOTAL S/|TOTAL USD \$|TOTAL \(USD \$\))[:\sS/$]*([0-9]+(?:[.,][0-9]{2})?)\b",
-        text_u,
-    )
-
-    return {
-        "tipo_documental": doc_type,
-        "ruc": ruc,
-        "serie": serie,
-        "numero": numero,
-        "fecha_emision": fecha_emision,
-        "importe": importe,
-        "oc": oc,
-    }
-2. app/core/config.py
-Agrega el token:
-Python
-APISPERU_TOKEN = os.getenv("APISPERU_TOKEN", "")
-Te debe quedar algo así:
-Python
-from __future__ import annotations
-
-import os
-from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv()
-
-BASE_DIR = Path(__file__).resolve().parents[2]
-STORAGE_DIR = BASE_DIR / "storage" / "files"
-OCR_TMP_DIR = STORAGE_DIR / "ocr_tmp"
-
-PG_HOST = os.getenv("PG_HOST", "localhost")
-PG_PORT = int(os.getenv("PG_PORT", "5432"))
-PG_DB = os.getenv("PG_DB", "gestiondocumental")
-PG_USER = os.getenv("PG_USER", "postgres")
-PG_PASSWORD = os.getenv("PG_PASSWORD", "postgres123")
-
-APISPERU_TOKEN = os.getenv("APISPERU_TOKEN", "")
-3. .env
-Agrega:
-Environment
-APISPERU_TOKEN=tu_token_aqui
-4. requirements.txt
-Agrega:
-Plain text
-requests==2.32.3
-y luego instala:
-Bash
-pip install -r requirements.txt
-5. En procesar_pendientes.py, agrega import de requests
-Arriba:
-Python
-import requests
-y cambia este import:
-Python
-from core.config import STORAGE_DIR, OCR_TMP_DIR
-por:
-Python
-from core.config import STORAGE_DIR, OCR_TMP_DIR, APISPERU_TOKEN
-6. Agrega estas funciones en procesar_pendientes.py
-Pégalas debajo de run_ocr() o antes de get_or_create_proveedor():
-Python
-def fetch_proveedor_from_api(ruc: str) -> dict | None:
-    if not ruc or not APISPERU_TOKEN:
-        return None
-
-    url = f"https://dniruc.apisperu.com/api/v1/ruc/{ruc}?token={APISPERU_TOKEN}"
-
-    try:
-        resp = requests.get(url, timeout=15)
-        if resp.status_code != 200:
-            return None
-
-        data = resp.json()
-        return {
-            "ruc": data.get("ruc"),
-            "nombre": data.get("razonSocial"),
-            "direccion": data.get("direccion"),
-        }
-    except Exception as exc:
-        print(f"[API RUC ERROR] ruc={ruc} error={exc}")
-        return None
+gestiondocumental=# SELECT * FROM documentos ORDER BY id;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie |  numero  |     ruc     |          razon_social          | fecha_emision |
+ fecha_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |
+       creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_princip
+al_id |                                 nombre_final                                 |            ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+----------+-------------+--------------------------------+---------------+
+-------------------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+--
+--------------------------+----------------------------+--------------------+--------------+-----------------+--------------+------------------
+------+------------------------------------------------------------------------------+------------------------------------------
+  1 |         1 |         1300 | factura         |          | F010  | 00011002 | 20514753483 | CORPORACION PROMATISA SOCIEDAD | 2026-05-15    |
+                   |        |    0.00 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:33:06.900691 |                  2 | 04-0001      |               1 | f            |
+    3 | 04-0001 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pdf | \\\\servidor\\documentos\\BBTI SAC\MAYO
+  2 |         1 |              | orden_compra    |          |       |          |             | SIN_RAZON_SOCIAL               |               |
+                   |        |  740.81 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:33:06.936771 |                  2 | 04-0001      |               1 | f            |
+    3 | 04-0001 ORDEN_COMPRA SIN_RAZON_SOCIAL.pdf                                    | \\\\servidor\\documentos\\BBTI SAC\MAYO
+  3 |         1 |          754 | factura         |          | F231  | 01014    | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-05-25    |
+                   |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:33:07.000754 |                  2 | 04-0001      |               1 | t            |
+      | 04-0001 FACTURA F231 01014 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf         | \\\\servidor\\documentos\\BBTI SAC\MAYO
+  4 |         4 |          754 | factura         |          | F231  | 0101441  | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-04-10    |
+                   |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:33:09.239431 |                  2 | 04-0001      |               1 | t            |
+      | 04-0001 FACTURA F231 0101441 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf       | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  5 |         4 |              | otro            |          |       |          |             | SIN_RAZON_SOCIAL               |               |
+                   |        |         |     |                |       |                  | no_identificado  | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:33:09.265304 |                  2 | 04-0001      |               1 | f            |
+    4 | 04-0001 OTRO SIN_RAZON_SOCIAL.pdf                                            | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  6 |         4 |              | factura         |          |       |          |             | SIN_RAZON_SOCIAL               |               |
+                   |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:33:09.28949  |                  2 | 04-0001      |               1 | f            |
+    4 | 04-0001 FACTURA SIN_RAZON_SOCIAL.pdf                                         | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  7 |         7 |              |                 |          |       |          |             |                                |               |
+                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
+      |                                                                              |
+  8 |         7 |              |                 |          |       |          |             |                                |               |
+                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
+      |                                                                              |
+  9 |         7 |              |                 |          |       |          |             |                                |               |
+                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
+      |                                                                              |
+ 10 |        10 |              |                 |          |       |          |             |                                |               |
+                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
+      |                                                                              |
+ 11 |        10 |              |                 |          |       |          |             |                                |               |
+                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
+      |                                                                              |
+ 12 |        10 |              |                 |          |       |          |             |                                |               |
+                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
+026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
+      |                                                                              |
+(12 rows)
 
 
-def get_or_create_proveedor(ruc: str | None, razon_social: str | None = None, direccion: str | None = None) -> dict | None:
-    if not ruc:
-        return None
+gestiondocumental=# select * from correos_ingresados;
+ id | origen | proveedor_correo |                  message_id                   | thread_id | remitente_nombre |           remitente_email
+      | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                           asunto                           | cuerpo
+_texto | cuerpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado | estado_correo | cantidad_adjuntos | observacion |
+         creado_en          |       actualizado_en
+----+--------+------------------+-----------------------------------------------+-----------+------------------+-------------------------------
+------+----------+-------------------+-----------------+------------------+------------------------------------------------------------+-------
+-------+-------------+---------------------+----------------------------+-------+-----------+---------------+-------------------+-------------+
+----------------------------+----------------------------
+  1 | correo | imap             | <002b01dcd0da$e30c6300$a9252900$@acsa.com.pe> |           |                  | galvarado@acsa.com.pe
+      |          |                   |                 |                  | F01000011002 - RUC 20514753483 - CORPORACION PROMATISA SAC |
+       |             | 2026-04-20 15:32:21 | 2026-04-20 14:24:20.031847 | f     | f         | descargado    |                 1 |             |
+ 2026-04-20 14:24:20.031847 | 2026-04-20 14:24:20.031847
+  4 | correo | imap             | <69e65e1f.050a0220.3adf79.757c@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101440 - BBTI S.A.C.            |
+       |             | 2026-04-20 17:10:55 | 2026-04-20 14:24:20.031847 | f     | f         | descargado    |                 1 |             |
+ 2026-04-20 14:24:20.031847 | 2026-04-20 14:24:20.031847
+  7 | correo | imap             | <69e65dd6.050a0220.1e6433.9f6c@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101439 - BBTI S.A.C.            |
+       |             | 2026-04-20 17:09:42 | 2026-04-20 14:24:20.031847 | f     | f         | descargado    |                 1 |             |
+ 2026-04-20 14:24:20.031847 | 2026-04-20 14:24:20.031847
+ 10 | correo | imap             | <69e66046.170a0220.2d112a.a365@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101441 - BBTI S.A.C.            |
+       |             | 2026-04-20 17:20:06 | 2026-04-20 14:24:20.031847 | f     | f         | descargado    |                 1 |             |
+ 2026-04-20 14:24:20.031847 | 2026-04-20 14:24:20.031847
+(4 rows)
 
-    with get_cursor(commit=True) as (_, cur):
-        cur.execute(
-            "SELECT id, ruc, nombre, direccion FROM proveedores WHERE ruc = %s",
-            (ruc,),
-        )
-        row = cur.fetchone()
-        if row:
-            return dict(row)
+$ python procesar_pendientes.py
+Correos pendientes encontrados: 4
+[INFO] procesando correo_id=1 documentos=3
+[DEBUG] correo_id=1 enriquecidos:
+{'documento_id': 1, 'archivo': 'posible_documento_20260420192419957_1.pdf', 'tipo': 'factura', 'serie': 'F010', 'numero': '00011002', 'ruc': '20514753483', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': '2026-05-15'}
+{'documento_id': 2, 'archivo': 'posible_documento_20260420192419958_2.pdf', 'tipo': 'orden_compra', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 3, 'archivo': 'posible_documento_20260420192419958_3.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '01014', 'ruc': '20100084172', 'oc': None, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-05-25'}
+[DEBUG] factura_principal = {'documento_id': 3, 'correo_id': 1, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 3, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420192419958_3.pdf', 'nombre_archivo_actual': 'posible_documento_20260420192419958_3.pdf', 'nombre_archivo_original': 'GR001-8745.pdf', 'text': 'HA DE EMISIÓN:\n- RUC: 20100084172 |\n|\no y LIMA - LIM a FACTURA ELECTRÓNICA\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe N* F231-01014\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA; Callao norte\nMONEDA: SOL DA DE N*0C: 007854\nPEDIDO. FACTURA CONDICIÓN PAGO. FORMA DE PAGO VENCIMIENTO\n1100335392 9100354269 FACTURA 45 DIAS CREDITO 25/05/2026\n[TEM CÓDIGO | CANTIDAD DESCRIPCIÓN VALOR DESCUENTO. | VALORDE, 16V PRECIO VTA\nUNITARIO VENTA UNI INCL 16V\n010| 1001798 10.00 /| UND [CINTA AIS.AUTOF.MAST.SC.2228 2X3MTS 104.62] 305.38] 740.8 133.35] 87.42\nhurca: 3 OTROS\n(ODELO; SCOTCH 2228\nSON: OCHOCIENTOS SETENTA Y CUATRO Y 17/100 SOLES [TOTAL bscro] 305.38] OP.GRAVADAS] 740,82\nOP.INAFECTAS] 00\n(OP: EXONERADAS: 0.00]\n"¡OP.GRATUITAS: 0.00]\nOTROS CARGOS] 0.00)\n16 V (18.00%) 133.35)\nTOTAL (8)] 874,17\nCuota001: S/ 874.17 - Fecha Venc : 2026-05-25\nVALOR RESUMEN: pCW8U+P2X94WrwbhRXBNO4/GWPU=\nis \' (Y ,\np* MAi Ó\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http:/lefact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N? 0180050001886 /SUNAT\nPágina 1 de 1', 'fields': {'tipo_documental': 'factura', 'ruc': '20100084172', 'serie': 'F231', 'numero': '01014', 'fecha_emision': '2026-05-25', 'importe': None, 'oc': None}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': '2026-05-25', 'fecha_emision_date': datetime.date(2026, 5, 25), 'razon_social_emisor_detectada': None}
+[OK] correo=1 doc=1 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pdf
+[OK] correo=1 doc=2 tipo=orden_compra grupo=04-0001 nombre=04-0001 ORDEN_COMPRA SIN_RAZON_SOCIAL.pdf
+[OK] correo=1 doc=3 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F231 01014 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+[INFO] procesando correo_id=4 documentos=3
+[OCR ERROR STDOUT]
 
-    api_data = fetch_proveedor_from_api(ruc)
+[OCR ERROR STDERR]
+InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf
 
-    nombre_final = None
-    direccion_final = None
+[OCR ERROR STDOUT]
 
-    if api_data:
-        nombre_final = api_data.get("nombre")
-        direccion_final = api_data.get("direccion")
-    else:
-        nombre_final = razon_social or "SIN_RAZON_SOCIAL"
-        direccion_final = direccion
+[OCR ERROR STDERR]
+InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf
 
-    with get_cursor(commit=True) as (_, cur):
-        cur.execute(
-            """
-            INSERT INTO proveedores (ruc, nombre, direccion, creado_en, actualizado_en)
-            VALUES (%s, %s, %s, NOW(), NOW())
-            RETURNING id, ruc, nombre, direccion
-            """,
-            (ruc, nombre_final, direccion_final),
-        )
-        row = cur.fetchone()
-        return dict(row) if row else None
-7. Elimina tu función vieja get_or_create_proveedor()
-Si ya existe una versión anterior, bórrala y deja solo la nueva.
-8. Cambia process_correo()
-Busca esta parte:
-Python
-proveedor_id = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
-y reemplázala por:
-Python
-proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
-proveedor_id = proveedor["id"] if proveedor else None
+[DEBUG] correo_id=4 enriquecidos:
+{'documento_id': 4, 'archivo': 'posible_documento_20260420192419958_1.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101441', 'ruc': '20100084172', 'oc': '007854', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-10'}
+{'documento_id': 5, 'archivo': 'posible_documento_20260420192419958_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 6, 'archivo': 'posible_documento_20260420192419958_3.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+[DEBUG] factura_principal = {'documento_id': 4, 'correo_id': 4, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 4, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420192419958_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260420192419958_1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101440.pdf', 'text': 'Página 1 de 1\nFECHA DE EMISIÓN: 10/04/2026\nEMISOR: Promotores Electricos S A\nDIRECCIÓN: AV. NICOLAS ARRIOLA NRO. 899 URB. STA CATALINA - LA\nVICTORIA - LIMA - LIMA - PERÚ\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nRUC: 20100084172\nFACTURA ELECTRÓNICA\nN° F231-0101441\n \nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA: Callao norte\nMONEDA: SOL GUÍA DE\nREMISIÓN: N° OC: 007854\nPEDIDO FACTURA CONDICIÓN PAGO FORMA DE PAGO VENCIMIENTO\n1100335392 9100354269 FACTURA 45 DIAS CREDITO 25/05/2026\nITEM CÓDIGO CANTIDAD UM DESCRIPCIÓN   VALOR\nUNITARIO\nDESCUENTO VALOR DE\nVENTA\nIGV PRECIO VTA\nUNI INCL IGV\n010 1001798 10.00 UND CINTA AIS.AUTOF.MAST.SC.2228 2X3MTS\nMARCA: 3M OTROS\nMODELO: SCOTCH 2228\n104.62 305.38 740.82 133.35 87.42\n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n:\nSON: OCHOCIENTOS SETENTA Y CUATRO Y 17/100 SOLES TOTAL DSCTO: 305.38 OP.GRAVADAS: 740.82\nOP.INAFECTAS: 0.00\nOP. EXONERADAS: 0.00\nOP.GRATUITAS: 0.00\n OTROS CARGOS: 0.00\nIGV (18.00%): 133.35\n TOTAL (S/): 874.17\nCuota001:S/ 874.17- Fecha Venc : 2026-05-25\nVALOR RESUMEN : pCW8U+P2X94WrwbhRXBNO4/GWPU=\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http://efact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N° 0180050001886 /SUNAT', 'fields': {'tipo_documental': 'factura', 'ruc': '20100084172', 'serie': 'F231', 'numero': '0101441', 'fecha_emision': '10/04/2026', 'importe': None, 'oc': '007854'}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': '2026-04-10', 'fecha_emision_date': datetime.date(2026, 4, 10), 'razon_social_emisor_detectada': 'PROMOTORES ELECTRICOS S A'}
+[OK] correo=4 doc=4 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F231 0101441 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+[OK] correo=4 doc=5 tipo=otro grupo=04-0001 nombre=04-0001 OTRO SIN_RAZON_SOCIAL.pdf
+[OK] correo=4 doc=6 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA SIN_RAZON_SOCIAL.pdf
+[INFO] procesando correo_id=7 documentos=3
+[OCR ERROR STDOUT]
 
-if proveedor and proveedor.get("nombre"):
-    razon_social_emisor = proveedor["nombre"]
-9. Si también usas proveedor en process_one_document()
-Busca esto:
-Python
-proveedor_id = get_or_create_proveedor(ruc, razon_social)
-y cámbialo por:
-Python
-proveedor = get_or_create_proveedor(ruc, razon_social)
-proveedor_id = proveedor["id"] if proveedor else None
-if proveedor and proveedor.get("nombre"):
-    razon_social = proveedor["nombre"]
-10. Resultado esperado
-Para una factura como:
-RUC: 20538549071
-Factura Electronica
-F002-00000254
-debe quedar:
-Plain text
-04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
-Y para Promotores:
-Plain text
-04-0002 FACTURA F241 0045334 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-11. Qué hacer ahora
-En orden:
-actualiza classifier.py
-actualiza config.py
-agrega token a .env
-instala requests
-actualiza procesar_pendientes.py
-limpia corrida de prueba
-corre n8n
-corre:
-Bash
-python procesar_pendientes.py
-12. Qué quiero que me pegues luego
-Después de correrlo, pega estas consultas:
-SQL
-SELECT id, ruc, nombre, direccion
-FROM proveedores
-ORDER BY id DESC;
-SQL
-SELECT
-  id, correo_id, tipo_documental, serie, numero, ruc, razon_social,
-  cliente_destino_id, grupo_codigo, correlativo_mes,
-  es_principal, documento_principal_id, nombre_final, ruta_windows_final
-FROM documentos
-ORDER BY id;
-SQL
-SELECT
-  id, documento_id, nombre_archivo_actual, ruta_temporal, estado_archivo
-FROM archivos
-ORDER BY id;
+[OCR ERROR STDERR]
+InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf
+
+[OCR ERROR STDOUT]
+
+[OCR ERROR STDERR]
+InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf
+
+[OCR ERROR STDOUT]
+
+[OCR ERROR STDERR]
+InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf
+
+[DEBUG] correo_id=7 enriquecidos:
+{'documento_id': 7, 'archivo': 'posible_documento_20260420192419958_1.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 8, 'archivo': 'posible_documento_20260420192419958_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 9, 'archivo': 'posible_documento_20260420192419958_3.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+[DEBUG] factura_principal = {'documento_id': 7, 'correo_id': 7, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 7, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420192419958_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260420192419958_1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101439.pdf', 'text': '', 'fields': {'tipo_documental': 'factura', 'ruc': None, 'serie': None, 'numero': None, 'fecha_emision': None, 'importe': None, 'oc': None}, 'cliente_raw': None, 'cliente_match': None, 'fecha_emision_norm': None, 'fecha_emision_date': None, 'razon_social_emisor_detectada': None}
+[WARN] correo_id=7 factura sin fecha
+[INFO] procesando correo_id=10 documentos=3
+[OCR ERROR STDOUT]
+
+[OCR ERROR STDERR]
+InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf
+
+[OCR ERROR STDOUT]
+
+[OCR ERROR STDERR]
+InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf
+
+[OCR ERROR STDOUT]
+
+[OCR ERROR STDERR]
+InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf
+
+[DEBUG] correo_id=10 enriquecidos:
+{'documento_id': 10, 'archivo': 'posible_documento_20260420192419958_1.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 11, 'archivo': 'posible_documento_20260420192419958_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 12, 'archivo': 'posible_documento_20260420192419958_3.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+[DEBUG] factura_principal = {'documento_id': 10, 'correo_id': 10, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 10, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420192419958_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260420192419958_1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101441.pdf', 'text': '', 'fields': {'tipo_documental': 'factura', 'ruc': None, 'serie': None, 'numero': None, 'fecha_emision': None, 'importe': None, 'oc': None}, 'cliente_raw': None, 'cliente_match': None, 'fecha_emision_norm': None, 'fecha_emision_date': None, 'razon_social_emisor_detectada': None}
+[WARN] correo_id=10 factura sin fecha
+(venv) 
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+$ 

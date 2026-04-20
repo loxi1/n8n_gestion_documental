@@ -13,3 +13,5 @@ PG_PORT = int(os.getenv("PG_PORT", "5432"))
 PG_DB = os.getenv("PG_DB", "gestiondocumental")
 PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "postgres123")
+
+APISPERU_TOKEN = os.getenv("APISPERU_TOKEN", "")
