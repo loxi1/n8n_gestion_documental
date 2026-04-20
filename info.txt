@@ -1,1 +1,18 @@
 Ocurre que existen dos facturas escaneadas que se puso check con lapicero, y esas ya fueron enviadas en un formato bien legible, ahora eso me da como idea que si, adjunto facturas scaneadas no va salir la serie y numero correlativo en el renombre del archivo hablo de lo
+$ ls -l storage/files/pendientes_clasificados/2026/04/
+total 720
+-rw-r--r-- 1 BBTI 01 197121 239444 Apr 20 17:54 '04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60786 Apr 20 17:54 '04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  76340 Apr 20 17:54 '04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf'
+-rw-r--r-- 1 BBTI 01 197121 219646 Apr 20 17:54 '04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60453 Apr 20 17:54 '04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  72746 Apr 20 17:54 '04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf'
+
+
+$ ls -l storage/files/ocr_tmp/2026/04/
+total 540
+-rw-r--r-- 1 BBTI 01 197121 287936 Apr 20 17:57 ocr_posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf
+-rw-r--r-- 1 BBTI 01 197121 258674 Apr 20 17:57 ocr_posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf
+
+storage/files/pendientes_clasificados/2026/04/04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf = storage/files/pendientes_clasificados/2026/04/04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf = storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf esto es escaneado y el legible es: 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+storage/files/pendientes_clasificados/2026/04/04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf = storage/files/pendientes_clasificados/2026/04/04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf = storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf esto es escaneado y el legible es: FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
