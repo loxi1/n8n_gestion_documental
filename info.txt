@@ -1,132 +1,267 @@
-Perfecto, vamos por partes y bien práctico 🔥 (esto ya es nivel PRO n8n)
-🧠 1. ¿Cada cuánto revisa el Email Trigger (IMAP)?
-El nodo Email Trigger en n8n NO usa cron como tal, trabaja en modo:
-👉 “escucha continua” (IDLE)
-Es decir:
-Se queda conectado al servidor IMAP
-Espera nuevos correos en tiempo real
-Por eso se queda “pensando infinito” → y está bien ✔️
-🚨 Entonces… ¿por qué parece que se cuelga?
-No está colgado.
-Está en este estado:
+Te dejo el codigo:
+Email Trigger (IMAP)
+Credencial: IMAP account
+Nombre del buzón: INBOX
+Acción: Mark as Read
+Formato: Resolved
+Nombre de prefijo de propiedad: attachment_
+Opciones: Obtener solo correos electrónicos nuevos
 
-Waiting for new emails...
-👉 Eso significa:
-No hay correos nuevos
-Está escuchando
-No termina nunca (por diseño)
-⚙️ 2. Si quieres que revise cada cierto tiempo (modo polling)
-Ahí sí debes cambiar la estrategia:
-✅ Opción A (RECOMENDADA): usar CRON + Email Read
-En vez de usar Email Trigger, haces esto:
-🔁 Flujo correcto:
+CodeInfo
+const output = [];
 
-Cron → Email Read IMAP → Code (tu lógica)
-🕒 Nodo CRON ejemplo
-Mode: Every X minutes
-Ejemplo:
-cada 1 minuto
-cada 5 minutos
-📥 Nodo: Email Read (IMAP)
-Configuración clave:
-Operation: Get All
-Mailbox: INBOX
-Options:
-✅ Only Unread
-✅ Download Attachments
-Limit: 10 o 20
-👉 Esto evita que procese miles de correos
-🔥 Ventajas de este enfoque
-✔ Control total del tiempo
-✔ No se queda “colgado”
-✔ Puedes re-ejecutar manualmente
-✔ Ideal para pipelines (como el tuyo de facturas)
-⚡ 3. ¿Cuándo usar Email Trigger entonces?
-Usa Email Trigger solo si quieres:
-Procesamiento en tiempo real
-Automatización continua tipo servidor
-Pero:
-❌ No sirve para debug cómodo
-❌ No sirve para ejecuciones manuales
-❌ Parece “colgado”
-🧪 4. Por qué en manual “se queda pensando”
-Cuando haces esto:
-👉 “Execute Workflow”
-y tienes un Email Trigger
-Entonces n8n:
-abre conexión IMAP
-espera correos
-nunca termina
-💡 Es normal → no es error
-💡 SOLUCIÓN PARA DEBUG
-👉 Usa esto:
-Temporalmente reemplaza:
+for (const item of items) {
+	const binary = item.binary || {};
+	const subject = item.json.subject || '';
+	const messageId = item.json.messageId || item.json.message_id || null;
+	const date = item.json.date || null;
 
-Email Trigger ❌
-por:
+	let fromEmail = '';
+	let fromName = '';
 
-Manual Trigger ✅
-→ Email Read IMAP
-Así:
-ejecutas cuando quieres
-ves datos
-pruebas tu lógica
-🧩 5. Arquitectura PRO (tu caso facturas)
-Te dejo cómo debería quedar tu flujo final 🔥
-🧱 Flujo completo
+	if (item.json.from?.value?.length) {
+		fromEmail = item.json.from.value[0].address || '';
+		fromName = item.json.from.value[0].name || '';
+	} else if (typeof item.json.from === 'string') {
+		fromEmail = item.json.from;
+	}
 
-CRON (cada 2 min)
-   ↓
-Email Read IMAP
-   ↓
-Code (clasificación factura ✔)
-   ↓
-IF (es factura)
-   ↓
-Split:
-   ├── SI → Guardar PDF/XML
-   │        ↓
-   │     Extraer datos
-   │        ↓
-   │     DB (MySQL)
-   │
-   └── NO → carpeta no_identificados
-🧠 6. Bonus importante (muy importante en tu caso)
-⚠️ Marca como leído después de procesar
-Si no haces esto: 👉 procesarás el mismo correo siempre
-Solución:
-En Email Read:
-activar:
-Mark as Read
-O después:
-usar nodo: 👉 Email → Mark as Read
-🚀 7. Recomendación para tu sistema
-Dado lo que estás construyendo (clasificación + facturas):
-👉 Te recomiendo:
-✔ NO usar Email Trigger
-✔ Usar Cron + Email Read
-✔ Controlar tú la frecuencia
-Ejemplo ideal:
-cada 2 minutos → producción
-cada 10 segundos → pruebas
-🧩 8. ¿Por qué tu enfoque es correcto?
-Lo que estás armando es básicamente:
-👉 un mini sistema de recepción contable automatizado
-Tipo:
-SAP Inbox
-Odoo Document Processing
-OCR pipelines
-Y lo estás haciendo con: 👉 n8n + lógica personalizada 🔥
-👉 Siguiente paso (si quieres)
-En el siguiente mensaje te puedo armar:
-🔥 “Flujo completo exportable JSON de n8n”
-con:
-Cron
-Email Read
-Clasificación (tu código)
-Guardado de archivos
-separación:
-inbox
-no_identificados
-👉 listo para importar en n8n
-Solo dime: “sí, dame el flujo completo”
+	let fileIndex = 0;
+
+	for (const key of Object.keys(binary)) {
+		const file = binary[key];
+		const fileName = file.fileName || 'adjunto';
+		const lowerName = fileName.toLowerCase();
+
+		if (!lowerName.endsWith('.pdf')) {
+			continue;
+		}
+
+		const now = new Date();
+		const year = now.getFullYear();
+		const month = String(now.getMonth() + 1).padStart(2, '0');
+		const day = String(now.getDate()).padStart(2, '0');
+		const hour = String(now.getHours()).padStart(2, '0');
+		const minute = String(now.getMinutes()).padStart(2, '0');
+		const second = String(now.getSeconds()).padStart(2, '0');
+		const ms = String(now.getMilliseconds()).padStart(3, '0');
+
+		const stamp = `${year}${month}${day}${hour}${minute}${second}${ms}`;
+		fileIndex++;
+
+		const newFileName = `posible_documento_${stamp}_${fileIndex}.pdf`;
+
+		output.push({
+			json: {
+				subject,
+				fromEmail,
+				fromName,
+				messageId,
+				date,
+				originalFileName: fileName,
+				storedFileName: newFileName,
+				tipoDetectado: 'pendiente',
+				filePath: `/files/inbox/${year}/${month}/${newFileName}`,
+				relativePath: `inbox/${year}/${month}/${newFileName}`,
+				mimeType: file.mimeType || 'application/pdf',
+				tamano_bytes: file.fileSize || null,
+			},
+			binary: {
+				data: file,
+			},
+		});
+	}
+}
+
+return output;
+
+LeerYGuardarArchivos
+Operación: Write File to Disk
+Ruta y nombre del archivo: {{$json.filePath}}
+ 
+/files/bandeja de entrada/2026/04/posible_documento_20260420192419957_1.pdf
+Campo binario de entrada: data
+salida:
+[
+  {
+    "subject": "F01000011002 - RUC 20514753483 - CORPORACION PROMATISA SAC",
+    "fromEmail": "galvarado@acsa.com.pe",
+    "fromName": "",
+    "messageId": "<002b01dcd0da$e30c6300$a9252900$@acsa.com.pe>",
+    "date": "2026-04-20T15:32:21.000Z",
+    "originalFileName": "20514753483-01-F010-00011002.pdf",
+    "storedFileName": "posible_documento_20260420192419957_1.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419957_1.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419957_1.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "86.1 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419957_1.pdf"
+  },
+  {
+    "subject": "F01000011002 - RUC 20514753483 - CORPORACION PROMATISA SAC",
+    "fromEmail": "galvarado@acsa.com.pe",
+    "fromName": "",
+    "messageId": "<002b01dcd0da$e30c6300$a9252900$@acsa.com.pe>",
+    "date": "2026-04-20T15:32:21.000Z",
+    "originalFileName": "OC 007900.pdf",
+    "storedFileName": "posible_documento_20260420192419958_2.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_2.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "394 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf"
+  },
+  {
+    "subject": "F01000011002 - RUC 20514753483 - CORPORACION PROMATISA SAC",
+    "fromEmail": "galvarado@acsa.com.pe",
+    "fromName": "",
+    "messageId": "<002b01dcd0da$e30c6300$a9252900$@acsa.com.pe>",
+    "date": "2026-04-20T15:32:21.000Z",
+    "originalFileName": "GR001-8745.pdf",
+    "storedFileName": "posible_documento_20260420192419958_3.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_3.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "406 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101440 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e65e1f.050a0220.3adf79.757c@mx.google.com>",
+    "date": "2026-04-20T17:10:55.000Z",
+    "originalFileName": "20100084172-01-F231-0101440.pdf",
+    "storedFileName": "posible_documento_20260420192419958_1.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_1.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "60.5 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101440 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e65e1f.050a0220.3adf79.757c@mx.google.com>",
+    "date": "2026-04-20T17:10:55.000Z",
+    "originalFileName": "007864.pdf",
+    "storedFileName": "posible_documento_20260420192419958_2.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_2.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "73.2 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101440 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e65e1f.050a0220.3adf79.757c@mx.google.com>",
+    "date": "2026-04-20T17:10:55.000Z",
+    "originalFileName": "F231-00101440.pdf",
+    "storedFileName": "posible_documento_20260420192419958_3.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_3.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "221 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101439 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e65dd6.050a0220.1e6433.9f6c@mx.google.com>",
+    "date": "2026-04-20T17:09:42.000Z",
+    "originalFileName": "20100084172-01-F231-0101439.pdf",
+    "storedFileName": "posible_documento_20260420192419958_1.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_1.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "60.5 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101439 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e65dd6.050a0220.1e6433.9f6c@mx.google.com>",
+    "date": "2026-04-20T17:09:42.000Z",
+    "originalFileName": "007800.pdf",
+    "storedFileName": "posible_documento_20260420192419958_2.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_2.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "67.3 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101439 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e65dd6.050a0220.1e6433.9f6c@mx.google.com>",
+    "date": "2026-04-20T17:09:42.000Z",
+    "originalFileName": "F231-00101439.pdf",
+    "storedFileName": "posible_documento_20260420192419958_3.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_3.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "221 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101441 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e66046.170a0220.2d112a.a365@mx.google.com>",
+    "date": "2026-04-20T17:20:06.000Z",
+    "originalFileName": "20100084172-01-F231-0101441.pdf",
+    "storedFileName": "posible_documento_20260420192419958_1.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_1.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "60.5 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101441 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e66046.170a0220.2d112a.a365@mx.google.com>",
+    "date": "2026-04-20T17:20:06.000Z",
+    "originalFileName": "007854.pdf",
+    "storedFileName": "posible_documento_20260420192419958_2.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_2.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "63.6 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf"
+  },
+  {
+    "subject": "REGISTRO DE FACTURA F231-00101441 - BBTI S.A.C.",
+    "fromEmail": "notificaciones01.promelsa@gmail.com",
+    "fromName": "",
+    "messageId": "<69e66046.170a0220.2d112a.a365@mx.google.com>",
+    "date": "2026-04-20T17:20:06.000Z",
+    "originalFileName": "F231-00101441.pdf",
+    "storedFileName": "posible_documento_20260420192419958_3.pdf",
+    "tipoDetectado": "pendiente",
+    "filePath": "/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf",
+    "relativePath": "inbox/2026/04/posible_documento_20260420192419958_3.pdf",
+    "mimeType": "application/pdf",
+    "tamano_bytes": "218 kB",
+    "fileName": "/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf"
+  }
+]
+
