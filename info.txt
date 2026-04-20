@@ -1,11 +1,1 @@
-si colocque SQL_SELECT_PENDIENTES en el main
-al ejecutar:
-$ python procesar_pendientes.py
-Correos pendientes encontrados: 2
-[INFO] procesando correo_id=1 documentos=3
-[WARN] correo_id=1 sin factura principal
-[INFO] procesando correo_id=4 documentos=1
-[OK] correo=4 doc=4 tipo=factura grupo=04-0001 nombre=04-0001 F241 0045334 20100084172 PROMOTORES ELECTRICOS S A FACTURA.pdf
-(venv) 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ 
+aqui este el archivo en el repo: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/classifier.py
