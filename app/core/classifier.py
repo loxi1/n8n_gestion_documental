@@ -53,7 +53,10 @@ def detect_document_type(text: str, original_name: str) -> str:
     ):
         return "nota_credito"
 
-    return "otro"def detect_document_type(text: str, original_name: str) -> str:
+    return "otro"
+
+
+def detect_document_type(text: str, original_name: str) -> str:
     text_u = text.upper()
     name_u = original_name.upper()
 
