@@ -392,11 +392,14 @@ def process_correo(items: list[dict]) -> None:
 
     cliente_match = factura_principal.get("cliente_match")
     cliente_destino_id = cliente_match["id"] if cliente_match else None
+
     ruta_windows_final = None
     if cliente_match:
-        ruta_windows_final = build_windows_target_path(cliente_match["ruta_windows"], fecha_principal)
+        ruta_windows_final = build_windows_target_path(
+            cliente_match["ruta_windows"],
+            fecha_principal,
+        )
 
-    oc_principal = factura_principal["fields"].get("oc")
     documento_principal_id = factura_principal["documento_id"]
 
     for doc in enriched:
@@ -406,14 +409,15 @@ def process_correo(items: list[dict]) -> None:
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
         proveedor_id = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
 
-        # herencia de grupo
         es_principal = doc["documento_id"] == documento_principal_id
-        doc_principal_ref = None if es_principal else documento_principal_id
+        documento_principal_ref = None if es_principal else documento_principal_id
 
-        # si no tiene cliente propio, hereda el de la factura
-        cliente_id_final = doc["cliente_match"]["id"] if doc.get("cliente_match") else cliente_destino_id
+        cliente_id_final = (
+            doc["cliente_match"]["id"]
+            if doc.get("cliente_match")
+            else cliente_destino_id
+        )
 
-        # nombre final
         nombre_final = build_final_name(
             grupo_codigo=grupo_codigo,
             tipo_documental=tipo_documental,
@@ -424,16 +428,18 @@ def process_correo(items: list[dict]) -> None:
             fallback_name=doc["nombre_archivo_actual"],
         )
 
-        # mover a clasificados o no_identificados
         pdf_path = resolve_absolute_path(doc["ruta_temporal"])
         year = pdf_path.parent.parent.name
         month = pdf_path.parent.name
 
         estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
         bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
+
         destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
         destino_abs = STORAGE_DIR / destino_relativo
-        move_file(pdf_path, destino_abs)
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
 
         with get_cursor(commit=True) as (_, cur):
             cur.execute(
@@ -452,12 +458,13 @@ def process_correo(items: list[dict]) -> None:
                     "grupo_codigo": grupo_codigo,
                     "correlativo_mes": correlativo_mes,
                     "es_principal": es_principal,
-                    "documento_principal_id": doc_principal_ref,
+                    "documento_principal_id": documento_principal_ref,
                     "nombre_final": nombre_final,
                     "ruta_windows_final": ruta_windows_final,
                     "documento_id": doc["documento_id"],
                 },
             )
+
             cur.execute(
                 SQL_UPDATE_ARCHIVO,
                 {
@@ -469,8 +476,11 @@ def process_correo(items: list[dict]) -> None:
             )
 
         print(
-            f"[OK] correo={doc['correo_id']} doc={doc['documento_id']} "
-            f"tipo={tipo_documental} grupo={grupo_codigo} nombre={nombre_final}"
+            f"[OK] correo={doc['correo_id']} "
+            f"doc={doc['documento_id']} "
+            f"tipo={tipo_documental} "
+            f"grupo={grupo_codigo} "
+            f"nombre={nombre_final}"
         )
 
 

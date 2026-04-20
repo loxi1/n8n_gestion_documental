@@ -2,35 +2,38 @@ from __future__ import annotations
 
 import re
 import shutil
+import unicodedata
 from pathlib import Path
 
 
-def sanitize_filename(name: str) -> str:
-    name = re.sub(r'[<>:"/\\|?*]+', "_", name).strip()
-    name = re.sub(r"\s+", " ", name).strip()
-    return name
+def sanitize_filename(value: str) -> str:
+    """
+    Limpieza general para nombres de archivo:
+    - quita tildes
+    - elimina caracteres inválidos de Windows
+    - compacta espacios
+    """
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r'[<>:"/\\|?*]+', " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
 
 
-def build_temp_classified_name(
-    tipo_documental: str,
-    ruc: str | None,
-    serie: str | None,
-    numero: str | None,
-    fallback_name: str,
-) -> str:
-    ext = Path(fallback_name).suffix.lower() or ".pdf"
+def normalize_token(value: str | None) -> str:
+    """
+    Normaliza un bloque interno del nombre:
+    - limpia caracteres
+    - cambia espacios por guion bajo
+    """
+    if not value:
+        return ""
 
-    if tipo_documental == "factura" and ruc and serie and numero:
-        return sanitize_filename(f"FACTURA_{ruc}_{serie}_{numero}{ext}")
-
-    if tipo_documental == "guia" and serie and numero:
-        return sanitize_filename(f"GUIA_{serie}_{numero}{ext}")
-
-    if tipo_documental == "orden_compra" and numero:
-        return sanitize_filename(f"OC_{numero}{ext}")
-
-    stem = sanitize_filename(Path(fallback_name).stem)
-    return f"DOC_{stem}{ext}"
+    value = sanitize_filename(value)
+    value = value.replace(".", " ")
+    value = re.sub(r"\s+", " ", value).strip()
+    value = value.replace(" ", "_")
+    return value
 
 
 def build_final_name(
@@ -48,37 +51,26 @@ def build_final_name(
         "factura": "FACTURA",
         "guia": "GUIA",
         "orden_compra": "ORDEN_COMPRA",
-        "requerimiento_compra": "REQUERIMIENTO",
+        "requerimiento_compra": "REQUERIMIENTO_COMPRA",
         "nota_credito": "NOTA_CREDITO",
         "otro": "OTRO",
     }
 
     tipo_txt = tipo_map.get(tipo_documental, "OTRO")
+    serie_txt = normalize_token(serie)
+    numero_txt = normalize_token(numero)
+    ruc_txt = normalize_token(ruc_emisor)
+    razon_txt = normalize_token(razon_social_emisor) or "SIN_RAZON_SOCIAL"
 
-    serie_txt = (serie or "").strip()
-    numero_txt = (numero or "").strip()
-    ruc_txt = (ruc_emisor or "").strip()
+    parts: list[str] = [grupo_codigo, tipo_txt]
 
-    razon_txt = sanitize_filename(
-        (razon_social_emisor or "").strip()
-    ) or "SIN_RAZON_SOCIAL"
-
-    parts = [grupo_codigo, tipo_txt]
-
-    # lógica por tipo
-    if tipo_documental == "factura":
+    if tipo_documental in ["factura", "guia"]:
         if serie_txt:
             parts.append(serie_txt)
         if numero_txt:
             parts.append(numero_txt)
 
-    elif tipo_documental == "guia":
-        if serie_txt:
-            parts.append(serie_txt)
-        if numero_txt:
-            parts.append(numero_txt)
-
-    elif tipo_documental in ["orden_compra", "requerimiento_compra"]:
+    elif tipo_documental in ["orden_compra", "requerimiento_compra", "nota_credito"]:
         if numero_txt:
             parts.append(numero_txt)
 
@@ -93,7 +85,7 @@ def build_final_name(
 
     parts.append(razon_txt)
 
-    return sanitize_filename(" ".join(parts)) + ext
+    return " ".join(parts) + ext
 
 
 def move_file(source: Path, destination: Path) -> None:
