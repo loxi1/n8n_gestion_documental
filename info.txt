@@ -1,237 +1,112 @@
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/inbox/2026/04/
-total 428
--rw-r--r-- 1 BBTI 01 197121  86071 Apr 20 14:24 posible_documento_20260420192419957_1.pdf
--rw-r--r-- 1 BBTI 01 197121  60479 Apr 20 14:24 posible_documento_20260420192419958_1.pdf
--rw-r--r-- 1 BBTI 01 197121  63632 Apr 20 14:24 posible_documento_20260420192419958_2.pdf
--rw-r--r-- 1 BBTI 01 197121 217948 Apr 20 14:24 posible_documento_20260420192419958_3.pdf
+Ya quedó claro el problema real: no es solo el clasificador.
+Tu mayor fallo ahora mismo está en n8n / guardado de archivos.
+Qué pasó realmente
+1. Estás reutilizando rutas de archivo entre correos distintos
+Mira esto en archivos:
+correo 1 usa:
+posible_documento_20260420192419958_2.pdf
+posible_documento_20260420192419958_3.pdf
+correo 4 usa:
+posible_documento_20260420192419958_1.pdf
+posible_documento_20260420192419958_2.pdf
+posible_documento_20260420192419958_3.pdf
+correo 7 usa otra vez:
+posible_documento_20260420192419958_1.pdf
+..._2.pdf
+..._3.pdf
+correo 10 usa otra vez lo mismo.
+Eso significa que varios registros de BD apuntan al mismo archivo físico.
+Consecuencia
+Cuando procesas el correo 1, los archivos 2 y 3 ya no necesariamente son “sus” archivos originales.
+En realidad estás leyendo el contenido del archivo que quedó más reciente en inbox, porque varias filas comparten la misma ruta.
+Por eso luego salen errores como:
+Plain text
+InputFileError: File not found - .../posible_documento_20260420192419958_2.pdf
+porque ya lo moviste al procesar otro correo, y los otros registros siguen apuntando a esa ruta vieja.
+Diagnóstico principal
+Problema A — colisión de nombres en n8n
+Tu naming actual en n8n no garantiza unicidad global por correo/mensaje/adjunto.
+Problema B — process_correo() mueve archivos mientras otros correos aún apuntan a ellos
+Como varias filas comparten la misma ruta, cuando uno se mueve, los demás se rompen.
+Problema C — tu agrupación por correo_id solo funciona si cada correo tiene sus propios archivos únicos
+Ahora mismo eso no se cumple.
+Lo más importante que debes corregir primero
+Antes de tocar más Python:
+corrige n8n para que cada adjunto tenga un nombre único por mensaje.
+Cómo debe ser el nombre temporal en n8n
+Tu nombre temporal debe incluir algo único del correo, por ejemplo:
+messageId
+o correo_id
+y el índice del adjunto
+Recomendación
+En el Code node que genera storedFileName, usa algo así:
+JavaScript
+const safeMessageId = (messageId || "sinmsg")
+  .replace(/[<>:"/\\|?*@=+\s]/g, "_")
+  .slice(0, 80);
 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/no_identificados/
-total 0
+const newFileName = `posible_documento_${safeMessageId}_${index + 1}.pdf`;
+O mejor todavía:
+JavaScript
+const stamp = `${year}${month}${day}${hour}${minute}${second}${ms}`;
+const safeMessageId = (messageId || "sinmsg")
+  .replace(/[<>:"/\\|?*@=+\s]/g, "_")
+  .slice(0, 50);
 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/ocr_tmp/
-total 0
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/
-inbox/                   no_identificados/        ocr_tmp/                 pendientes_clasificados/
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/pendientes_clasificados/
-total 0
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$
-
-gestiondocumental=# SELECT * FROM archivos ORDER BY id;
- id | documento_id | correo_id |     nombre_archivo_original      |                            nombre_archivo_actual
-  | extension |    mime_type    | tamano_bytes | hash_sha256 |                                                ruta_temporal
-                             | ruta_final | es_principal | estado_archivo |         creado_en         |       actualizado_en
-----+--------------+-----------+----------------------------------+----------------------------------------------------------------------------
---+-----------+-----------------+--------------+-------------+---------------------------------------------------------------------------------
------------------------------+------------+--------------+----------------+---------------------------+----------------------------
-  1 |            1 |         1 | 20514753483-01-F010-00011002.pdf | 04-0001 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pd
-f | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F010 00011002 20514753483 CORPOR
-ACION_PROMATISA_SOCIEDAD.pdf |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:06.900691
-  2 |            2 |         1 | OC 007900.pdf                    | 04-0001 ORDEN_COMPRA SIN_RAZON_SOCIAL.pdf
-  | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ORDEN_COMPRA SIN_RAZON_SOCIAL.pdf
-                             |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:06.936771
-  3 |            3 |         1 | GR001-8745.pdf                   | 04-0001 FACTURA F231 01014 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-  | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231 01014 20100084172 PROMOTORE
-S_ELECTRICOS_S_A.pdf         |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:07.000754
-  4 |            4 |         4 | 20100084172-01-F231-0101440.pdf  | 04-0001 FACTURA F231 0101441 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-  | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231 0101441 20100084172 PROMOTO
-RES_ELECTRICOS_S_A.pdf       |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:09.239431
-  5 |            5 |         4 | 007864.pdf                       | 04-0001 OTRO SIN_RAZON_SOCIAL.pdf
-  | .pdf      | application/pdf |              |             | no_identificados/2026/04/04-0001 OTRO SIN_RAZON_SOCIAL.pdf
-                             |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:09.265304
-  6 |            6 |         4 | F231-00101440.pdf                | 04-0001 FACTURA SIN_RAZON_SOCIAL.pdf
-  | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA SIN_RAZON_SOCIAL.pdf
-                             |            | t            | renombrado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:33:09.28949
-  7 |            7 |         7 | 20100084172-01-F231-0101439.pdf  | posible_documento_20260420192419958_1.pdf
-  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_1.pdf
-                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
-  8 |            8 |         7 | 007800.pdf                       | posible_documento_20260420192419958_2.pdf
-  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_2.pdf
-                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
-  9 |            9 |         7 | F231-00101439.pdf                | posible_documento_20260420192419958_3.pdf
-  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_3.pdf
-                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
- 10 |           10 |        10 | 20100084172-01-F231-0101441.pdf  | posible_documento_20260420192419958_1.pdf
-  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_1.pdf
-                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
- 11 |           11 |        10 | 007854.pdf                       | posible_documento_20260420192419958_2.pdf
-  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_2.pdf
-                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
- 12 |           12 |        10 | F231-00101441.pdf                | posible_documento_20260420192419958_3.pdf
-  | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420192419958_3.pdf
-                             |            | t            | descargado     | 2026-04-20 14:24:20.65562 | 2026-04-20 14:24:20.65562
-(12 rows)
-
-
-gestiondocumental=# SELECT * FROM documentos ORDER BY id;
- id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie |  numero  |     ruc     |          razon_social          | fecha_emision |
- fecha_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |
-       creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_princip
-al_id |                                 nombre_final                                 |            ruta_windows_final
-----+-----------+--------------+-----------------+----------+-------+----------+-------------+--------------------------------+---------------+
--------------------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+--
---------------------------+----------------------------+--------------------+--------------+-----------------+--------------+------------------
-------+------------------------------------------------------------------------------+------------------------------------------
-  1 |         1 |         1300 | factura         |          | F010  | 00011002 | 20514753483 | CORPORACION PROMATISA SOCIEDAD | 2026-05-15    |
-                   |        |    0.00 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:33:06.900691 |                  2 | 04-0001      |               1 | f            |
-    3 | 04-0001 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pdf | \\\\servidor\\documentos\\BBTI SAC\MAYO
-  2 |         1 |              | orden_compra    |          |       |          |             | SIN_RAZON_SOCIAL               |               |
-                   |        |  740.81 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:33:06.936771 |                  2 | 04-0001      |               1 | f            |
-    3 | 04-0001 ORDEN_COMPRA SIN_RAZON_SOCIAL.pdf                                    | \\\\servidor\\documentos\\BBTI SAC\MAYO
-  3 |         1 |          754 | factura         |          | F231  | 01014    | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-05-25    |
-                   |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:33:07.000754 |                  2 | 04-0001      |               1 | t            |
-      | 04-0001 FACTURA F231 01014 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf         | \\\\servidor\\documentos\\BBTI SAC\MAYO
-  4 |         4 |          754 | factura         |          | F231  | 0101441  | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-04-10    |
-                   |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:33:09.239431 |                  2 | 04-0001      |               1 | t            |
-      | 04-0001 FACTURA F231 0101441 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf       | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-  5 |         4 |              | otro            |          |       |          |             | SIN_RAZON_SOCIAL               |               |
-                   |        |         |     |                |       |                  | no_identificado  | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:33:09.265304 |                  2 | 04-0001      |               1 | f            |
-    4 | 04-0001 OTRO SIN_RAZON_SOCIAL.pdf                                            | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-  6 |         4 |              | factura         |          |       |          |             | SIN_RAZON_SOCIAL               |               |
-                   |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:33:09.28949  |                  2 | 04-0001      |               1 | f            |
-    4 | 04-0001 FACTURA SIN_RAZON_SOCIAL.pdf                                         | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-  7 |         7 |              |                 |          |       |          |             |                                |               |
-                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
-      |                                                                              |
-  8 |         7 |              |                 |          |       |          |             |                                |               |
-                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
-      |                                                                              |
-  9 |         7 |              |                 |          |       |          |             |                                |               |
-                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
-      |                                                                              |
- 10 |        10 |              |                 |          |       |          |             |                                |               |
-                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
-      |                                                                              |
- 11 |        10 |              |                 |          |       |          |             |                                |               |
-                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
-      |                                                                              |
- 12 |        10 |              |                 |          |       |          |             |                                |               |
-                   |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2
-026-04-20 14:24:20.566402 | 2026-04-20 14:24:20.566402 |                    |              |                 | f            |
-      |                                                                              |
-(12 rows)
-
-
-gestiondocumental=# select * from correos_ingresados;
- id | origen | proveedor_correo |                  message_id                   | thread_id | remitente_nombre |           remitente_email
-      | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                           asunto                           | cuerpo
-_texto | cuerpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado | estado_correo | cantidad_adjuntos | observacion |
-         creado_en          |       actualizado_en
-----+--------+------------------+-----------------------------------------------+-----------+------------------+-------------------------------
-------+----------+-------------------+-----------------+------------------+------------------------------------------------------------+-------
--------+-------------+---------------------+----------------------------+-------+-----------+---------------+-------------------+-------------+
-----------------------------+----------------------------
-  1 | correo | imap             | <002b01dcd0da$e30c6300$a9252900$@acsa.com.pe> |           |                  | galvarado@acsa.com.pe
-      |          |                   |                 |                  | F01000011002 - RUC 20514753483 - CORPORACION PROMATISA SAC |
-       |             | 2026-04-20 15:32:21 | 2026-04-20 14:24:20.031847 | f     | f         | descargado    |                 1 |             |
- 2026-04-20 14:24:20.031847 | 2026-04-20 14:24:20.031847
-  4 | correo | imap             | <69e65e1f.050a0220.3adf79.757c@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
-l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101440 - BBTI S.A.C.            |
-       |             | 2026-04-20 17:10:55 | 2026-04-20 14:24:20.031847 | f     | f         | descargado    |                 1 |             |
- 2026-04-20 14:24:20.031847 | 2026-04-20 14:24:20.031847
-  7 | correo | imap             | <69e65dd6.050a0220.1e6433.9f6c@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
-l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101439 - BBTI S.A.C.            |
-       |             | 2026-04-20 17:09:42 | 2026-04-20 14:24:20.031847 | f     | f         | descargado    |                 1 |             |
- 2026-04-20 14:24:20.031847 | 2026-04-20 14:24:20.031847
- 10 | correo | imap             | <69e66046.170a0220.2d112a.a365@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
-l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101441 - BBTI S.A.C.            |
-       |             | 2026-04-20 17:20:06 | 2026-04-20 14:24:20.031847 | f     | f         | descargado    |                 1 |             |
- 2026-04-20 14:24:20.031847 | 2026-04-20 14:24:20.031847
-(4 rows)
-
-$ python procesar_pendientes.py
-Correos pendientes encontrados: 4
-[INFO] procesando correo_id=1 documentos=3
-[DEBUG] correo_id=1 enriquecidos:
-{'documento_id': 1, 'archivo': 'posible_documento_20260420192419957_1.pdf', 'tipo': 'factura', 'serie': 'F010', 'numero': '00011002', 'ruc': '20514753483', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': '2026-05-15'}
-{'documento_id': 2, 'archivo': 'posible_documento_20260420192419958_2.pdf', 'tipo': 'orden_compra', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-{'documento_id': 3, 'archivo': 'posible_documento_20260420192419958_3.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '01014', 'ruc': '20100084172', 'oc': None, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-05-25'}
-[DEBUG] factura_principal = {'documento_id': 3, 'correo_id': 1, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 3, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420192419958_3.pdf', 'nombre_archivo_actual': 'posible_documento_20260420192419958_3.pdf', 'nombre_archivo_original': 'GR001-8745.pdf', 'text': 'HA DE EMISIÓN:\n- RUC: 20100084172 |\n|\no y LIMA - LIM a FACTURA ELECTRÓNICA\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe N* F231-01014\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA; Callao norte\nMONEDA: SOL DA DE N*0C: 007854\nPEDIDO. FACTURA CONDICIÓN PAGO. FORMA DE PAGO VENCIMIENTO\n1100335392 9100354269 FACTURA 45 DIAS CREDITO 25/05/2026\n[TEM CÓDIGO | CANTIDAD DESCRIPCIÓN VALOR DESCUENTO. | VALORDE, 16V PRECIO VTA\nUNITARIO VENTA UNI INCL 16V\n010| 1001798 10.00 /| UND [CINTA AIS.AUTOF.MAST.SC.2228 2X3MTS 104.62] 305.38] 740.8 133.35] 87.42\nhurca: 3 OTROS\n(ODELO; SCOTCH 2228\nSON: OCHOCIENTOS SETENTA Y CUATRO Y 17/100 SOLES [TOTAL bscro] 305.38] OP.GRAVADAS] 740,82\nOP.INAFECTAS] 00\n(OP: EXONERADAS: 0.00]\n"¡OP.GRATUITAS: 0.00]\nOTROS CARGOS] 0.00)\n16 V (18.00%) 133.35)\nTOTAL (8)] 874,17\nCuota001: S/ 874.17 - Fecha Venc : 2026-05-25\nVALOR RESUMEN: pCW8U+P2X94WrwbhRXBNO4/GWPU=\nis \' (Y ,\np* MAi Ó\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http:/lefact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N? 0180050001886 /SUNAT\nPágina 1 de 1', 'fields': {'tipo_documental': 'factura', 'ruc': '20100084172', 'serie': 'F231', 'numero': '01014', 'fecha_emision': '2026-05-25', 'importe': None, 'oc': None}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': '2026-05-25', 'fecha_emision_date': datetime.date(2026, 5, 25), 'razon_social_emisor_detectada': None}
-[OK] correo=1 doc=1 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pdf
-[OK] correo=1 doc=2 tipo=orden_compra grupo=04-0001 nombre=04-0001 ORDEN_COMPRA SIN_RAZON_SOCIAL.pdf
-[OK] correo=1 doc=3 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F231 01014 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-[INFO] procesando correo_id=4 documentos=3
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf
-
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf
-
-[DEBUG] correo_id=4 enriquecidos:
-{'documento_id': 4, 'archivo': 'posible_documento_20260420192419958_1.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101441', 'ruc': '20100084172', 'oc': '007854', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-10'}
-{'documento_id': 5, 'archivo': 'posible_documento_20260420192419958_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-{'documento_id': 6, 'archivo': 'posible_documento_20260420192419958_3.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-[DEBUG] factura_principal = {'documento_id': 4, 'correo_id': 4, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 4, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420192419958_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260420192419958_1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101440.pdf', 'text': 'Página 1 de 1\nFECHA DE EMISIÓN: 10/04/2026\nEMISOR: Promotores Electricos S A\nDIRECCIÓN: AV. NICOLAS ARRIOLA NRO. 899 URB. STA CATALINA - LA\nVICTORIA - LIMA - LIMA - PERÚ\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nRUC: 20100084172\nFACTURA ELECTRÓNICA\nN° F231-0101441\n \nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA: Callao norte\nMONEDA: SOL GUÍA DE\nREMISIÓN: N° OC: 007854\nPEDIDO FACTURA CONDICIÓN PAGO FORMA DE PAGO VENCIMIENTO\n1100335392 9100354269 FACTURA 45 DIAS CREDITO 25/05/2026\nITEM CÓDIGO CANTIDAD UM DESCRIPCIÓN   VALOR\nUNITARIO\nDESCUENTO VALOR DE\nVENTA\nIGV PRECIO VTA\nUNI INCL IGV\n010 1001798 10.00 UND CINTA AIS.AUTOF.MAST.SC.2228 2X3MTS\nMARCA: 3M OTROS\nMODELO: SCOTCH 2228\n104.62 305.38 740.82 133.35 87.42\n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n:\nSON: OCHOCIENTOS SETENTA Y CUATRO Y 17/100 SOLES TOTAL DSCTO: 305.38 OP.GRAVADAS: 740.82\nOP.INAFECTAS: 0.00\nOP. EXONERADAS: 0.00\nOP.GRATUITAS: 0.00\n OTROS CARGOS: 0.00\nIGV (18.00%): 133.35\n TOTAL (S/): 874.17\nCuota001:S/ 874.17- Fecha Venc : 2026-05-25\nVALOR RESUMEN : pCW8U+P2X94WrwbhRXBNO4/GWPU=\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http://efact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N° 0180050001886 /SUNAT', 'fields': {'tipo_documental': 'factura', 'ruc': '20100084172', 'serie': 'F231', 'numero': '0101441', 'fecha_emision': '10/04/2026', 'importe': None, 'oc': '007854'}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': '2026-04-10', 'fecha_emision_date': datetime.date(2026, 4, 10), 'razon_social_emisor_detectada': 'PROMOTORES ELECTRICOS S A'}
-[OK] correo=4 doc=4 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F231 0101441 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-[OK] correo=4 doc=5 tipo=otro grupo=04-0001 nombre=04-0001 OTRO SIN_RAZON_SOCIAL.pdf
-[OK] correo=4 doc=6 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA SIN_RAZON_SOCIAL.pdf
-[INFO] procesando correo_id=7 documentos=3
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf
-
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf
-
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf
-
-[DEBUG] correo_id=7 enriquecidos:
-{'documento_id': 7, 'archivo': 'posible_documento_20260420192419958_1.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-{'documento_id': 8, 'archivo': 'posible_documento_20260420192419958_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-{'documento_id': 9, 'archivo': 'posible_documento_20260420192419958_3.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-[DEBUG] factura_principal = {'documento_id': 7, 'correo_id': 7, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 7, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420192419958_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260420192419958_1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101439.pdf', 'text': '', 'fields': {'tipo_documental': 'factura', 'ruc': None, 'serie': None, 'numero': None, 'fecha_emision': None, 'importe': None, 'oc': None}, 'cliente_raw': None, 'cliente_match': None, 'fecha_emision_norm': None, 'fecha_emision_date': None, 'razon_social_emisor_detectada': None}
-[WARN] correo_id=7 factura sin fecha
-[INFO] procesando correo_id=10 documentos=3
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_1.pdf
-
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_2.pdf
-
-[OCR ERROR STDOUT]
-
-[OCR ERROR STDERR]
-InputFileError: File not found - /mnt/c/D/Proyectos/GestionDocumental/n8n-local/storage/files/inbox/2026/04/posible_documento_20260420192419958_3.pdf
-
-[DEBUG] correo_id=10 enriquecidos:
-{'documento_id': 10, 'archivo': 'posible_documento_20260420192419958_1.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-{'documento_id': 11, 'archivo': 'posible_documento_20260420192419958_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-{'documento_id': 12, 'archivo': 'posible_documento_20260420192419958_3.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-[DEBUG] factura_principal = {'documento_id': 10, 'correo_id': 10, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 10, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420192419958_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260420192419958_1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101441.pdf', 'text': '', 'fields': {'tipo_documental': 'factura', 'ruc': None, 'serie': None, 'numero': None, 'fecha_emision': None, 'importe': None, 'oc': None}, 'cliente_raw': None, 'cliente_match': None, 'fecha_emision_norm': None, 'fecha_emision_date': None, 'razon_social_emisor_detectada': None}
-[WARN] correo_id=10 factura sin fecha
-(venv) 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ 
+const newFileName = `posible_documento_${stamp}_${safeMessageId}_${index + 1}.pdf`;
+Resultado
+Así cada archivo queda único, por ejemplo:
+Plain text
+posible_documento_20260420192419958_CAFtAZZA..._1.pdf
+posible_documento_20260420192419958_CAFtAZZA..._2.pdf
+y nunca más dos correos distintos compartirán la misma ruta.
+Qué hacer ahora mismo
+Paso 1
+Detén pruebas sobre esta corrida mezclada.
+Paso 2
+Corrige n8n para nombres únicos por adjunto y por correo.
+Paso 3
+Vacía nuevamente:
+archivos
+documentos
+correos_ingresados
+y limpia carpetas:
+inbox
+ocr_tmp
+pendientes_clasificados
+no_identificados
+Paso 4
+Vuelve a descargar solo un conjunto pequeño de correos de prueba.
+Paso 5
+Recién ahí corre procesar_pendientes.py.
+Sobre lo que se ve en esta corrida actual
+Correo 1
+Tiene 3 documentos, pero por la colisión de rutas se mezcló contenido.
+Aun así, el debug mostró esto:
+doc 1: factura F010-00011002, RUC 20514753483
+doc 2: orden de compra
+doc 3: factura F231-01014, RUC 20100084172
+Eso ya es sospechoso, porque un mismo correo terminó con dos facturas de proveedores distintos.
+Lo más probable es que no eran realmente del mismo correo, sino que quedaron cruzados por los nombres temporales repetidos.
+Correo 4, 7 y 10
+Se rompen porque los archivos que necesitan ya fueron movidos o ya no existen en inbox.
+Hay otro ajuste que sí conviene hacer
+En process_correo() no deberías reprocesar correos cuyos archivos ya no existen en inbox y fueron movidos por otra corrida.
+Pero eso se arregla de raíz cuando cada registro tenga su propio archivo único.
+Mi recomendación final, en orden
+1. Prioridad máxima: n8n
+Corrige el nombre temporal de guardado.
+2. Luego limpia todo
+BD + carpetas.
+3. Vuelve a probar
+Con 1 o 2 correos nada más.
+4. Después refinamos Python
+Porque ahora mismo el Python está trabajando sobre datos contaminados por colisión de archivos.
+Respuesta concreta
+Tu análisis actual muestra que:
+el clasificador sí detecta varias cosas bien
+pero la corrida está contaminada porque múltiples registros apuntan al mismo archivo temporal
+por eso se mezclan correos, documentos y movimientos de archivo
+Entonces:
+la corrección urgente está en n8n, no en OCR ni en PostgreSQL.
+Pégame el código actual de tu nodo Code de n8n donde armas storedFileName, y te lo devuelvo corregido para que no vuelva a pasar.
