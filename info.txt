@@ -110,3 +110,64 @@ Pero primero arreglemos esto.
 👉 No es error de OCR
 👉 ❌ ES ERROR DE CLASIFICACIÓN
 Cuando lo pruebes, pásame el nuevo output y vemos si ya arma correctamente el grupo 👌
+
+este documento es u na factura: F F002-00000254.pdf y es una factura electronica. Factura Electronica sus datos son:
+RUC: 20538549071 
+Factura Electronica 
+F002-00000254
+tambien pueden escribir asi: esto es otro ejemplo de factura:
+RUC: 20100084172
+FACTURA ELECTRÓNICA
+N° F231-0101439
+otro
+R.U.C. N° 20100291551 
+FACTURA ELECTRÓNICA 
+Nro. F010-00055937
+otro
+R.U.C. 20602599702
+FACTURA ELECTRÓNICA
+F001-00002322
+esos pueden ser alguno de los formatos:
+recomende para la obtencion de la razon social buscar en esta tabla proveedor el filtro es ruc buscar el nombre para ello si no existe en esta tabla sugeri este api para agregar uno nuevo usar este api esto porque muchas veces el nombre del provedor creador de la factura tiene un logo o imagen de la empresa y no se puede leer el nombre de la emprea
+https://dniruc.apisperu.com/api/v1/ruc/20100084172?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImFuaWJhbC5jYXlldGFub0BnbWFpbC5jb20ifQ.n4DaUCvAuT5bFhAYlgR72LklHOfPFyIXf0upbuq2EwA
+muestra esta data:
+{
+  "ruc": "20100084172",
+  "razonSocial": "PROMOTORES ELECTRICOS S A",
+  "nombreComercial": null,
+  "telefonos": [],
+  "tipo": null,
+  "estado": "ACTIVO",
+  "condicion": "HABIDO",
+  "direccion": "AV. NICOLAS ARRIOLA NRO. 899 URB. SANTA CATALINA LIMA LIMA LA VICTORIA",
+  "departamento": "LIMA",
+  "provincia": "LIMA",
+  "distrito": "LA VICTORIA",
+  "fechaInscripcion": null,
+  "sistEmsion": null,
+  "sistContabilidad": null,
+  "actExterior": null,
+  "actEconomicas": [],
+  "cpPago": [],
+  "sistElectronica": [],
+  "fechaEmisorFe": null,
+  "cpeElectronico": [],
+  "fechaPle": null,
+  "padrones": [],
+  "fechaBaja": null,
+  "profesion": null,
+  "ubigeo": "150115",
+  "capital": "LA VICTORIA"
+}
+la relacion con esta tabla seria razonSocial =  nombre, direccion= direccion y la tabla es esta
+SELECT column_name,data_type, character_maximum_length, is_nullable FROM information_schema.columns WHERE table_name = 'pro
+veedores';
+  column_name   |          data_type          | character_maximum_length | is_nullable
+----------------+-----------------------------+--------------------------+-------------
+ id             | bigint                      |                          | NO
+ ruc            | character varying           |                       15 | YES
+ nombre         | text                        |                          | YES
+ direccion      | text                        |                          | YES
+ creado_en      | timestamp without time zone |                          | NO
+ actualizado_en | timestamp without time zone |                          | NO
+(6 rows)
