@@ -56,53 +56,6 @@ def detect_document_type(text: str, original_name: str) -> str:
     return "otro"
 
 
-def detect_document_type(text: str, original_name: str) -> str:
-    text_u = text.upper()
-    name_u = original_name.upper()
-
-    if (
-        "ORDEN DE COMPRA" in text_u
-        or "ORDEN DE COMRA" in text_u
-        or "ORDEN DE COMPRA" in name_u
-        or "ORDEN DE COMRA" in name_u
-    ):
-        return "orden_compra"
-
-    if (
-        "REQUERIMIENTO DE COMPRA" in text_u
-        or "REQUERIMIENTO" in text_u
-        or "REQ" in name_u
-    ):
-        return "requerimiento_compra"
-
-    if (
-        "GUIA DE REMISION" in text_u
-        or "GUÍA DE REMISIÓN" in text_u
-        or "GUIA DE REMISION ELECTRONICA" in text_u
-        or "GUÍA DE REMISIÓN ELECTRÓNICA" in text_u
-        or "PUNTO DE PARTIDA" in text_u
-        or "PUNTO DE LLEGADA" in text_u
-    ):
-        return "guia"
-
-    if (
-        "FACTURA ELECTRONICA" in text_u
-        or "FACTURA ELECTRÓNICA" in text_u
-        or re.search(r"\bF\d{3,4}-\d{3,}\b", text_u)
-    ):
-        return "factura"
-
-    if (
-        "NOTA DE CREDITO" in text_u
-        or "NOTA DE CRÉDITO" in text_u
-        or "NOTA DE DEBITO" in text_u
-        or "NOTA DE DÉBITO" in text_u
-    ):
-        return "nota_credito"
-
-    return "otro"
-
-
 def extract_basic_fields(text: str, original_name: str) -> dict[str, Any]:
     text_u = text.upper()
     doc_type = detect_document_type(text, original_name)
