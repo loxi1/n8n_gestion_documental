@@ -1,170 +1,236 @@
-Ya se ve clarísimo el error: tu nodo CodeInfo está generando nombres repetidos entre correos distintos.
-Qué está pasando
-Tu lógica actual usa:
-JavaScript
-const now = new Date();
-const stamp = `${year}${month}${day}${hour}${minute}${second}${ms}`;
-fileIndex++;
-const newFileName = `posible_documento_${stamp}_${fileIndex}.pdf`;
-El problema es que:
-fileIndex se reinicia en cada correo
-stamp puede quedar igual o casi igual entre correos cercanos
-entonces varios correos terminan generando:
-_1.pdf
-_2.pdf
-_3.pdf
-con el mismo stamp
-Y eso es exactamente lo que se ve en tu salida:
-correo A usa ...19958_2.pdf
-correo B vuelve a usar ...19958_2.pdf
-correo C vuelve a usar ...19958_2.pdf
-Entonces varios registros de BD apuntan al mismo archivo físico.
-La solución correcta
-El nombre temporal debe incluir algo único del correo, idealmente el messageId.
-Recomendación
-Usa este formato:
-Plain text
-posible_documento_{stamp}_{messageId_limpio}_{indice}.pdf
-Eso evita colisiones entre correos.
-Reemplaza tu CodeInfo por este
-JavaScript
-const output = [];
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_clasificados/*
+ls: cannot access 'storage/files/pendientes_clasificados/*': No such file or directory
 
-function safeText(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[<>:"/\\|?*=@+\s]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_clasificados/
+total 0
 
-for (const item of items) {
-  const binary = item.binary || {};
-  const subject = item.json.subject || "";
-  const messageId = item.json.messageId || item.json.message_id || null;
-  const date = item.json.date || null;
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/ocr_tmp/
+total 0
 
-  let fromEmail = "";
-  let fromName = "";
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/no_identificados/
+total 0
 
-  if (item.json.from?.value?.length) {
-    fromEmail = item.json.from.value[0].address || "";
-    fromName = item.json.from.value[0].name || "";
-  } else if (typeof item.json.from === "string") {
-    fromEmail = item.json.from;
-  }
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/inbox/2026/04/
+total 720
+-rw-r--r-- 1 BBTI 01 197121  60786 Apr 20 17:54 posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._1.pdf
+-rw-r--r-- 1 BBTI 01 197121  76340 Apr 20 17:54 posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._2.pdf
+-rw-r--r-- 1 BBTI 01 197121 239444 Apr 20 17:54 posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf
+-rw-r--r-- 1 BBTI 01 197121  60453 Apr 20 17:54 posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._1.pdf
+-rw-r--r-- 1 BBTI 01 197121  72746 Apr 20 17:54 posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._2.pdf
+-rw-r--r-- 1 BBTI 01 197121 219646 Apr 20 17:54 posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hour = String(now.getHours()).padStart(2, "0");
-  const minute = String(now.getMinutes()).padStart(2, "0");
-  const second = String(now.getSeconds()).padStart(2, "0");
-  const ms = String(now.getMilliseconds()).padStart(3, "0");
-  const stamp = `${year}${month}${day}${hour}${minute}${second}${ms}`;
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$
 
-  const safeMessageId = safeText(messageId || "sin_message_id").slice(0, 80);
 
-  let fileIndex = 0;
+gestiondocumental=# select * from archivos;
+ id | documento_id | correo_id |     nombre_archivo_original     |                               nombre_archivo_actual
+       | extension |    mime_type    | tamano_bytes | hash_sha256 |                                          ruta_temporal
+                      | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
+----+--------------+-----------+---------------------------------+-----------------------------------------------------------------------------
+-------+-----------+-----------------+--------------+-------------+----------------------------------------------------------------------------
+----------------------+------------+--------------+----------------+----------------------------+----------------------------
+  1 |            1 |         1 | 20100084172-01-F231-0101493.pdf | posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google.
+_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.
+1b03_mx.google._1.pdf |            | t            | descargado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:54:03.157558
+  2 |            2 |         1 | 007886.pdf                      | posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google.
+_2.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.
+1b03_mx.google._2.pdf |            | t            | descargado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:54:03.157558
+  3 |            3 |         1 | F231-00101493.pdf               | posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google.
+_3.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.
+1b03_mx.google._3.pdf |            | t            | descargado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:54:03.157558
+  4 |            4 |         4 | 20100084172-01-F231-0101492.pdf | posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google.
+_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420225402734_69e69d4e.050a0220.20184c.
+69bb_mx.google._1.pdf |            | t            | descargado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:54:03.157558
+  5 |            5 |         4 | 007898.pdf                      | posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google.
+_2.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420225402734_69e69d4e.050a0220.20184c.
+69bb_mx.google._2.pdf |            | t            | descargado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:54:03.157558
+  6 |            6 |         4 | F231-00101492.pdf               | posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google.
+_3.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260420225402734_69e69d4e.050a0220.20184c.
+69bb_mx.google._3.pdf |            | t            | descargado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:54:03.157558
+(6 rows)
 
-  for (const key of Object.keys(binary)) {
-    const file = binary[key];
-    const fileName = file.fileName || "adjunto";
-    const lowerName = fileName.toLowerCase();
 
-    if (!lowerName.endsWith(".pdf")) {
-      continue;
-    }
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero | ruc | razon_social | fecha_emision | fecha_vencimiento | moneda
+| importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |         creado_en          |
+      actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_id | nombre_final | ruta_
+windows_final
+----+-----------+--------------+-----------------+----------+-------+--------+-----+--------------+---------------+-------------------+--------
++---------+-----+----------------+-------+------------------+------------------+--------------------------------+----------------------------+-
+---------------------------+--------------------+--------------+-----------------+--------------+------------------------+--------------+------
+--------------
+  1 |         1 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-20 17:54:03.108513 |
+2026-04-20 17:54:03.108513 |                    |              |                 | f            |                        |              |
+  2 |         1 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-20 17:54:03.108513 |
+2026-04-20 17:54:03.108513 |                    |              |                 | f            |                        |              |
+  3 |         1 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-20 17:54:03.108513 |
+2026-04-20 17:54:03.108513 |                    |              |                 | f            |                        |              |
+  4 |         4 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-20 17:54:03.108513 |
+2026-04-20 17:54:03.108513 |                    |              |                 | f            |                        |              |
+  5 |         4 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-20 17:54:03.108513 |
+2026-04-20 17:54:03.108513 |                    |              |                 | f            |                        |              |
+  6 |         4 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-20 17:54:03.108513 |
+2026-04-20 17:54:03.108513 |                    |              |                 | f            |                        |              |
+(6 rows)
 
-    fileIndex++;
+gestiondocumental=# select * from correos_ingresados;
+ id | origen | proveedor_correo |                  message_id                   | thread_id | remitente_nombre |           remitente_email
+      | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                     asunto                      | cuerpo_texto | cu
+erpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado | estado_correo | cantidad_adjuntos | observacion |         cr
+eado_en          |       actualizado_en
+----+--------+------------------+-----------------------------------------------+-----------+------------------+-------------------------------
+------+----------+-------------------+-----------------+------------------+-------------------------------------------------+--------------+---
+----------+---------------------+----------------------------+-------+-----------+---------------+-------------------+-------------+-----------
+-----------------+----------------------------
+  1 | correo | imap             | <69e69d97.050a0220.1b82a7.1b03@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101493 - BBTI S.A.C. |              |
+          | 2026-04-20 21:41:43 | 2026-04-20 17:54:02.848335 | f     | f         | descargado    |                 1 |             | 2026-04-20
+ 17:54:02.848335 | 2026-04-20 17:54:02.848335
+  4 | correo | imap             | <69e69d4e.050a0220.20184c.69bb@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101492 - BBTI S.A.C. |              |
+          | 2026-04-20 21:40:30 | 2026-04-20 17:54:02.848335 | f     | f         | descargado    |                 1 |             | 2026-04-20
+ 17:54:02.848335 | 2026-04-20 17:54:02.848335
+(2 rows)
 
-    const newFileName = `posible_documento_${stamp}_${safeMessageId}_${fileIndex}.pdf`;
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+$ python procesar_pendientes.py
+Correos pendientes encontrados: 2
+[INFO] procesando correo_id=1 documentos=3
+[DEBUG] correo_id=1 enriquecidos:
+{'documento_id': 1, 'archivo': 'posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._1.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101493', 'ruc': '20100084172', 'oc': '007886', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-15'}
+{'documento_id': 2, 'archivo': 'posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._2.pdf', 'tipo': 'orden_compra', 'serie': 'OC', 'numero': '007886', 'ruc': '20565747356', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 3, 'archivo': 'posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': '20100084172', 'oc': None, 'cliente_raw': '4000019957 - BBTIS.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI'}, 'fecha': '2026-05-30'}
+[DEBUG] factura_principal = {'documento_id': 1, 'correo_id': 1, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 1, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._1.pdf', 'nombre_archivo_actual': 'posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101493.pdf', 'text': 'Página 1 de 1\nFECHA DE EMISIÓN: 15/04/2026\nEMISOR: Promotores Electricos S A\nDIRECCIÓN: AV. NICOLAS ARRIOLA NRO. 899 URB. STA CATALINA - LA\nVICTORIA - LIMA - LIMA - PERÚ\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nRUC: 20100084172\nFACTURA ELECTRÓNICA\nN° F231-0101493\n \nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA: Callao norte\nMONEDA: DOLAR AMERICANO GUÍA DE\nREMISIÓN: N° OC: 007886\nPEDIDO FACTURA CONDICIÓN PAGO FORMA DE PAGO VENCIMIENTO\n1100335764 9100354646 FACTURA 45 DIAS CREDITO 30/05/2026\nITEM CÓDIGO CANTIDAD UM DESCRIPCIÓN   VALOR\nUNITARIO\nDESCUENTO VALOR DE\nVENTA\nIGV PRECIO VTA\nUNI INCL IGV\n010 1030098 600.00 M CABLE H07Z1-K 1.5MM2 750V LSZH AZUL CL5\nMARCA: MIGUELEZ\nMODELO: AFIRENAS-L H07Z1-K\n0.41 72.57 173.43 31.22 0.34\n020 1005442 300.00 M CABLE H07Z1-K 1.5MM2 750V LSZH ROJO CL5\nMARCA: MIGUELEZ\nMODELO: AFIRENAS-L H07Z1-K\n0.41 36.29 86.71 15.61 0.34\n030 1042542 100.00 M CABLE PUES.TIERR.CPT 2.5MM2 LSZH.AM/VER\nMARCA: INDECO\nMODELO: FREETOX-PC NH-90\n0.73 21.54 51.46 9.26 0.61\n040 1042543 200.00 M CABLE NH-90 4MM2 750V LSZH.NEGRO PRACT\nMARCA: INDECO\nMODELO: FREETOX-PC NH-90\n1.13 66.67 159.33 28.68 0.94\n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n:\nSON: QUINIENTOS CINCUENTA Y CINCO Y 70/100 DOLARES AMERICANOS TOTAL DSCTO: 197.07 OP.GRAVADAS: 470.93\nOP.INAFECTAS: 0.00\nOP. EXONERADAS: 0.00\nOP.GRATUITAS: 0.00\n OTROS CARGOS: 0.00\nIGV (18.00%): 84.77\n TOTAL (USD $): 555.70\nCuota001:USD $ 555.70- Fecha Venc : 2026-05-30\nVALOR RESUMEN : RFZY9wDxnjtAlraMKa48qJSKpwk=\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http://efact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N° 0180050001886 /SUNAT', 'fields': {'tipo_documental': 'factura', 'ruc': '20100084172', 'serie': 'F231', 'numero': '0101493', 'fecha_emision': '15/04/2026', 'importe': '555.70', 'oc': '007886'}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': '2026-04-15', 'fecha_emision_date': datetime.date(2026, 4, 15), 'razon_social_emisor_detectada': 'PROMOTORES ELECTRICOS S A'}
+[OK] correo=1 doc=1 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+[OK] correo=1 doc=2 tipo=orden_compra grupo=04-0001 nombre=04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf
+[OK] correo=1 doc=3 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+[INFO] procesando correo_id=4 documentos=3
+[DEBUG] correo_id=4 enriquecidos:
+{'documento_id': 4, 'archivo': 'posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._1.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101492', 'ruc': '20100084172', 'oc': '007898', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-15'}
+{'documento_id': 5, 'archivo': 'posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._2.pdf', 'tipo': 'orden_compra', 'serie': 'OC', 'numero': '007898', 'ruc': '20565747356', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 6, 'archivo': 'posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': '20100084172', 'oc': None, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-15'}
+[DEBUG] factura_principal = {'documento_id': 4, 'correo_id': 4, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 4, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._1.pdf', 'nombre_archivo_actual': 'posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101492.pdf', 'text': 'Página 1 de 1\nFECHA DE EMISIÓN: 15/04/2026\nEMISOR: Promotores Electricos S A\nDIRECCIÓN: AV. NICOLAS ARRIOLA NRO. 899 URB. STA CATALINA - LA\nVICTORIA - LIMA - LIMA - PERÚ\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nRUC: 20100084172\nFACTURA ELECTRÓNICA\nN° F231-0101492\n \nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA: Callao norte\nMONEDA: DOLAR AMERICANO GUÍA DE\nREMISIÓN: N° OC: 007898\nPEDIDO FACTURA CONDICIÓN PAGO FORMA DE PAGO VENCIMIENTO\n1100335999 9100354645 FACTURA 30 DIAS CREDITO 15/05/2026\nITEM CÓDIGO CANTIDAD UM DESCRIPCIÓN   VALOR\nUNITARIO\nDESCUENTO VALOR DE\nVENTA\nIGV PRECIO VTA\nUNI INCL IGV\n010 1027818 10.00 M CABLE H07Z1-K 35MM2 750V LSZH NEGRO CL5\nMARCA: MIGUELEZ\nMODELO: AFIRENAS-L H07Z1-K\n9.30 27.44 65.56 11.80 7.74\n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n:\nSON: SETENTA Y SIETE Y 36/100 DOLARES AMERICANOS TOTAL DSCTO: 27.44 OP.GRAVADAS: 65.56\nOP.INAFECTAS: 0.00\nOP. EXONERADAS: 0.00\nOP.GRATUITAS: 0.00\n OTROS CARGOS: 0.00\nIGV (18.00%): 11.80\n TOTAL (USD $): 77.36\nCuota001:USD $ 77.36- Fecha Venc : 2026-05-15\nVALOR RESUMEN : xyjwFie8lGcyo9FdMbkxatY8KJ8=\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http://efact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N° 0180050001886 /SUNAT', 'fields': {'tipo_documental': 'factura', 'ruc': '20100084172', 'serie': 'F231', 'numero': '0101492', 'fecha_emision': '15/04/2026', 'importe': '77.36', 'oc': '007898'}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': '2026-04-15', 'fecha_emision_date': datetime.date(2026, 4, 15), 'razon_social_emisor_detectada': 'PROMOTORES ELECTRICOS S A'}
+[OK] correo=4 doc=4 tipo=factura grupo=04-0002 nombre=04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+[OK] correo=4 doc=5 tipo=orden_compra grupo=04-0002 nombre=04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf
+[OK] correo=4 doc=6 tipo=factura grupo=04-0002 nombre=04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+(venv) 
+BBTI 01
 
-    output.push({
-      json: {
-        subject,
-        fromEmail,
-        fromName,
-        messageId,
-        date,
-        originalFileName: fileName,
-        storedFileName: newFileName,
-        tipoDetectado: "pendiente",
-        filePath: `/files/inbox/${year}/${month}/${newFileName}`,
-        relativePath: `inbox/${year}/${month}/${newFileName}`,
-        mimeType: file.mimeType || "application/pdf",
-        tamano_bytes: file.fileSize || null,
-      },
-      binary: {
-        data: file,
-      },
-    });
-  }
-}
+gestiondocumental=# select * from correos_ingresados;
+ id | origen | proveedor_correo |                  message_id                   | thread_id | remitente_nombre |           remitente_email
+      | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                     asunto                      | cuerpo_texto | cu
+erpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado | estado_correo | cantidad_adjuntos | observacion |         cr
+eado_en          |       actualizado_en
+----+--------+------------------+-----------------------------------------------+-----------+------------------+-------------------------------
+------+----------+-------------------+-----------------+------------------+-------------------------------------------------+--------------+---
+----------+---------------------+----------------------------+-------+-----------+---------------+-------------------+-------------+-----------
+-----------------+----------------------------
+  1 | correo | imap             | <69e69d97.050a0220.1b82a7.1b03@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101493 - BBTI S.A.C. |              |
+          | 2026-04-20 21:41:43 | 2026-04-20 17:54:02.848335 | f     | f         | descargado    |                 1 |             | 2026-04-20
+ 17:54:02.848335 | 2026-04-20 17:54:02.848335
+  4 | correo | imap             | <69e69d4e.050a0220.20184c.69bb@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101492 - BBTI S.A.C. |              |
+          | 2026-04-20 21:40:30 | 2026-04-20 17:54:02.848335 | f     | f         | descargado    |                 1 |             | 2026-04-20
+ 17:54:02.848335 | 2026-04-20 17:54:02.848335
+(2 rows)
 
-return output;
-Por qué este sí funciona
-Porque ahora cada nombre incluye:
-stamp
-messageId limpiado
-índice del adjunto
-Entonces aunque dos correos tengan 3 adjuntos, ya no chocan.
-Ejemplo:
-Plain text
-posible_documento_20260420192419958_002b01dcd0da_e30c6300_a9252900_1.pdf
-posible_documento_20260420192419958_69e65e1f_050a0220_3adf79_757c_1.pdf
-Tu problema actual, resumido
-No es Python.
-No es OCR.
-No es PostgreSQL.
-Es esto:
-colisión de nombres temporales en n8n
-Qué debes hacer ahora
-1. Cambiar CodeInfo
-Por el código que te dejé.
-2. Limpiar todo otra vez
-Porque tu BD ya quedó contaminada con rutas repetidas.
-BD
-archivos
-documentos
-correos_ingresados
-Carpetas
-storage/files/inbox/
-storage/files/ocr_tmp/
-storage/files/pendientes_clasificados/
-storage/files/no_identificados/
-3. Volver a correr n8n
-4. Validar primero esto
-Antes de correr Python, revisa:
-SQL
-SELECT correo_id, nombre_archivo_original, nombre_archivo_actual, ruta_temporal
-FROM archivos
-ORDER BY id;
-Y ahí debes comprobar que:
-cada fila tenga una ruta_temporal distinta
-ningún correo reutilice la ruta de otro
-Qué espero ver después
-Algo así:
-Plain text
-correo 1 -> posible_documento_..._002b01d..._1.pdf
-correo 1 -> posible_documento_..._002b01d..._2.pdf
-correo 1 -> posible_documento_..._002b01d..._3.pdf
 
-correo 4 -> posible_documento_..._69e65e1f..._1.pdf
-correo 4 -> posible_documento_..._69e65e1f..._2.pdf
-correo 4 -> posible_documento_..._69e65e1f..._3.pdf
-Sin repetir nombres entre correos.
-Mi recomendación extra
-En esta fase de pruebas, yo además agregaría el correo_id al nombre si quieres algo aún más claro:
-JavaScript
-const correoTag = safeText(messageId || "sin_message_id").slice(0, 40);
-const newFileName = `posible_documento_${stamp}_${correoTag}_${fileIndex}.pdf`;
-Con eso ya estás blindado.
-Cuando hagas el cambio y limpies, pégame la nueva salida de:
-SQL
-SELECT correo_id, nombre_archivo_original, nombre_archivo_actual, ruta_temporal
-FROM archivos
-ORDER BY id;
-y ahí confirmamos si n8n ya quedó bien.
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero  |     ruc     |       razon_social        | fecha_emision | fecha
+_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |
+ creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_id
+|                              nombre_final                              |            ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+---------+-------------+---------------------------+---------------+------
+-------------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+--------
+--------------------+----------------------------+--------------------+--------------+-----------------+--------------+------------------------
++------------------------------------------------------------------------+------------------------------------------
+  1 |         1 |          754 | factura         |          | F231  | 0101493 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
+             |        |  555.70 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-20 17:54:03.108513 | 2026-04-20 17:57:11.449695 |                  2 | 04-0001      |               1 | t            |
+| 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  2 |         1 |         1655 | orden_compra    |          | OC    | 007886  | 20565747356 | BBTI S.A.C.               |               |
+             |        |  470.98 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-20 17:54:03.108513 | 2026-04-20 17:57:11.497598 |                  2 | 04-0001      |               1 | f            |                      1
+| 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf                 | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  3 |         1 |          754 | factura         |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-05-30    |
+             |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-20 17:54:03.108513 | 2026-04-20 17:57:11.542129 |                  2 | 04-0001      |               1 | f            |                      1
+| 04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf              | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  4 |         4 |          754 | factura         |          | F231  | 0101492 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
+             |        |   77.36 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-20 17:54:03.108513 | 2026-04-20 17:57:15.950856 |                  2 | 04-0002      |               2 | t            |
+| 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  5 |         4 |         1655 | orden_compra    |          | OC    | 007898  | 20565747356 | BBTI S.A.C.               |               |
+             |        |   65.56 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-20 17:54:03.108513 | 2026-04-20 17:57:15.996198 |                  2 | 04-0002      |               2 | f            |                      4
+| 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf                 | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  6 |         4 |          754 | factura         |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
+             |        |   77.36 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-20 17:54:03.108513 | 2026-04-20 17:57:16.043866 |                  2 | 04-0002      |               2 | f            |                      4
+| 04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf              | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+(6 rows)
+
+
+gestiondocumental=# select * from archivos;
+ id | documento_id | correo_id |     nombre_archivo_original     |                         nombre_archivo_actual                          | ext
+ension |    mime_type    | tamano_bytes | hash_sha256 |                                             ruta_temporal
+                | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
+----+--------------+-----------+---------------------------------+------------------------------------------------------------------------+----
+-------+-----------------+--------------+-------------+----------------------------------------------------------------------------------------
+----------------+------------+--------------+----------------+----------------------------+----------------------------
+  1 |            1 |         1 | 20100084172-01-F231-0101493.pdf | 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | .pd
+f      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELE
+CTRICOS_S_A.pdf |            | t            | renombrado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:57:11.449695
+  2 |            2 |         1 | 007886.pdf                      | 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf                 | .pd
+f      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf
+                |            | t            | renombrado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:57:11.497598
+  3 |            3 |         1 | F231-00101493.pdf               | 04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf              | .pd
+f      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.p
+df              |            | t            | renombrado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:57:11.542129
+  4 |            4 |         4 | 20100084172-01-F231-0101492.pdf | 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | .pd
+f      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELE
+CTRICOS_S_A.pdf |            | t            | renombrado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:57:15.950856
+  5 |            5 |         4 | 007898.pdf                      | 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf                 | .pd
+f      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf
+                |            | t            | renombrado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:57:15.996198
+  6 |            6 |         4 | F231-00101492.pdf               | 04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf              | .pd
+f      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.p
+df              |            | t            | renombrado     | 2026-04-20 17:54:03.157558 | 2026-04-20 17:57:16.043866
+(6 rows)
+
+
+gestiondocumental=#
+
+ver la estructura de carpetas actual y verificas los documentos, lo puedes hacer:
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_clasificados/2026/04/
+total 720
+-rw-r--r-- 1 BBTI 01 197121 239444 Apr 20 17:54 '04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60786 Apr 20 17:54 '04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  76340 Apr 20 17:54 '04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf'
+-rw-r--r-- 1 BBTI 01 197121 219646 Apr 20 17:54 '04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60453 Apr 20 17:54 '04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  72746 Apr 20 17:54 '04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf'
+
+BBTI 0
+$ ls -l storage/files/ocr_tmp/2026/04/
+total 540
+-rw-r--r-- 1 BBTI 01 197121 287936 Apr 20 17:57 ocr_posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf
+-rw-r--r-- 1 BBTI 01 197121 258674 Apr 20 17:57 ocr_posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/no_identificados/
+total 0
