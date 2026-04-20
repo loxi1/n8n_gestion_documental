@@ -1,131 +1,164 @@
-Yo te recomiendo esto:
-Recomendación práctica
-Sí usar espacios entre bloques principales, pero normalizar el contenido interno para que no haya caos.
-Formato recomendado
-Plain text
-04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
-04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
-04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
-Por qué así
-Espacios entre bloques
-Se ve más legible para humanos:
-grupo
-tipo
-serie
-número
-RUC
-razón social
-Guion bajo dentro de valores compuestos
-Evita problemas con:
-nombres muy largos
-dobles espacios
-copiado en scripts
-búsquedas automáticas
-red compartida Windows
-Lo que no te recomiendo
-Todo con espacios
-Plain text
-04-0001 ORDEN COMPRA 007902 OMEGA POWER S A C.pdf
-Se ve bonito, pero para automatización y parsing luego es más frágil.
-Todo con guiones
-Plain text
-04-0001-FACTURA-F002-00000254-20538549071-OMEGA-POWER-S-A-C.pdf
-Se vuelve más duro de leer.
-Mi propuesta final
-Usa esta convención:
-espacios para separar campos
-guion bajo dentro de textos compuestos
+Sí, esa es una buena decisión.
+Recomendación final de nomenclatura
+Te sugiero dejarlo así:
+espacios entre bloques
+guion bajo dentro del bloque textual
+sin truncar el nombre
+sin tildes ni caracteres especiales raros
 Ejemplo:
 Plain text
 04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
 04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
 04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
-04-0001 REQUERIMIENTO_COMPRA 001245 20565747356 BBTI_S_A_C.pdf
-Mejora pro de orden visual
-Sí, conviene dejar el tipo inmediatamente después del grupo:
-Plain text
-04-0001 FACTURA ...
-04-0001 GUIA ...
-04-0001 ORDEN_COMPRA ...
-porque así, al ordenar por nombre:
-primero se agrupan por 04-0001
-luego ves el tipo documental rápido
-Mejora que te sugiero aplicar ya
-Cambia sanitize_filename() para:
-quitar caracteres prohibidos
-convertir múltiples espacios a uno
-luego reemplazar espacios internos por _ solo en textos libres
-Por ejemplo, en file_manager.py:
+Eso te da:
+orden visual claro
+agrupación inmediata
+fácil búsqueda
+menos riesgo en Windows/share/red/scripts
+Qué mejorar ahora
+Vamos a dejar file_manager.py más pro para que:
+quite tildes
+quite caracteres inválidos de Windows
+mantenga espacios entre bloques
+convierta nombres compuestos a _
+no trunque el nombre
+Reemplaza file_manager.py por esto
 Python
+from __future__ import annotations
+
 import re
+import shutil
+import unicodedata
 from pathlib import Path
 
 
-def sanitize_filename(name: str) -> str:
-    name = re.sub(r'[<>:"/\\|?*]+', " ", name)
-    name = re.sub(r"\s+", " ", name).strip()
-    return name
+def sanitize_filename(value: str) -> str:
+    """
+    Limpieza general para nombres de archivo:
+    - quita tildes
+    - elimina caracteres inválidos de Windows
+    - compacta espacios
+    """
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r'[<>:"/\\|?*]+', " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
 
 
 def normalize_token(value: str | None) -> str:
+    """
+    Normaliza un bloque interno del nombre:
+    - limpia caracteres
+    - cambia espacios por guion bajo
+    """
     if not value:
         return ""
+
     value = sanitize_filename(value)
+    value = value.replace(".", " ")
+    value = re.sub(r"\s+", " ", value).strip()
     value = value.replace(" ", "_")
     return value
-Y luego en build_final_name() usar:
-Python
-from pathlib import Path
 
 
-🔧 2. CAMBIO EN process_correo()
-Reemplaza SOLO esta parte:
-❌ Antes
-Python
-nombre_final = build_final_name(
-    grupo_codigo=grupo_codigo,
-    serie=fields["serie"],
-    numero=fields["numero"],
-    ruc_emisor=ruc_emisor,
-    razon_social_emisor=razon_social_emisor,
-    tipo_documental=tipo_documental,
-    fallback_name=doc["nombre_archivo_actual"],
-)
-✅ Después
-Python
+def build_final_name(
+    grupo_codigo: str,
+    tipo_documental: str,
+    serie: str | None,
+    numero: str | None,
+    ruc_emisor: str | None,
+    razon_social_emisor: str | None,
+    fallback_name: str,
+) -> str:
+    ext = Path(fallback_name).suffix.lower() or ".pdf"
 
-👉 Importante: cambió el orden y agregamos tipo_documental como parámetro principal.
-🧠 RESULTADO ESPERADO
-Para tu caso real:
-Factura:
+    tipo_map = {
+        "factura": "FACTURA",
+        "guia": "GUIA",
+        "orden_compra": "ORDEN_COMPRA",
+        "requerimiento_compra": "REQUERIMIENTO_COMPRA",
+        "nota_credito": "NOTA_CREDITO",
+        "otro": "OTRO",
+    }
+
+    tipo_txt = tipo_map.get(tipo_documental, "OTRO")
+    serie_txt = normalize_token(serie)
+    numero_txt = normalize_token(numero)
+    ruc_txt = normalize_token(ruc_emisor)
+    razon_txt = normalize_token(razon_social_emisor) or "SIN_RAZON_SOCIAL"
+
+    parts: list[str] = [grupo_codigo, tipo_txt]
+
+    if tipo_documental in ["factura", "guia"]:
+        if serie_txt:
+            parts.append(serie_txt)
+        if numero_txt:
+            parts.append(numero_txt)
+
+    elif tipo_documental in ["orden_compra", "requerimiento_compra", "nota_credito"]:
+        if numero_txt:
+            parts.append(numero_txt)
+
+    else:
+        if serie_txt:
+            parts.append(serie_txt)
+        if numero_txt:
+            parts.append(numero_txt)
+
+    if ruc_txt:
+        parts.append(ruc_txt)
+
+    parts.append(razon_txt)
+
+    return " ".join(parts) + ext
+
+
+def move_file(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(destination))
+Qué logra esto
+Si entra:
 Plain text
-04-0001 FACTURA F002 00000254 20538549071 OMEGA POWER S A C.pdf
-Guía:
+Promotores Electricos S A
+sale:
 Plain text
-04-0001 GUIA T002 00280 20538549071 OMEGA POWER S A C.pdf
-Orden de compra:
+PROMOTORES_ELECTRICOS_S_A
+Si entra:
 Plain text
-04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA POWER S A C.pdf
-🚀 MEJORA EXTRA (RECOMENDADA)
-Si quieres dejarlo aún más pro, puedes agregar esto después:
-Orden visual consistente
+Omega Power S.A.C.
+sale:
 Plain text
-04-0001 FACTURA ...
-04-0001 GUIA ...
-04-0001 ORDEN_COMPRA ...
-👉 Así en el explorador quedan ordenados automáticamente.
-⚠️ ERROR QUE EVITAMOS
-Con esto evitamos:
-❌ perder números reales de guía/OC
-❌ duplicar información de factura
-❌ problemas en auditoría
-❌ confusión en validación
-🧩 SIGUIENTE PASO (te lo recomiendo)
-Cuando confirmes que esto funciona:
-👉 Te ayudo a implementar:
-mover automáticamente a Windows share por cliente destino
-separar por meses (ENERO, FEBRERO…)
-control de duplicados (hash SHA256)
-dashboard de estado documental
-Si quieres, en el siguiente paso hacemos:
-👉 “mover automáticamente a red Windows por cliente destino + mes” (ya estás a 1 paso de producción real).
+OMEGA_POWER_S_A_C
+Si entra:
+Plain text
+BB Tecnología Industrial S.A.C.
+sale:
+Plain text
+BB_TECNOLOGIA_INDUSTRIAL_S_A_C
+Resultado esperado
+Con esto, para tu caso debería quedar algo así:
+Plain text
+04-0001 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 GUIA T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0001 ORDEN_COMPRA 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+Y otro caso:
+Plain text
+04-0002 FACTURA F231 0101440 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+Por qué no tendrás problemas
+Esta versión ya evita los caracteres problemáticos más comunes en Windows:
+\ / : * ? " < > |
+Y también normaliza:
+tildes
+múltiples espacios
+puntos en razón social
+Importante
+No truncar el nombre está bien si eso te ayuda a encontrarlo rápido.
+Solo ten presente que en rutas extremadamente largas en Windows podrías acercarte al límite total de ruta, pero en nombres como los tuyos normalmente no debería ser un problema serio.
+Qué sigue
+Ahora toca que process_correo() use esta versión y vuelva a generar nombres.
+Si quieres, el siguiente paso te lo dejo listo revisando el bloque de process_correo() para asegurar que:
+la factura principal define el grupo
+la guía y la OC heredan el grupo
+cada documento conserve sus propios datos reales
+todos salgan con el formato visual pro que acabamos de definir.
