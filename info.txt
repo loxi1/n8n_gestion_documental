@@ -119,151 +119,149 @@ total 21492
 
  
 
-  Sí, ya se ve mucho más claro qué pasó. La conclusión es esta:
-Conclusión
-Tu flujo ya está ordenando bien los observados, pero el problema actual está en la clasificación del correo 2.
-Qué pasó en esta corrida
-Correo 1: certificado de calidad
-Quedó bien en pendientes_revision como sin_factura_principal.
-Correo 3: guía electrónica sola
-Quedó razonablemente bien en pendientes_revision como sin_factura_principal.
-Correo 2: factura legible FE65-0812829
-Está mal clasificada como guia_remision, por eso también cayó a sin_factura_principal.
-Y eso explica por qué ves documentos legibles en pendientes_revision: no es que la carpeta esté mal, sino que el clasificador mandó una factura real a guía.
-Lo correcto e incorrecto de esta corrida
-Correcto
-pendientes_revision
-Aquí sí debe estar:
-el certificado de calidad
-la guía sola
-ocr_tmp
-También está bien que quede el OCR del certificado si se necesitó para leerlo.
-Incorrecto
-Este archivo:
-Plain text
-FE65-0812829.pdf
-No debe quedar en pendientes_revision.
-Debe salir como algo así:
-Plain text
-04-0001 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
-e ir a:
-Plain text
-pendientes_clasificados/2026/04/
-El error de fondo
-Tu classifier.py está detectando guia_remision demasiado pronto o demasiado amplio.
-En el texto de la factura FE65 aparece algo como:
-Plain text
-N° GUIA REMISIÓN
-pero eso no convierte al documento en guía.
-Es solo una referencia dentro de la factura.
-Regla correcta
-Para que un documento sea guia_remision, debe cumplirse algo fuerte como:
-el documento diga explícitamente al inicio o como título:
-GUIA REMISION ELECTRONICA
-GUIA DE REMISION ELECTRONICA
-GUIA DE REMISION
-o tenga patrón principal tipo:
-T073-0665284
-GR001-8745
-Pero no basta con que la factura mencione “N° guía de remisión”.
-Qué debes cambiar en classifier.py
-Problema actual
-Esta parte es demasiado permisiva:
-Python
-or "GUIA REMISION" in text_u
-Porque una factura puede contener esa frase en una línea de referencia.
-Solución
-Haz la detección de guía más estricta.
-Reemplaza detect_tipo_documental() por esta versión pulida:
-Python
-def detect_tipo_documental(text: str, file_name: str) -> str:
-    text_u = normalize_text(text)
-    name_u = normalize_text(file_name)
-
-    # 1. CERTIFICADO DE CALIDAD
-    if (
-        "CERTIFICADO DE CALIDAD" in text_u
-        or "CERT. DE CALIDAD" in text_u
-        or "CERTIFICADO" in name_u
-    ):
-        return "certificado_calidad"
-
-    # 2. GUIA DE REMISION
-    if (
-        "GUIA REMISION ELECTRONICA" in text_u
-        or "GUIA DE REMISION ELECTRONICA" in text_u
-        or "GUIA DE REMISION" in text_u
-        or re.search(r"\bNRO\.?\s*T\d{3}[- ]\d+\b", text_u)
-        or re.search(r"\bT\d{3}[- ]\d+\b", name_u)
-        or re.search(r"\bGR\d{3}[- ]\d+\b", name_u)
-    ):
-        return "guia_remision"
-
-    # 3. ORDEN DE COMPRA
-    if (
-        "ORDEN DE COMPRA" in text_u
-        or "ORDEN DE COMRA" in text_u
-        or re.search(r"\bOC[- ]?\d{4,}\b", text_u)
-        or re.search(r"\bOC[- ]?\d{4,}\b", name_u)
-    ):
-        return "orden_compra"
-
-    # 4. FACTURA
-    if (
-        "FACTURA ELECTRONICA" in text_u
-        or "FACTURA" in text_u
-        or re.search(r"\bF\d{3,4}-\d+\b", text_u)
-        or re.search(r"\bF\d{3,4}-\d+\b", name_u)
-        or re.search(r"\bFE\d{2,4}-\d+\b", text_u)
-        or re.search(r"\bFE\d{2,4}-\d+\b", name_u)
-        or re.search(r"\bNRO\.?\s*F[A-Z0-9]{2,4}-\d+\b", text_u)
-    ):
-        return "factura"
-
-    return "otro"
-La diferencia importante
-Quité esta condición suelta:
-Python
-"GUIA REMISION" in text_u
-porque era la que te estaba robando facturas.
-Otra observación importante
-En documentos, los registros 1, 2 y 3 quedaron vacíos en columnas como:
-tipo_documental
-serie
-numero
-ruc
-fecha_emision
-Eso pasa porque cuando el correo cae en sin_factura_principal, tu flujo usa mark_documents_as_review() y solo actualiza el estado, no guarda los campos extraídos.
-Mi recomendación
-Eso no bloquea el flujo, pero más adelante conviene guardar también:
-tipo_documental
-serie
-numero
-ruc
-fecha_emision
-aunque el documento vaya a revisión.
-Cómo debería quedar todo después del ajuste
-pendientes_clasificados
-Debe quedar:
-la factura FE65
-pendientes_revision
-Debe quedar:
+ 
+ Sí, conviene hacerlo más general.
+No te recomendaría intentar contemplar desde ahora todos los tipos posibles de documento, porque eso te va a volver frágil el flujo y te vas a llenar de excepciones.
+Mi opinión
+La mejor estrategia es trabajar con dos niveles:
+Nivel 1: documentos núcleo
+Los que sí quieres reconocer bien y automatizar al máximo:
+factura
+orden de compra
+guía de remisión
+requerimiento de compra
+cotización
+Nivel 2: documentos anexos / soporte
+Todo lo demás:
 certificado de calidad
-guía sola
-ocr_tmp
-Puede quedar el OCR temporal del certificado, eso está bien.
-Resumen directo
-Ahora mismo:
-carpeta pendientes_revision: está bien usada
-ocr_tmp: está bien usada
-el único problema fuerte: la factura FE65-0812829.pdf fue clasificada como guía
-causa: detector de guía demasiado amplio
-Qué haría yo ahora
-corregir detect_tipo_documental()
-limpiar BD y archivos solo de esta última corrida
-volver a correr procesar_pendientes.py
-Resultado esperado
-correo 1 → pendientes_revision
-correo 2 → pendientes_clasificados
-correo 3 → pendientes_revision
-Si quieres, te dejo también el bloque para que mark_documents_as_review() guarde los campos extraídos en documentos aunque el archivo quede en revisión.
+fichas técnicas
+cartas
+constancias
+anexos
+documentos escaneados raros
+PDFs informativos
+cualquier otro archivo que acompañe al correo
+A este segundo grupo no lo intentaría clasificar demasiado fino al inicio.
+Regla de negocio recomendada
+Si llega un correo
+Primero buscas si dentro del correo existe alguno de los documentos núcleo:
+factura
+orden de compra
+guía
+requerimiento
+cotización
+Luego haces esto
+Caso A: hay factura
+La factura manda como documento principal del grupo.
+Los demás PDFs del correo se manejan así:
+si son OC → orden_compra
+si son guía → guia_remision
+si son requerimiento → requerimiento_compra
+si son cotización → cotizacion
+si son factura escaneada o duplicada → adjunto_factura
+si no sabes qué son → adjunto_documento
+Caso B: no hay factura, pero hay documentos núcleo
+Ejemplos:
+solo guía
+solo OC
+solo requerimiento
+solo cotización
+Entonces el correo no se clasifica completo automáticamente, pero sí debe ir a revisión con esos tipos guardados.
+Por ejemplo:
+guia_remision
+orden_compra
+requerimiento_compra
+cotizacion
+y el estado:
+pendiente_asociacion
+Caso C: no hay ningún documento núcleo claro
+Entonces lo tratas como:
+otro
+o documento_soporte
+y lo mandas a revisión.
+Qué haría yo para no complicarlo demasiado
+Tipos documentales que sí dejaría en BD
+Te sugiero manejar solo estos por ahora:
+factura
+adjunto_factura
+guia_remision
+orden_compra
+requerimiento_compra
+cotizacion
+certificado_calidad
+otro
+Eso ya es suficiente.
+Y para todo lo no contemplado
+No inventaría 20 tipos más.
+Usaría una categoría general como:
+otro o mejor:
+adjunto_documento
+Cuándo usar adjunto_documento
+Cuando:
+acompaña a un grupo válido
+pero no encaja en factura / guía / OC / requerimiento / cotización
+Ejemplo:
+certificado
+ficha técnica
+carta
+constancia
+checklist
+captura escaneada
+Así no pierdes el archivo ni te obligas a clasificarlo demasiado.
+Nomenclatura sugerida
+Entonces tus nombres quedarían así:
+Si hay grupo válido
+Plain text
+04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf
+04-0001 GUIA T073 0665284 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
+04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0001 ADJUNTO_DOCUMENTO CERTIFICADO_CALIDAD.pdf
+Si no hay factura y va a revisión
+Puedes dejar el nombre original o algo más ordenado, por ejemplo:
+Plain text
+REV_GUIA T073 0665284 20370146994.pdf
+REV_CERTIFICADO_CALIDAD FE65 0812829.pdf
+REV_OTRO archivo_original.pdf
+Pero eso ya es un refinamiento posterior.
+Lo más práctico para tu caso
+Como tú dices que el sistema está hecho sobre todo para:
+orden de compra
+factura
+guía
+entonces yo haría esto:
+Clasificación principal mínima viable
+factura
+orden_compra
+guia_remision
+requerimiento_compra
+cotizacion
+adjunto_factura
+adjunto_documento
+otro
+Con eso ya cubres lo importante sin enredarte.
+Mi recomendación concreta
+Sí:
+hazlo más general
+no intentes contemplar todos los PDFs del mundo
+enfócate en los documentos núcleo
+mete todo lo demás como adjunto_documento o otro
+Eso te da un sistema:
+más estable
+más mantenible
+más fácil de revisar manualmente
+Regla final que yo usaría
+Si el correo tiene factura
+Se genera grupo automático.
+Si el correo no tiene factura pero tiene guía / OC / requerimiento / cotización
+Se manda a revisión con tipo identificado.
+Si trae PDFs raros
+Se guardan como adjunto_documento y no rompen el flujo.
+Conclusión
+Tu idea correcta no es “clasificar todo”, sino:
+clasificar muy bien lo importante y agrupar el resto sin romper el proceso.
+Eso es exactamente lo que haría en un sistema empresarial real.
+Si quieres, el siguiente paso te propongo una tabla final de:
+tipos documentales
+estados documentales
+reglas de carpeta para dejar tu diseño ya cerrado.
