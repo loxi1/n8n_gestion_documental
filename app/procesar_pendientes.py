@@ -85,6 +85,16 @@ SET
 WHERE id = %(archivo_id)s;
 """
 
+SQL_UPDATE_CORREO = """
+UPDATE correos_ingresados
+SET
+    procesado = %(procesado)s,
+    estado_correo = %(estado_correo)s,
+    observacion = %(observacion)s,
+    actualizado_en = NOW()
+WHERE id = %(correo_id)s;
+"""
+
 
 def fetch_proveedor_from_api(ruc: str) -> dict | None:
     if not ruc or not APISPERU_TOKEN:
@@ -417,9 +427,26 @@ def save_processed_document(item: dict) -> None:
             },
         )
 
+def update_correo_estado(
+    correo_id: int,
+    procesado: bool,
+    estado_correo: str,
+    observacion: str | None = None,
+) -> None:
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            SQL_UPDATE_CORREO,
+            {
+                "correo_id": correo_id,
+                "procesado": procesado,
+                "estado_correo": estado_correo,
+                "observacion": observacion,
+            },
+        )
 
 def process_correo(items: list[dict]) -> None:
     enriched = [enrich_document(x) for x in items]
+
     print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
     for d in enriched:
         print({
@@ -438,13 +465,27 @@ def process_correo(items: list[dict]) -> None:
     factura_principal = select_factura_principal(enriched)
     print("[DEBUG] factura_principal =", factura_principal)
 
+    correo_id = items[0]["correo_id"]
+
     if not factura_principal:
-        print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
+        print(f"[WARN] correo_id={correo_id} sin factura principal")
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="sin_factura_principal",
+            observacion="No se encontró factura principal en el correo.",
+        )
         return
 
     fecha_principal = factura_principal["fecha_emision_date"]
     if not fecha_principal:
-        print(f"[WARN] correo_id={items[0]['correo_id']} factura sin fecha")
+        print(f"[WARN] correo_id={correo_id} factura sin fecha")
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="factura_sin_fecha",
+            observacion="La factura principal no tiene fecha de emisión reconocible.",
+        )
         return
 
     correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
@@ -461,15 +502,19 @@ def process_correo(items: list[dict]) -> None:
 
     documento_principal_id = factura_principal["documento_id"]
 
+    total_docs = len(enriched)
+    total_clasificados = 0
+    total_no_identificados = 0
+    total_adjuntos_factura = 0
+
     for doc in enriched:
         fields = doc["fields"]
         tipo_documental = fields["tipo_documental"]
         ruc_emisor = fields["ruc"]
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
+
         proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
         proveedor_id = proveedor["id"] if proveedor else None
-
-        ocr_output_path = doc.get("ocr_output_path")
 
         if proveedor and proveedor.get("nombre"):
             razon_social_emisor = proveedor["nombre"]
@@ -491,6 +536,7 @@ def process_correo(items: list[dict]) -> None:
             and factura_principal["fields"]["ruc"] == ruc_emisor
         ):
             tipo_documental = "adjunto_factura"
+            total_adjuntos_factura += 1
             print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
 
         nombre_final = build_final_name(
@@ -509,6 +555,11 @@ def process_correo(items: list[dict]) -> None:
 
         estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
         bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
+
+        if estado_documento == "clasificado":
+            total_clasificados += 1
+        else:
+            total_no_identificados += 1
 
         destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
         destino_abs = STORAGE_DIR / destino_relativo
@@ -549,15 +600,6 @@ def process_correo(items: list[dict]) -> None:
                     "archivo_id": doc["archivo_id"],
                 },
             )
-        
-        if estado_documento == "clasificado" and ocr_output_path:
-            try:
-                ocr_path = Path(ocr_output_path)
-                if ocr_path.exists():
-                    ocr_path.unlink()
-                    print(f"[DEBUG] OCR temporal eliminado: {ocr_path.name}")
-            except Exception as e:
-                print(f"[WARN] no se pudo eliminar OCR temporal {ocr_output_path}: {e}")
 
         print(
             f"[OK] correo={doc['correo_id']} "
@@ -566,6 +608,26 @@ def process_correo(items: list[dict]) -> None:
             f"grupo={grupo_codigo} "
             f"nombre={nombre_final}"
         )
+
+    observacion = (
+        f"Procesado correctamente. "
+        f"Documentos: {total_docs}, "
+        f"clasificados: {total_clasificados}, "
+        f"no_identificados: {total_no_identificados}, "
+        f"adjuntos_factura: {total_adjuntos_factura}, "
+        f"grupo: {grupo_codigo}."
+    )
+
+    estado_correo = "procesado"
+    if total_no_identificados > 0:
+        estado_correo = "procesado_con_observaciones"
+
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=True,
+        estado_correo=estado_correo,
+        observacion=observacion,
+    )
 
 
 def get_correos_pendientes() -> list[int]:
