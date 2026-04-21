@@ -118,5 +118,269 @@ total 21492
 ...
 
  
-Por favor validar el archivo: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py
-nose donde ponder UPDATE correos_ingresados dime los cambios que faltan.
+Sí. Viendo el código que pegaste, te falta actualizar correos_ingresados al terminar de procesar cada correo.
+Ahora mismo procesas documentos y archivos, pero nunca haces algo como:
+procesado = true
+estado_correo = 'procesado'
+actualizado_en = NOW()
+Y el raw que abrí no me dejó inspeccionar el archivo de forma útil porque se devolvió como texto plano en una sola línea. �
+GitHub
+Qué te falta
+1. Agregar SQL para actualizar correos_ingresados
+Pon esto junto a tus otros SQL_*:
+Python
+SQL_UPDATE_CORREO = """
+UPDATE correos_ingresados
+SET
+    procesado = %(procesado)s,
+    estado_correo = %(estado_correo)s,
+    actualizado_en = NOW()
+WHERE id = %(correo_id)s;
+"""
+2. Crear una función helper
+Debajo de save_processed_document() o antes de process_correo():
+Python
+def update_correo_estado(correo_id: int, procesado: bool, estado_correo: str) -> None:
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            SQL_UPDATE_CORREO,
+            {
+                "correo_id": correo_id,
+                "procesado": procesado,
+                "estado_correo": estado_correo,
+            },
+        )
+3. Dónde poner el UPDATE
+La mejor ubicación es al final de process_correo(), cuando ya terminaste de recorrer todos los documentos de ese correo.
+Opción correcta
+Justo después del for doc in enriched: completo.
+O sea, tu estructura debe quedar así:
+Python
+def process_correo(items: list[dict]) -> None:
+    enriched = [enrich_document(x) for x in items]
+    ...
+    factura_principal = select_factura_principal(enriched)
+    ...
+
+    for doc in enriched:
+        ...
+        # update documentos
+        # update archivos
+        ...
+
+    update_correo_estado(
+        correo_id=items[0]["correo_id"],
+        procesado=True,
+        estado_correo="procesado",
+    )
+4. También debes manejar los casos de salida temprana
+Ahora tienes estos retornos:
+Python
+if not factura_principal:
+    print(...)
+    return
+
+if not fecha_principal:
+    print(...)
+    return
+En esos casos el correo también debería actualizarse, pero con error o pendiente de revisión.
+Te recomiendo esto
+Si no hay factura principal
+Python
+if not factura_principal:
+    print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
+    update_correo_estado(
+        correo_id=items[0]["correo_id"],
+        procesado=False,
+        estado_correo="sin_factura_principal",
+    )
+    return
+Si la factura no tiene fecha
+Python
+if not fecha_principal:
+    print(f"[WARN] correo_id={items[0]['correo_id']} factura sin fecha")
+    update_correo_estado(
+        correo_id=items[0]["correo_id"],
+        procesado=False,
+        estado_correo="factura_sin_fecha",
+    )
+    return
+5. Mi recomendación de estados
+Para correos_ingresados.estado_correo, yo usaría algo así:
+descargado
+procesado
+sin_factura_principal
+factura_sin_fecha
+procesado_con_observaciones
+Si quieres algo simple por ahora:
+éxito: procesado
+error lógico: observado
+6. Cambio exacto en tu process_correo()
+Te dejo el bloque listo para pegar.
+Python
+def process_correo(items: list[dict]) -> None:
+    enriched = [enrich_document(x) for x in items]
+    print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
+    for d in enriched:
+        print({
+            "documento_id": d["documento_id"],
+            "archivo": d["nombre_archivo_actual"],
+            "tipo": d["fields"]["tipo_documental"],
+            "serie": d["fields"]["serie"],
+            "numero": d["fields"]["numero"],
+            "ruc": d["fields"]["ruc"],
+            "oc": d["fields"].get("oc"),
+            "cliente_raw": d.get("cliente_raw"),
+            "cliente_match": d.get("cliente_match"),
+            "fecha": d.get("fecha_emision_norm"),
+        })
+
+    factura_principal = select_factura_principal(enriched)
+    print("[DEBUG] factura_principal =", factura_principal)
+
+    if not factura_principal:
+        print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
+        update_correo_estado(
+            correo_id=items[0]["correo_id"],
+            procesado=False,
+            estado_correo="sin_factura_principal",
+        )
+        return
+
+    fecha_principal = factura_principal["fecha_emision_date"]
+    if not fecha_principal:
+        print(f"[WARN] correo_id={items[0]['correo_id']} factura sin fecha")
+        update_correo_estado(
+            correo_id=items[0]["correo_id"],
+            procesado=False,
+            estado_correo="factura_sin_fecha",
+        )
+        return
+
+    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
+
+    cliente_match = factura_principal.get("cliente_match")
+    cliente_destino_id = cliente_match["id"] if cliente_match else None
+
+    ruta_windows_final = None
+    if cliente_match:
+        ruta_windows_final = build_windows_target_path(
+            cliente_match["ruta_windows"],
+            fecha_principal,
+        )
+
+    documento_principal_id = factura_principal["documento_id"]
+
+    for doc in enriched:
+        fields = doc["fields"]
+        tipo_documental = fields["tipo_documental"]
+        ruc_emisor = fields["ruc"]
+        razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
+        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+        proveedor_id = proveedor["id"] if proveedor else None
+
+        if proveedor and proveedor.get("nombre"):
+            razon_social_emisor = proveedor["nombre"]
+
+        es_principal = doc["documento_id"] == documento_principal_id
+        documento_principal_ref = None if es_principal else documento_principal_id
+
+        cliente_id_final = (
+            doc["cliente_match"]["id"]
+            if doc.get("cliente_match")
+            else cliente_destino_id
+        )
+
+        if (
+            tipo_documental == "factura"
+            and not fields["serie"]
+            and not fields["numero"]
+            and ruc_emisor
+            and factura_principal["fields"]["ruc"] == ruc_emisor
+        ):
+            tipo_documental = "adjunto_factura"
+            print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
+
+        nombre_final = build_final_name(
+            grupo_codigo=grupo_codigo,
+            tipo_documental=tipo_documental,
+            serie=fields["serie"],
+            numero=fields["numero"],
+            ruc_emisor=ruc_emisor,
+            razon_social_emisor=razon_social_emisor,
+            fallback_name=doc["nombre_archivo_actual"],
+        )
+
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+
+        estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
+        bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
+
+        destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO,
+                {
+                    "proveedor_id": proveedor_id,
+                    "cliente_destino_id": cliente_id_final,
+                    "tipo_documental": tipo_documental,
+                    "serie": fields["serie"],
+                    "numero": fields["numero"],
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social_emisor,
+                    "fecha_emision": doc["fecha_emision_norm"],
+                    "importe": fields["importe"],
+                    "estado_documento": estado_documento,
+                    "grupo_codigo": grupo_codigo,
+                    "correlativo_mes": correlativo_mes,
+                    "es_principal": es_principal,
+                    "documento_principal_id": documento_principal_ref,
+                    "nombre_final": nombre_final,
+                    "ruta_windows_final": ruta_windows_final,
+                    "documento_id": doc["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": nombre_final,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": "renombrado",
+                    "archivo_id": doc["archivo_id"],
+                },
+            )
+
+        print(
+            f"[OK] correo={doc['correo_id']} "
+            f"doc={doc['documento_id']} "
+            f"tipo={tipo_documental} "
+            f"grupo={grupo_codigo} "
+            f"nombre={nombre_final}"
+        )
+
+    update_correo_estado(
+        correo_id=items[0]["correo_id"],
+        procesado=True,
+        estado_correo="procesado",
+    )
+7. Qué te recomiendo además
+También conviene actualizar correos_ingresados.observacion en casos especiales, pero eso puede ser el siguiente paso.
+Resumen
+Te faltan solo estos cambios:
+agregar SQL_UPDATE_CORREO
+agregar update_correo_estado()
+llamar esa función:
+al final de process_correo()
+en los return tempranos
+Si quieres, en el siguiente mensaje te dejo también la versión para actualizar observacion con mensajes como:
+“Sin factura principal”
+“Factura sin fecha”
+“Procesado correctamente”
