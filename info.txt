@@ -119,168 +119,181 @@ total 21492
 
  
 
-Sí, ya con lo que mostraste puedo darte una conclusión clara.
-Conclusión general
-El sistema ya avanzó bastante, pero todavía no está listo para dejarlo corriendo solo porque hay 3 problemas lógicos importantes:
-1. Estás reprocesando documentos ya clasificados
-Ese es el problema más grave ahora.
-Tu salida muestra que procesar_pendientes.py volvió a tomar los grupos 04-0001 y 04-0002, que ya estaban bien, y los mandó a pendientes_revision.
-Eso pasó porque tu consulta sigue incluyendo documentos ya clasificados.
-Hoy el efecto fue este:
-estaban bien en pendientes_clasificados
-se volvieron a leer
-como extract_basic_fields() no sacó fecha en esa segunda pasada
-cayeron en factura_sin_fecha
-terminaron en pendientes_revision
-Eso no debería pasar nunca.
-2. La clasificación todavía confunde algunos documentos
-Se ve en estos dos casos:
-Correo 13
-Es un certificado de calidad, no una factura principal.
-Pero salió como:
-Plain text
-tipo: factura
-estado_correo: factura_sin_fecha
-Cuando debió quedar algo más parecido a:
-certificado_calidad
-o otro
-o pendiente_asociacion
-Correo 15
-Es una guía electrónica:
-Plain text
-Nro. T073-0665284
-GUIA REMISION ELECTRÓNICA
-pero terminó como:
-Plain text
-ADJUNTO_FACTURA
-Eso no es correcto.
-Debería quedar como algo tipo:
-Plain text
-GUIA T073 0665284 ...
-o, si no quieres asociarla sola todavía:
-Plain text
-pendiente_asociacion
-3. La extracción de importe está mal en algunos casos
-Por ejemplo en Promelsa está agarrando:
-197.07
-27.44
-que son descuentos o valores parciales, no el total final.
-Entonces la extracción del total todavía necesita afinarse.
-Qué sí quedó bien
-Esto sí está funcionando bien:
-n8n
-Ya no está pisando archivos.
-Los nombres temporales únicos están bien.
-OCR
-Sí está ayudando cuando hace falta.
-FE65
-Este caso ya salió mucho mejor:
-Plain text
-04-0003 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
-Ese ya es un resultado bueno.
-ADJUNTO_FACTURA
-La idea quedó bien implementada para los escaneados de Promelsa.
-Eso sí tiene sentido documental.
-Cómo deberían quedar realmente tus carpetas
-pendientes_clasificados
-Aquí solo deberían quedar documentos ya resueltos y consistentes, por ejemplo:
+Sí, ya con lo que mostraste puedo darte Sí. Te la dejo pulida y ordenada para que ya no se mezcle la lógica.
+Estado real del sistema
+Lo que ya funciona bien
+n8n ya guarda archivos con nombres únicos.
+ya no se pisan adjuntos entre correos.
+el flujo BD + archivos + OCR ya está caminando.
+ADJUNTO_FACTURA ya resolvió bien el caso de factura legible + factura escaneada.
+el caso FE65-0812829 ya salió correctamente como factura.
+la agrupación 04-0001, 04-0002, 04-0003 ya funciona.
+Lo que todavía está mal
+1. Se están reprocesando documentos ya resueltos
+Eso hizo que 04-0001 y 04-0002 pasaran de clasificados a revisión.
+2. El clasificador todavía confunde tipos documentales
+certificado de calidad lo toma como factura
+guía electrónica la toma como factura o adjunto_factura
+3. La extracción de fecha/importe todavía no es perfecta
+en Promelsa, al reprocesar, fecha_emision volvió como None
+algunos importes capturados son descuentos o valores parciales
+Conclusión funcional
+Tu sistema ya está en una etapa útil, pero todavía no está listo para correr solo en producción continua.
+Ahora mismo el cuello de botella no es arquitectura, sino estas 3 reglas:
+qué documentos se deben volver a procesar
+cómo distinguir certificado / guía / factura
+qué mandar a clasificados y qué mandar a revisión
+Regla final que te recomiendo
+1. inbox
+Solo debe contener archivos recién descargados y no procesados.
+2. pendientes_clasificados
+Solo documentos resueltos correctamente:
 factura principal
-adjunto_factura del mismo grupo
-orden_compra del mismo grupo
-pendientes_revision
-Aquí deberían ir documentos válidos pero que necesitan intervención humana:
+orden de compra asociada
+adjunto_factura
+guía asociada si corresponde
+3. pendientes_revision
+Documentos válidos que requieren intervención humana:
 certificado de calidad
-guía sola sin factura asociada
-factura donde faltó fecha o serie
+guía sin factura asociada
+factura sin fecha
 OCR dudoso
-inbox
-Debería quedar solo lo recién descargado y aún no procesado.
-No debería llenarse de cosas ya tratadas.
-ocr_tmp
-Está bien como carpeta temporal técnica.
-Qué te recomiendo hacer ya
-Cambio 1: corregir SQL_SELECT_PENDING
-Tu consulta no debe incluir clasificado.
-Debe quedar algo así:
-SQL
-WHERE d.estado_documento IN ('pendiente', 'no_identificado', 'error', 'pendiente_asociacion', 'revision_manual')
-y sacar clasificado.
-Incluso, si quieres ser más estricto:
-SQL
-WHERE d.estado_documento IN ('pendiente', 'error')
-Eso evitará que vuelvas a mover a revisión documentos ya cerrados.
-Cambio 2: no reprocesar archivos fuera de inbox
-Yo además pondría una defensa extra:
-en process_correo() o antes de enriquecer, si el archivo ya no está en inbox/, no lo tomes como pendiente nuevo.
-Ejemplo de regla:
+documento que no pudo asociarse bien
+4. ocr_tmp
+Solo temporal técnico.
+Cambio más urgente
+SQL_SELECT_PENDING
+Debe dejar de traer documentos ya clasificados.
+Déjalo así:
 Python
-if not item["ruta_temporal"].startswith("inbox/"):
-    continue
-o filtrar desde SQL si lo prefieres.
-Cambio 3: corregir el orden de clasificación en classifier.py
-Debe ir así, conceptualmente:
+SQL_SELECT_PENDING = """
+SELECT
+    d.id AS documento_id,
+    d.correo_id,
+    d.proveedor_id,
+    d.tipo_documental,
+    d.serie,
+    d.numero,
+    d.ruc,
+    d.razon_social,
+    d.fecha_emision,
+    d.estado_documento,
+    a.id AS archivo_id,
+    a.ruta_temporal,
+    a.nombre_archivo_actual,
+    a.nombre_archivo_original
+FROM documentos d
+JOIN archivos a ON a.documento_id = d.id
+WHERE d.estado_documento IN ('pendiente', 'error')
+ORDER BY d.id ASC;
+"""
+Con eso ya no volverás a tocar:
+clasificado
+revision_manual
+pendiente_asociacion
+Regla de clasificación pulida
+Orden correcto de detección
+Siempre así:
 certificado_calidad
 guia_remision
 orden_compra
 factura
 otro
-Porque ahora te pasa esto:
-un certificado menciona “N° Factura” y lo tomas como factura
-una guía menciona “N° Factura” y también la tomas como factura
-Regla concreta
-Si aparece:
+Porque si factura va antes:
+roba guías
+roba certificados
+Lógica documental recomendada
+Si el correo trae:
+Factura legible + factura escaneada + OC
+Resultado:
+FACTURA
+ADJUNTO_FACTURA
+ORDEN_COMPRA
+Certificado de calidad solo
+Resultado:
+CERTIFICADO_CALIDAD
+estado_documento = pendiente_asociacion
+carpeta: pendientes_revision
+Guía sola
+Resultado:
+GUIA_REMISION
+estado_documento = pendiente_asociacion
+carpeta: pendientes_revision
+Factura sin fecha
+Resultado:
+FACTURA
+estado_documento = revision_manual
+carpeta: pendientes_revision
+Qué quedó bien en tu última prueba
+Correctos
+Grupo 04-0001
+factura principal
+OC
+adjunto_factura
+Grupo 04-0002
+factura principal
+OC
+adjunto_factura
+Grupo 04-0003
+factura FE65 correctamente detectada
+Incorrectos
+Correo 13
+Es certificado, no factura.
+Correo 15
+Es guía, no adjunto_factura.
+Correos 1 y 4
+No debieron reprocesarse.
+Qué debes hacer ahora
+Paso 1
+Corregir SQL_SELECT_PENDING.
+Paso 2
+Corregir classifier.py con el orden:
+certificado
+guía
+OC
+factura
+Paso 3
+Mantener mark_documents_as_review() para mandar observados a:
+pendientes_revision
+Paso 4
+No volver a procesar documentos fuera de inbox.
+Estructura final recomendada
 Plain text
-CERTIFICADO DE CALIDAD
-nunca debe salir como factura.
-Si aparece:
-Plain text
-GUIA REMISION ELECTRONICA
-Nro. T073-0665284
-debe salir como guía, aunque también mencione factura.
-Cambio 4: el correo 15 no debe ser ADJUNTO_FACTURA
-Ese documento es guía.
-Tu sistema lo convirtió en adjunto_factura porque la detección previa falló.
-Yo lo corregiría a:
-guia_remision
-y si está sola, entonces estado_documento = pendiente_asociacion
-Mi lectura final del estado actual
-Estado del proyecto
-Diría que estás en un 70%–80% funcional.
-Ya resolviste lo más difícil:
-descarga
-almacenamiento
-unicidad
-OCR
-BD
-renombre
-grupo contable
-cliente destino
-proveedor por RUC
-Ahora lo que queda es principalmente de reglas de negocio finas:
+storage/files/
+  inbox/
+  pendientes_clasificados/
+  pendientes_revision/
+  no_identificados/
+  ocr_tmp/
+Estado final ideal de BD
+correos_ingresados.estado_correo
+Valores recomendados:
+procesado
+procesado_con_observaciones
+sin_factura_principal
+factura_sin_fecha
+documentos.estado_documento
+Valores recomendados:
+clasificado
+adjunto_factura
+pendiente_asociacion
+revision_manual
+no_identificado
+archivos.estado_archivo
+Valores recomendados:
+descargado
+renombrado
+observado
+Mi conclusión final
+Tu sistema sí está bien encaminado.
+Ya superaste la parte más difícil.
+Ahora estás en la etapa de pulido fino:
+evitar reprocesos
+clasificar mejor
+separar revisión manual de clasificados
+Eso ya es una fase normal de maduración del flujo.
+Prioridad exacta
 no reprocesar clasificados
-distinguir guía vs factura
-distinguir certificado vs factura
-mejorar total/importe
-separar revisión manual correctamente
-Qué haría yo en este momento
-1. Primero corregiría esto urgentemente
-quitar clasificado del SQL_SELECT_PENDING
-2. Luego arreglaría classifier.py
-CERTIFICADO DE CALIDAD antes que factura
-GUIA REMISION antes que factura
-3. Después haría una limpieza controlada
-devolver 04-0001 y 04-0002 a pendientes_clasificados
-dejar en pendientes_revision solo lo realmente observado:
-correo 13
-correo 15
-cualquier factura sin fecha real
-Resumen corto
-Tu sistema sí está encaminado y ya hace mucho, pero todavía:
-reprocesa lo que no debe
-clasifica como factura documentos que no lo son
-por eso las carpetas y estados se enredaron
-La base está buena.
-Lo que falta ya no es arquitectura, sino afinar la lógica de selección y clasificación.
-Si quieres, en el siguiente mensaje te doy exactamente:
-el SQL_SELECT_PENDING corregido
-el bloque de detect_tipo_documental() corregido para certificado / guía / factura.
+detectar certificado y guía antes que factura
+mandar observados a pendientes_revision
+Si quieres, ahora te dejo el classifier.py final completo, ya pulido con esas prioridades.
