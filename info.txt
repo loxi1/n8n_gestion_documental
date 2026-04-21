@@ -1,4 +1,5 @@
-ir$ ls -l 6\ PERIODO\ 2026/
+Perfecto esa logica es la mas correcta considerar que en un correo puede llegar la factura y no llegar la OC, tambien quisiera guardar la fecha de emision en la base datos eso me define el mes a donde se dirige la carpeta ademas te muestro la estructura de carpetas donde se debe copiar si todo es correcto, tengo una duda porque poner los meses si en las tablas puedo saber de que mes y el cliente con la factura el ruc me dice la razon social con la orden de compra cliente me dice a quien a sido emitido. que me recomiendas vi que esa carpeta a donde la quiero mover en windows esta protegido por un usuario y una clave.
+BBIT 01$ ls -l 6\ PERIODO\ 2026/
 ls: cannot access '6 PERIODO 2026/': No such file or directory
 
 BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
