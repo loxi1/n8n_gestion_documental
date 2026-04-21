@@ -1,171 +1,221 @@
-Perfecto. Aquí tienes la matriz final de decisión para congelar la lógica de negocio.
-Matriz final de decisión
-1. Si el correo tiene una factura válida
-Condiciones mínimas:
-tipo factura
-RUC extraído o razonablemente identificable
-fecha de emisión identificable
-Entonces:
+Perfecto, aquí lo tienes en formato técnico listo para implementar (tipo tabla de reglas). Esto ya lo puedes usar directamente como guía para tu código 👇
+🧩 MATRIZ TÉCNICA FINAL (IMPLEMENTACIÓN)
+#
+Condición detectada
+Tipo documental
+Estado documento
+Estado correo
+Carpeta destino
 Acción
-esa factura será el documento principal
-se genera grupo_codigo tipo 04-0001
-se toma el mes desde fecha_emision
-se clasifican y renombran los demás adjuntos del correo
-Destino
-carpeta: pendientes_clasificados/YYYY/MM/
-estado correo: procesado
-estado documento: clasificado
-estado archivo: renombrado
-2. Si el correo tiene factura legible y factura escaneada del mismo comprobante
-Condiciones:
-ambas pertenecen al mismo correo
-mismo RUC emisor
-una tiene serie+número y la otra no
-Entonces:
-Acción
-la factura legible = factura
-la escaneada = adjunto_factura
-Destino
-ambas a pendientes_clasificados/YYYY/MM/
-grupo común
-la legible como principal
-3. Si el correo tiene factura y además OC / guía / requerimiento / cotización
-Entonces:
-Acción
-factura = principal
-OC = orden_compra
-guía = guia_remision
-requerimiento = requerimiento_compra
-cotización = cotizacion
-otros PDFs = adjunto_documento
-Destino
-todo a pendientes_clasificados/YYYY/MM/
-mismo grupo_codigo
-4. Si el correo no tiene factura, pero sí documentos útiles
-Ejemplos:
-solo guía
-solo OC
-solo certificado
-solo cotización
-solo requerimiento
-Entonces:
-Acción
-no se genera grupo automático
-sí se guarda el tipo documental detectado
-sí se guarda RUC / serie / número / fecha si existen
-queda pendiente de asociación manual
-Destino
-carpeta: pendientes_revision/YYYY/MM/
-estado correo: sin_factura_principal
-estado documento: pendiente_asociacion
-estado archivo: observado
-5. Si hay factura pero no tiene fecha reconocible
-Entonces:
-Acción
-no clasificar automáticamente
-guardar todo lo extraído
-mandar a revisión
-Destino
-carpeta: pendientes_revision/YYYY/MM/
-estado correo: factura_sin_fecha
-estado documento: revision_manual
-estado archivo: observado
-6. Si el documento no se entiende
-Ejemplos:
-PDF vacío
-OCR fallido
-contenido irreconocible
-archivo extraño
-Entonces:
-Acción
-marcar como no identificado
-guardar nombre original y cualquier metadato mínimo
-Destino
-carpeta: no_identificados/YYYY/MM/
-estado documento: no_identificado
-Tipos documentales definitivos
-Usa estos y no más por ahora:
-Plain text
+1
+Hay factura válida (serie+número+fecha)
 factura
-adjunto_factura
-orden_compra
-guia_remision
-requerimiento_compra
-cotizacion
-certificado_calidad
-adjunto_documento
-otro
-Estados documentales definitivos
-Plain text
 clasificado
-pendiente_asociacion
-revision_manual
-no_identificado
-Estados de correo definitivos
-Plain text
 procesado
-procesado_con_observaciones
+pendientes_clasificados
+Generar grupo + renombrar
+2
+Factura + adjunto escaneado mismo RUC
+adjunto_factura
+clasificado
+procesado
+pendientes_clasificados
+Vincular a factura
+3
+Factura + OC
+orden_compra
+clasificado
+procesado
+pendientes_clasificados
+Asociar al grupo
+4
+Factura + guía
+guia_remision
+clasificado
+procesado
+pendientes_clasificados
+Asociar al grupo
+5
+Factura + requerimiento
+requerimiento_compra
+clasificado
+procesado
+pendientes_clasificados
+Asociar al grupo
+6
+Factura + cotización
+cotizacion
+clasificado
+procesado
+pendientes_clasificados
+Asociar al grupo
+7
+Factura + otros PDFs
+adjunto_documento
+clasificado
+procesado
+pendientes_clasificados
+No romper flujo
+8
+Solo guía (sin factura)
+guia_remision
+pendiente_asociacion
 sin_factura_principal
+pendientes_revision
+Esperar factura
+9
+Solo OC (sin factura)
+orden_compra
+pendiente_asociacion
+sin_factura_principal
+pendientes_revision
+Esperar factura
+10
+Solo requerimiento
+requerimiento_compra
+pendiente_asociacion
+sin_factura_principal
+pendientes_revision
+Esperar factura
+11
+Solo cotización
+cotizacion
+pendiente_asociacion
+sin_factura_principal
+pendientes_revision
+Esperar factura
+12
+Solo certificado / técnico
+certificado_calidad
+pendiente_asociacion
+sin_factura_principal
+pendientes_revision
+Documento soporte
+13
+Factura sin fecha
+factura
+revision_manual
 factura_sin_fecha
+pendientes_revision
+No generar grupo
+14
+OCR detecta factura pero incompleta
+factura
+revision_manual
+pendiente_revision
+pendientes_revision
+Validación manual
+15
+Documento no reconocido
+otro
+no_identificado
+error o pendiente
+no_identificados
+Aislar
+16
+Archivo corrupto / vacío
+otro
+no_identificado
 error
-Estados de archivo definitivos
+no_identificados
+Aislar
+🧠 REGLAS IMPLEMENTABLES (IF REAL)
+🔹 REGLA 1 (LA MÁS IMPORTANTE)
+Python
+if hay_factura_valida:
+    estado_documento = "clasificado"
+    estado_correo = "procesado"
+    carpeta = "pendientes_clasificados"
+🔹 REGLA 2
+Python
+elif hay_documento_util_sin_factura:
+    estado_documento = "pendiente_asociacion"
+    estado_correo = "sin_factura_principal"
+    carpeta = "pendientes_revision"
+🔹 REGLA 3
+Python
+elif factura_sin_fecha:
+    estado_documento = "revision_manual"
+    estado_correo = "factura_sin_fecha"
+    carpeta = "pendientes_revision"
+🔹 REGLA 4
+Python
+elif no_se_reconoce:
+    estado_documento = "no_identificado"
+    carpeta = "no_identificados"
+🧱 MAPEO FINAL A TU CÓDIGO
+🎯 En process_correo()
+1. Selección principal
+Python
+factura_principal = select_factura_principal(enriched)
+2. Decisión principal
+Python
+if not factura_principal:
+    mark_documents_as_review(enriched, "pendiente_asociacion")
+    update_correo_estado(correo_id, "sin_factura_principal")
+    return
+3. Validación fecha
+Python
+if not factura_principal.get("fecha_emision_date"):
+    mark_documents_as_review(enriched, "revision_manual")
+    update_correo_estado(correo_id, "factura_sin_fecha")
+    return
+4. Flujo normal
+Python
+# generar grupo
+# clasificar
+# renombrar
+# mover a pendientes_clasificados
+📂 MAPEO FINAL DE CARPETAS
+Estado documento
+Carpeta
+clasificado
+pendientes_clasificados
+pendiente_asociacion
+pendientes_revision
+revision_manual
+pendientes_revision
+no_identificado
+no_identificados
+🧠 TIPOS DOCUMENTALES (LOCK FINAL)
+Python
+TIPOS_VALIDOS = [
+    "factura",
+    "adjunto_factura",
+    "orden_compra",
+    "guia_remision",
+    "requerimiento_compra",
+    "cotizacion",
+    "certificado_calidad",
+    "adjunto_documento",
+    "otro",
+]
+🔥 TU CASO ACTUAL (VALIDACIÓN REAL)
+Lo que ejecutaste:
 Plain text
-descargado
-renombrado
-observado
-Reglas de carpeta
-inbox/
-Solo lo recién descargado por n8n.
-pendientes_clasificados/
-Solo lo ya resuelto correctamente.
-pendientes_revision/
-Todo lo válido pero que necesita revisión humana.
-no_identificados/
-Lo que no se pudo entender.
-ocr_tmp/
-Solo temporales OCR.
-Regla de oro del sistema
-Si hay factura válida
-Automatiza.
-Si no hay factura válida
-Revisión.
-Si no se entiende
-No identificado.
-Regla de mes
-Siempre usa:
-fecha_emision
-Nunca:
-fecha del correo
-fecha de recepción
-fecha del archivo
-Regla de cliente destino
-Se resuelve por:
-cliente detectado en la factura
-alias de cliente destino
-si no, queda para revisión
-Regla para red compartida
-Todavía no se aplica.
-Primero debe quedar estable:
-n8n descarga bien
-BD guarda bien
-procesar_pendientes.py clasifica bien
-carpetas locales quedan correctas
-Después se hace la copia/movimiento a la red.
-Checklist para dar por estable la lógica local
-Debe cumplirse esto en varias pruebas seguidas:
-factura FE65 sale como factura
-guía sola sale como guia_remision y va a revisión
-certificado sale como certificado_calidad y va a revisión
-grupos 04-000x no se reprocesan
-adjuntos escaneados salen como adjunto_factura
-clasificados no vuelven a pendientes_revision
-Conclusión final
-Tu lógica congelada debe ser esta:
-factura manda, revisión resuelve, BD registra todo, carpetas separan el trabajo humano.
-Si quieres, el siguiente paso es convertir esta matriz en una tabla técnica tipo:
-condición
-tipo documental
-estado
-carpeta
-acción
-para que la tengas como guía de implementación.
+correo 1 → certificado
+correo 2 → guía
+correo 3 → guía con serie
+Resultado correcto:
+Plain text
+todos → pendientes_revision
+estado → pendiente_asociacion
+✔ EXACTAMENTE como debe ser
+🚀 CONCLUSIÓN FINAL
+Ya tienes:
+✅ modelo de datos correcto
+✅ flujo correcto
+✅ carpetas correctas
+✅ clasificación robusta
+✅ lógica escalable
+🧠 FRASE FINAL (YA ESTÁS EN NIVEL PRO)
+👉 “Factura define automatización, lo demás define contexto.”
+👉 SIGUIENTE PASO (cuando tú digas)
+Cuando quieras, avanzamos a:
+🔥 “Copiar automáticamente a red (Y:/…) con validación real”
+creación de carpetas
+manejo de permisos
+fallback si falla
+logging
+Solo dime:
+👉 “vamos a red”
