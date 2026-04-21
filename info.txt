@@ -119,4 +119,196 @@ total 21492
 
  
           
-Si, vamos pero tambien validar este repo: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py y https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/classifier.py
+Sí, sigamos. Con lo que mostraste en consola, el sistema ya está bastante mejor y el siguiente paso correcto es sacar de inbox los correos observados y mandarlos a una carpeta de revisión, para que no se reprocesen siempre.
+Sobre el repo: intenté abrir los raw que me pasaste, pero el visor me devolvió cada archivo como una sola línea de texto plano, así que no permite validación línea por línea desde ahí. � Con lo que sí compartiste aquí en el chat, ya te puedo dar los cambios exactos que faltan.
+GitHub +1
+Qué falta
+1. Nueva carpeta de trabajo
+Usa esta estructura:
+Plain text
+storage/files/
+  inbox/
+  pendientes_clasificados/
+  pendientes_revision/
+  no_identificados/
+  ocr_tmp/
+Crea la carpeta:
+Bash
+mkdir -p storage/files/pendientes_revision/2026/04
+2. Agrega este SQL en procesar_pendientes.py
+Junto a tus otros SQL_*:
+Python
+SQL_UPDATE_DOCUMENTO_ESTADO_SIMPLE = """
+UPDATE documentos
+SET
+    estado_documento = %(estado_documento)s,
+    actualizado_en = NOW()
+WHERE id = %(documento_id)s;
+"""
+3. Agrega este helper
+Ponlo antes de process_correo():
+Python
+def mark_documents_as_review(
+    items: list[dict],
+    estado_documento: str,
+    bucket: str = "pendientes_revision",
+) -> None:
+    for item in items:
+        pdf_path = resolve_absolute_path(item["ruta_temporal"])
+        file_name = item["nombre_archivo_actual"]
+
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+
+        destino_relativo = f"{bucket}/{year}/{month}/{file_name}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO_ESTADO_SIMPLE,
+                {
+                    "estado_documento": estado_documento,
+                    "documento_id": item["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": file_name,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": "observado",
+                    "archivo_id": item["archivo_id"],
+                },
+            )
+4. Cambia los retornos tempranos en process_correo()
+Caso: sin factura principal
+Reemplaza este bloque:
+Python
+if not factura_principal:
+    print(f"[WARN] correo_id={correo_id} sin factura principal")
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=False,
+        estado_correo="sin_factura_principal",
+        observacion="No se encontró factura principal en el correo.",
+    )
+    return
+por este:
+Python
+if not factura_principal:
+    print(f"[WARN] correo_id={correo_id} sin factura principal")
+    mark_documents_as_review(
+        items=enriched,
+        estado_documento="pendiente_asociacion",
+        bucket="pendientes_revision",
+    )
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=False,
+        estado_correo="sin_factura_principal",
+        observacion="No se encontró factura principal en el correo.",
+    )
+    return
+Caso: factura sin fecha
+Reemplaza este bloque:
+Python
+fecha_principal = factura_principal.get("fecha_emision_date")
+if not fecha_principal:
+    print(f"[WARN] correo_id={correo_id} factura sin fecha")
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=False,
+        estado_correo="factura_sin_fecha",
+        observacion="La factura principal no tiene fecha de emisión reconocible.",
+    )
+    return
+por este:
+Python
+fecha_principal = factura_principal.get("fecha_emision_date")
+if not fecha_principal:
+    print(f"[WARN] correo_id={correo_id} factura sin fecha")
+    mark_documents_as_review(
+        items=enriched,
+        estado_documento="revision_manual",
+        bucket="pendientes_revision",
+    )
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=False,
+        estado_correo="factura_sin_fecha",
+        observacion="La factura principal no tiene fecha de emisión reconocible.",
+    )
+    return
+5. Ajuste importante para FE65 en classifier.py
+Por lo que pegaste del correo 14, el documento sí contiene:
+FACTURA ELECTRÓNICA
+Nro. FE65-0812829
+CALLAO, 21 DE ABRIL DEL 2026
+Entonces tu classifier.py debe reconocer esa serie y esa fecha.
+Bloque de patrones para factura
+Asegúrate de que quede así:
+Python
+if doc_type == "factura":
+    patrones = [
+        r"\b(F\d{3,4})[- ](\d{3,})\b",
+        r"\b(FE\d{2,4})[- ](\d{3,})\b",
+        r"\bN[°º]\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+        r"\bNRO\.?\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+    ]
+Bloque de detección de fecha larga
+Asegúrate de que en extract_basic_fields() exista esto:
+Python
+if not fecha_emision:
+    fecha_emision = _search(
+        r"\b([0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
+        text_u
+    )
+Y en normalize_date() debes tener soportado:
+Python
+21 DE ABRIL DEL 2026
+6. Qué espero que pase después
+Correo 13
+Es certificado, no factura principal. Entonces:
+correos_ingresados.estado_correo = sin_factura_principal
+documentos.estado_documento = pendiente_asociacion
+archivo movido a:
+storage/files/pendientes_revision/...
+Correo 14
+Si el classifier.py ya toma bien FE65-0812829 y la fecha larga:
+debería salir como factura
+no debería caer en factura_sin_fecha
+Correo 15
+Es guía sola:
+estado_correo = sin_factura_principal
+estado_documento = pendiente_asociacion
+archivo a pendientes_revision
+7. Consulta para validar después
+Cuando hagas los cambios y corras otra vez:
+SQL
+SELECT id, asunto, estado_correo, procesado, observacion
+FROM correos_ingresados
+ORDER BY id;
+SQL
+SELECT id, correo_id, tipo_documental, estado_documento, nombre_final
+FROM documentos
+ORDER BY id;
+SQL
+SELECT id, documento_id, ruta_temporal, estado_archivo
+FROM archivos
+ORDER BY id;
+Mi lectura final
+Lo que ya está funcionando bien:
+nombres únicos en n8n
+agrupación
+ADJUNTO_FACTURA
+proveedores por RUC
+renombrado consistente
+Lo que falta ahora es solo cerrar el circuito de “observados”:
+moverlos fuera de inbox
+marcar estado documental
+no reintentarlos eternamente
+Si quieres, el siguiente paso puede ser dejar también una tabla de cola de revisión para que la web muestre todo lo que cayó en pendientes_revision.
