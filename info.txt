@@ -120,141 +120,58 @@ total 21492
 Te muestro la estructura de carpetas que se tiene actualmente, si tu decides mejorar los nombre de carpetas o mejorar la nomenctura de los archivos renombrados. como ve es asi la estructura de carpetas a donde se desea mover los archivos *.pdf
 
 
-Se hicieron los cambios:
-def process_correo(items: list[dict]) -> None:
-    enriched = [enrich_document(x) for x in items]
-    print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
-    for d in enriched:
-        print({
-            "documento_id": d["documento_id"],
-            "archivo": d["nombre_archivo_actual"],
-            "tipo": d["fields"]["tipo_documental"],
-            "serie": d["fields"]["serie"],
-            "numero": d["fields"]["numero"],
-            "ruc": d["fields"]["ruc"],
-            "oc": d["fields"].get("oc"),
-            "cliente_raw": d.get("cliente_raw"),
-            "cliente_match": d.get("cliente_match"),
-            "fecha": d.get("fecha_emision_norm"),
-        })
 
-    factura_principal = select_factura_principal(enriched)
-    print("[DEBUG] factura_principal =", factura_principal)
-
-    if not factura_principal:
-        print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
-        return
-
-    fecha_principal = factura_principal["fecha_emision_date"]
-    if not fecha_principal:
-        print(f"[WARN] correo_id={items[0]['correo_id']} factura sin fecha")
-        return
-
-    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
-
-    cliente_match = factura_principal.get("cliente_match")
-    cliente_destino_id = cliente_match["id"] if cliente_match else None
-
-    ruta_windows_final = None
-    if cliente_match:
-        ruta_windows_final = build_windows_target_path(
-            cliente_match["ruta_windows"],
-            fecha_principal,
-        )
-
-    documento_principal_id = factura_principal["documento_id"]
-
-    for doc in enriched:
-        fields = doc["fields"]
-        tipo_documental = fields["tipo_documental"]
-        ruc_emisor = fields["ruc"]
-        razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
-        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
-        proveedor_id = proveedor["id"] if proveedor else None
-
-        if proveedor and proveedor.get("nombre"):
-            razon_social_emisor = proveedor["nombre"]
-
-        es_principal = doc["documento_id"] == documento_principal_id
-        documento_principal_ref = None if es_principal else documento_principal_id
-
-        cliente_id_final = (
-            doc["cliente_match"]["id"]
-            if doc.get("cliente_match")
-            else cliente_destino_id
-        )
-
-        if (
-            tipo_documental == "factura"
-            and not fields["serie"]
-            and not fields["numero"]
-            and ruc_emisor
-            and factura_principal["fields"]["ruc"] == ruc_emisor
-        ):
-            tipo_documental = "adjunto_factura"
-
-        nombre_final = build_final_name(
-            grupo_codigo=grupo_codigo,
-            tipo_documental=tipo_documental,
-            serie=fields["serie"],
-            numero=fields["numero"],
-            ruc_emisor=ruc_emisor,
-            razon_social_emisor=razon_social_emisor,
-            fallback_name=doc["nombre_archivo_actual"],
-        )
-
-        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-
-        estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
-        bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
-
-        destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
-        destino_abs = STORAGE_DIR / destino_relativo
-
-        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
-            move_file(pdf_path, destino_abs)
-
-        with get_cursor(commit=True) as (_, cur):
-            cur.execute(
-                SQL_UPDATE_DOCUMENTO,
-                {
-                    "proveedor_id": proveedor_id,
-                    "cliente_destino_id": cliente_id_final,
-                    "tipo_documental": tipo_documental,
-                    "serie": fields["serie"],
-                    "numero": fields["numero"],
-                    "ruc": ruc_emisor,
-                    "razon_social": razon_social_emisor,
-                    "fecha_emision": doc["fecha_emision_norm"],
-                    "importe": fields["importe"],
-                    "estado_documento": estado_documento,
-                    "grupo_codigo": grupo_codigo,
-                    "correlativo_mes": correlativo_mes,
-                    "es_principal": es_principal,
-                    "documento_principal_id": documento_principal_ref,
-                    "nombre_final": nombre_final,
-                    "ruta_windows_final": ruta_windows_final,
-                    "documento_id": doc["documento_id"],
-                },
-            )
-
-            cur.execute(
-                SQL_UPDATE_ARCHIVO,
-                {
-                    "nombre_archivo_actual": nombre_final,
-                    "ruta_temporal": destino_relativo,
-                    "estado_archivo": "renombrado",
-                    "archivo_id": doc["archivo_id"],
-                },
-            )
-
-        print(
-            f"[OK] correo={doc['correo_id']} "
-            f"doc={doc['documento_id']} "
-            f"tipo={tipo_documental} "
-            f"grupo={grupo_codigo} "
-            f"nombre={nombre_final}"
-        )
-revisar: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py y https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/file_manager.py
+Sí, ya revisé lo que quedó en el repo y la lógica nueva sí está puesta:
+en procesar_pendientes.py ya existe la reclasificación a adjunto_factura cuando un documento viene como factura pero no tiene serie ni numero, y comparte el mismo ruc de la factura principal del grupo. �
+GitHub +1
+en file_manager.py también ya existe el tipo adjunto_factura y está mapeado a ADJUNTO_FACTURA en el nombre final. �
+GitHub
+Entonces, ¿por qué sigues viendo FACTURA?
+Porque lo que pegaste de pendientes_clasificados y de la BD corresponde a una corrida donde esos archivos todavía no habían sido regenerados con la última lógica, o no se reprocesaron esos documentos ya renombrados.
+Con el código actual del repo, esos archivos escaneados sin serie/número ya no deberían salir como FACTURA, sino como ADJUNTO_FACTURA. La condición está exactamente antes de build_final_name(). �
+GitHub +1
+Tu regla de negocio ahora sí quedó bien definida
+Para un mismo grupo:
+PDF legible de factura → FACTURA
+PDF escaneado/anexo de esa misma factura, sin serie/número → ADJUNTO_FACTURA
+OC → ORDEN_COMPRA
+Y eso encaja perfecto con lo que explicaste del check con lapicero.
+Lo que yo haría ya
+Haz un reproceso limpio de esos 2 correos con la versión actual:
+borra de BD los registros procesados de esos correos
+borra de pendientes_clasificados/2026/04/ esos 6 archivos
+deja los originales en inbox
+vuelve a correr python procesar_pendientes.py
+Resultado esperado
+Te deberían quedar así:
+Grupo 04-0001
+Plain text
+04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf
+Grupo 04-0002
+Plain text
+04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf
+Para confirmar que realmente entró la nueva lógica
+Agrega temporalmente este debug justo después del if que cambia a adjunto_factura:
+Python
+if (
+    tipo_documental == "factura"
+    and not fields["serie"]
+    and not fields["numero"]
+    and ruc_emisor
+    and factura_principal["fields"]["ruc"] == ruc_emisor
+):
+    tipo_documental = "adjunto_factura"
+    print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
+Si al correr no aparece ese mensaje para los PDFs escaneados, entonces no estás reprocesando esos archivos correctos o estás mirando resultados de una corrida anterior.
+Mi opinión
+La mejora está bien hecha.
+La regla ADJUNTO_FACTURA es la correcta para tu caso real, porque:
+no pierdes el PDF escaneado
+no duplicas “facturas” visualmente
+mantienes agrupación limpia por grupo
+queda claro cuál es la factura válida y cuál es el respaldo escaneado
+Pégame la nueva salida de python procesar_pendientes.py después del reproceso y ahí confirmamos que ya quedó cerrada esta parte.
