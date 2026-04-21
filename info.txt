@@ -1,221 +1,198 @@
-Perfecto, aquí lo tienes en formato técnico listo para implementar (tipo tabla de reglas). Esto ya lo puedes usar directamente como guía para tu código 👇
-🧩 MATRIZ TÉCNICA FINAL (IMPLEMENTACIÓN)
-#
-Condición detectada
-Tipo documental
-Estado documento
-Estado correo
-Carpeta destino
-Acción
-1
-Hay factura válida (serie+número+fecha)
-factura
-clasificado
-procesado
-pendientes_clasificados
-Generar grupo + renombrar
-2
-Factura + adjunto escaneado mismo RUC
-adjunto_factura
-clasificado
-procesado
-pendientes_clasificados
-Vincular a factura
-3
-Factura + OC
-orden_compra
-clasificado
-procesado
-pendientes_clasificados
-Asociar al grupo
-4
-Factura + guía
-guia_remision
-clasificado
-procesado
-pendientes_clasificados
-Asociar al grupo
-5
-Factura + requerimiento
-requerimiento_compra
-clasificado
-procesado
-pendientes_clasificados
-Asociar al grupo
-6
-Factura + cotización
-cotizacion
-clasificado
-procesado
-pendientes_clasificados
-Asociar al grupo
-7
-Factura + otros PDFs
-adjunto_documento
-clasificado
-procesado
-pendientes_clasificados
-No romper flujo
-8
-Solo guía (sin factura)
-guia_remision
-pendiente_asociacion
-sin_factura_principal
-pendientes_revision
-Esperar factura
-9
-Solo OC (sin factura)
-orden_compra
-pendiente_asociacion
-sin_factura_principal
-pendientes_revision
-Esperar factura
-10
-Solo requerimiento
-requerimiento_compra
-pendiente_asociacion
-sin_factura_principal
-pendientes_revision
-Esperar factura
-11
-Solo cotización
-cotizacion
-pendiente_asociacion
-sin_factura_principal
-pendientes_revision
-Esperar factura
-12
-Solo certificado / técnico
-certificado_calidad
-pendiente_asociacion
-sin_factura_principal
-pendientes_revision
-Documento soporte
-13
-Factura sin fecha
-factura
-revision_manual
-factura_sin_fecha
-pendientes_revision
-No generar grupo
-14
-OCR detecta factura pero incompleta
-factura
-revision_manual
-pendiente_revision
-pendientes_revision
-Validación manual
-15
-Documento no reconocido
-otro
-no_identificado
-error o pendiente
-no_identificados
-Aislar
-16
-Archivo corrupto / vacío
-otro
-no_identificado
-error
-no_identificados
-Aislar
-🧠 REGLAS IMPLEMENTABLES (IF REAL)
-🔹 REGLA 1 (LA MÁS IMPORTANTE)
-Python
-if hay_factura_valida:
-    estado_documento = "clasificado"
-    estado_correo = "procesado"
-    carpeta = "pendientes_clasificados"
-🔹 REGLA 2
-Python
-elif hay_documento_util_sin_factura:
-    estado_documento = "pendiente_asociacion"
-    estado_correo = "sin_factura_principal"
-    carpeta = "pendientes_revision"
-🔹 REGLA 3
-Python
-elif factura_sin_fecha:
-    estado_documento = "revision_manual"
-    estado_correo = "factura_sin_fecha"
-    carpeta = "pendientes_revision"
-🔹 REGLA 4
-Python
-elif no_se_reconoce:
-    estado_documento = "no_identificado"
-    carpeta = "no_identificados"
-🧱 MAPEO FINAL A TU CÓDIGO
-🎯 En process_correo()
-1. Selección principal
-Python
-factura_principal = select_factura_principal(enriched)
-2. Decisión principal
-Python
-if not factura_principal:
-    mark_documents_as_review(enriched, "pendiente_asociacion")
-    update_correo_estado(correo_id, "sin_factura_principal")
-    return
-3. Validación fecha
-Python
-if not factura_principal.get("fecha_emision_date"):
-    mark_documents_as_review(enriched, "revision_manual")
-    update_correo_estado(correo_id, "factura_sin_fecha")
-    return
-4. Flujo normal
-Python
-# generar grupo
-# clasificar
-# renombrar
-# mover a pendientes_clasificados
-📂 MAPEO FINAL DE CARPETAS
-Estado documento
-Carpeta
-clasificado
-pendientes_clasificados
-pendiente_asociacion
-pendientes_revision
-revision_manual
-pendientes_revision
-no_identificado
-no_identificados
-🧠 TIPOS DOCUMENTALES (LOCK FINAL)
-Python
-TIPOS_VALIDOS = [
-    "factura",
-    "adjunto_factura",
-    "orden_compra",
-    "guia_remision",
-    "requerimiento_compra",
-    "cotizacion",
-    "certificado_calidad",
-    "adjunto_documento",
-    "otro",
-]
-🔥 TU CASO ACTUAL (VALIDACIÓN REAL)
-Lo que ejecutaste:
-Plain text
-correo 1 → certificado
-correo 2 → guía
-correo 3 → guía con serie
-Resultado correcto:
-Plain text
-todos → pendientes_revision
-estado → pendiente_asociacion
-✔ EXACTAMENTE como debe ser
-🚀 CONCLUSIÓN FINAL
-Ya tienes:
-✅ modelo de datos correcto
-✅ flujo correcto
-✅ carpetas correctas
-✅ clasificación robusta
-✅ lógica escalable
-🧠 FRASE FINAL (YA ESTÁS EN NIVEL PRO)
-👉 “Factura define automatización, lo demás define contexto.”
-👉 SIGUIENTE PASO (cuando tú digas)
-Cuando quieras, avanzamos a:
-🔥 “Copiar automáticamente a red (Y:/…) con validación real”
-creación de carpetas
-manejo de permisos
-fallback si falla
-logging
-Solo dime:
-👉 “vamos a red”
+from __future__ import annotations
+
+import re
+from typing import Any
+from core.text_utils import normalize_text
+
+
+def _search(pattern: str, text: str, flags: int = re.IGNORECASE) -> str | None:
+    match = re.search(pattern, text, flags)
+    return match.group(1).strip() if match else None
+
+
+def detect_tipo_documental(text: str, file_name: str) -> str:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
+
+    # 1. CERTIFICADO DE CALIDAD
+    if (
+        "CERTIFICADO DE CALIDAD" in text_u
+        or "CERT. DE CALIDAD" in text_u
+        or "CERTIFICADO" in name_u
+    ):
+        return "certificado_calidad"
+
+    # 2. GUIA DE REMISION
+    if (
+        "GUIA REMISION ELECTRONICA" in text_u
+        or "GUIA DE REMISION ELECTRONICA" in text_u
+        or "GUIA DE REMISION" in text_u
+        or re.search(r"\bNRO\.?\s*T\d{3}[- ]\d+\b", text_u)
+        or re.search(r"\bT\d{3}[- ]\d+\b", name_u)
+        or re.search(r"\bGR\d{3}[- ]\d+\b", name_u)
+    ):
+        return "guia_remision"
+
+    # 3. ORDEN DE COMPRA
+    if (
+        "ORDEN DE COMPRA" in text_u
+        or "ORDEN DE COMRA" in text_u
+        or re.search(r"\bOC[- ]?\d{4,}\b", text_u)
+        or re.search(r"\bOC[- ]?\d{4,}\b", name_u)
+    ):
+        return "orden_compra"
+
+    # 4. REQUERIMIENTO
+    if (
+        "REQUERIMIENTO DE COMPRA" in text_u
+        or "REQUERIMIENTO" in text_u
+        or re.search(r"\bREQ[- ]?\d{3,}\b", text_u)
+        or re.search(r"\bREQ[- ]?\d{3,}\b", name_u)
+    ):
+        return "requerimiento_compra"
+
+    # 5. COTIZACION
+    if (
+        "COTIZACION" in text_u
+        or "COTIZACIÓN" in text_u
+        or "PROFORMA" in text_u
+        or "COTIZACION" in name_u
+        or "COTIZACIÓN" in name_u
+        or "PROFORMA" in name_u
+    ):
+        return "cotizacion"
+
+    # 6. FACTURA
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or "FACTURA" in text_u
+        or re.search(r"\bF\d{3,4}-\d+\b", text_u)
+        or re.search(r"\bF\d{3,4}-\d+\b", name_u)
+        or re.search(r"\bFE\d{2,4}-\d+\b", text_u)
+        or re.search(r"\bFE\d{2,4}-\d+\b", name_u)
+        or re.search(r"\bNRO\.?\s*F[A-Z0-9]{2,4}-\d+\b", text_u)
+    ):
+        return "factura"
+
+    return "otro"
+
+
+def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
+    text_u = normalize_text(text)
+    doc_type = detect_tipo_documental(text, file_name)
+
+    ruc = None
+    serie = None
+    numero = None
+    fecha_emision = None
+    importe = None
+    oc = None
+
+    # RUC
+    ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
+    if not ruc:
+        ruc = _search(r"\bR\.U\.C\.?\s*(?:N[°º.]?)?\s*([0-9]{11})\b", text_u)
+    if not ruc:
+        ruc = _search(r"\bREG\.?\s*UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b", text_u)
+
+    # Serie / número por tipo
+    if doc_type == "factura":
+        patrones = [
+            r"\b(F\d{3,4})[- ](\d{3,})\b",
+            r"\b(FE\d{2,4})[- ](\d{3,})\b",
+            r"\bN[°º]\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+            r"\bNRO\.?\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+        ]
+        for patron in patrones:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                serie = m.group(1).strip()
+                numero = m.group(2).strip()
+                break
+
+    elif doc_type == "guia_remision":
+        patrones = [
+            r"\b(T\d{3})[- ](\d{3,})\b",
+            r"\b(GR\d{3})[- ](\d{3,})\b",
+            r"\bNRO\.?\s*(T\d{3})[- ](\d{3,})\b",
+        ]
+        for patron in patrones:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                serie = m.group(1).strip()
+                numero = m.group(2).strip()
+                break
+
+    elif doc_type == "orden_compra":
+        patrones = [
+            r"\bOC[- ]?(\d{4,})\b",
+            r"\bORDEN DE COMPRA\s*N[^0-9]{0,5}([0-9]{4,})\b",
+        ]
+        for patron in patrones:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                serie = "OC"
+                numero = m.group(1).strip()
+                break
+
+    elif doc_type == "requerimiento_compra":
+        patrones = [
+            r"\bREQ[- ]?(\d{3,})\b",
+            r"\bREQUERIMIENTO(?: DE COMPRA)?\s*N[^0-9]{0,5}([0-9]{3,})\b",
+        ]
+        for patron in patrones:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                serie = "REQ"
+                numero = m.group(1).strip()
+                break
+
+    # Fecha
+    fecha_emision = _search(
+        r"\bFECHA(?: DE EMISION| DE EMISION:| DE EMISION\s*:)?\s*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
+        text_u,
+    )
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}-[0-9]{2}-[0-9]{4})\b", text_u)
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
+    if not fecha_emision:
+        fecha_emision = _search(
+            r"\b([0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
+            text_u,
+        )
+    if not fecha_emision:
+        fecha_emision = _search(r"\bFECHA\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
+
+    # OC
+    oc = _search(r"\bOC[:\s]*([0-9]{4,})\b", text_u)
+    if not oc:
+        oc = _search(r"\bN[°º]?\s*OC[:\s]*([0-9]{4,})\b", text_u)
+
+    # Importe
+    patrones_importe = [
+        r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*\(\$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*[:.]?\s*([0-9][0-9.,]*)\b",
+    ]
+    for patron in patrones_importe:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            importe = m.group(1).strip()
+            break
+
+    return {
+        "tipo_documental": doc_type,
+        "serie": serie,
+        "numero": numero,
+        "ruc": ruc,
+        "fecha_emision": fecha_emision,
+        "importe": importe,
+        "oc": oc,
+    }
