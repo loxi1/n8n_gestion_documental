@@ -3,9 +3,10 @@ from __future__ import annotations
 import platform
 import re
 import subprocess
-import requests
 from datetime import datetime, date
 from pathlib import Path
+
+import requests
 
 from core.config import STORAGE_DIR, OCR_TMP_DIR, APISPERU_TOKEN
 from core.db import get_cursor
@@ -13,12 +14,7 @@ from core.extractor_pdf import extract_text_from_pdf
 from core.classifier import extract_basic_fields
 from core.file_manager import build_final_name, move_file
 from core.clientes_destino import extract_cliente_destino_raw, find_cliente_destino_by_alias
-from core.grupo_documental import (
-    get_next_correlativo_mes,
-    extract_oc,
-    build_operation_key,
-    select_factura_principal,
-)
+from core.grupo_documental import get_next_correlativo_mes, select_factura_principal
 from core.text_utils import normalize_text
 from core.windows_path import build_windows_target_path
 
@@ -41,7 +37,7 @@ SELECT
     a.nombre_archivo_original
 FROM documentos d
 JOIN archivos a ON a.documento_id = d.id
-WHERE d.estado_documento IN ('pendiente', 'no_identificado', 'clasificado', 'error')
+WHERE d.estado_documento IN ('pendiente', 'error')
 ORDER BY d.id ASC;
 """
 
@@ -296,24 +292,6 @@ def update_correo_estado(
                 "observacion": observacion,
             },
         )
-
-
-def try_extract_razon_social(text: str, fallback: str | None = None) -> str:
-    text_n = normalize_text(text)
-
-    patrones = [
-        r"\bEMISOR[:\s]+(.+?)(?:\bDIRECCION\b|\bRUC\b)",
-        r"\b^([A-Z0-9 .,&-]{5,})\b.*?\bRUC[:\s]",
-    ]
-
-    for patron in patrones:
-        m = re.search(patron, text_n, re.IGNORECASE | re.DOTALL | re.MULTILINE)
-        if m:
-            value = re.sub(r"\s+", " ", m.group(1)).strip(" -:")
-            if value:
-                return value
-
-    return fallback or "SIN_RAZON_SOCIAL"
 
 
 def mark_documents_as_review(
