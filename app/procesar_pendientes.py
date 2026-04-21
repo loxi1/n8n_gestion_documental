@@ -95,6 +95,13 @@ SET
 WHERE id = %(correo_id)s;
 """
 
+SQL_UPDATE_DOCUMENTO_ESTADO_SIMPLE = """
+UPDATE documentos
+SET
+    estado_documento = %(estado_documento)s,
+    actualizado_en = NOW()
+WHERE id = %(documento_id)s;
+"""
 
 def fetch_proveedor_from_api(ruc: str) -> dict | None:
     if not ruc or not APISPERU_TOKEN:
@@ -427,6 +434,39 @@ def save_processed_document(item: dict) -> None:
             },
         )
 
+def mark_documents_as_review(items: list[dict], estado_documento: str, bucket: str = "pendientes_revision") -> None:
+    for item in items:
+        pdf_path = resolve_absolute_path(item["ruta_temporal"])
+        file_name = item["nombre_archivo_actual"]
+
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+
+        destino_relativo = f"{bucket}/{year}/{month}/{file_name}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO_ESTADO_SIMPLE,
+                {
+                    "estado_documento": estado_documento,
+                    "documento_id": item["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": file_name,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": "observado",
+                    "archivo_id": item["archivo_id"],
+                },
+            )
+
 def update_correo_estado(
     correo_id: int,
     procesado: bool,
@@ -467,13 +507,18 @@ def process_correo(items: list[dict]) -> None:
 
     correo_id = items[0]["correo_id"]
 
-    if not factura_principal:
-        print(f"[WARN] correo_id={correo_id} sin factura principal")
+    if not fecha_principal:
+        print(f"[WARN] correo_id={correo_id} factura sin fecha")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="revision_manual",
+            bucket="pendientes_revision",
+        )
         update_correo_estado(
             correo_id=correo_id,
             procesado=False,
-            estado_correo="sin_factura_principal",
-            observacion="No se encontró factura principal en el correo.",
+            estado_correo="factura_sin_fecha",
+            observacion="La factura principal no tiene fecha de emisión reconocible.",
         )
         return
 
