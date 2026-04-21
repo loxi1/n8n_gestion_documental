@@ -1,4 +1,4 @@
-$ ls -l 6\ PERIODO\ 2026/
+ir$ ls -l 6\ PERIODO\ 2026/
 ls: cannot access '6 PERIODO 2026/': No such file or directory
 
 BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
@@ -117,99 +117,268 @@ total 21492
 -rw-r--r-- 1 BBTI 01 197121  75299 Mar 17 10:01 13.pdf
 ...
 
-Estoy deacuerdo contigo si el documento ya se copio a pendientes_clasificados por favor elimnar de ocr_tmp porque y con respecto a los estados en la tabla me ayudas a definir para que no vuelva a generar otra vez esta es los datos de la tabla formada.
-select * from archivos;
- id | documento_id | correo_id |     nombre_archivo_original     |                         nombre_archivo_actual                          | extensio
-n |    mime_type    | tamano_bytes | hash_sha256 |                                             ruta_temporal
-      | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
-----+--------------+-----------+---------------------------------+------------------------------------------------------------------------+---------
---+-----------------+--------------+-------------+--------------------------------------------------------------------------------------------------
-------+------------+--------------+----------------+----------------------------+----------------------------
-  1 |            1 |         1 | 20100084172-01-F231-0101493.pdf | 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | .pdf
-  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_
-A.pdf |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.385236
-  2 |            2 |         1 | 007886.pdf                      | 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf                 | .pdf
-  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf
-      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.436025
-  3 |            3 |         1 | F231-00101493.pdf               | 04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | .pdf
-  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.484127
-  4 |            4 |         4 | 20100084172-01-F231-0101492.pdf | 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | .pdf
-  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_
-A.pdf |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.000641
-  5 |            5 |         4 | 007898.pdf                      | 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf                 | .pdf
-  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf
-      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.047584
-  6 |            6 |         4 | F231-00101492.pdf               | 04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | .pdf
-  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.094866
-(6 rows)
+ 
+Sí, esa decisión está bien: si el documento ya quedó movido a pendientes_clasificados, el PDF temporal generado en ocr_tmp debe eliminarse.
+Además, con lo que mostraste de tus tablas, el problema central ya está claro:
+En procesar_pendientes.py, tu consulta de pendientes todavía incluye clasificado, no_identificado y error, por eso el proceso puede volver a traer documentos ya trabajados. �
+GitHub +1
+Cuando el archivo se procesa, el script ya actualiza documentos.estado_documento y archivos.estado_archivo, y mueve el archivo físico con move_file(...), que usa shutil.move(...). �
+GitHub +1
+En tu ejecución real, los documentos quedaron con estado_documento='clasificado' y los archivos con estado_archivo='renombrado', así que el dato ya existe para cortar el reprocesamiento. �
+GitHub
+Te propongo dejarlo así, simple y estable.
+1) Estados recomendados
+documentos.estado_documento
+Usaría solo estos:
+pendiente → recién descargado, aún no procesado
+procesando → opcional, si quieres evitar doble ejecución simultánea
+clasificado → ya terminó bien, ya no se vuelve a tocar
+no_identificado → se procesó pero no se pudo clasificar correctamente
+error → falló por excepción técnica
+archivos.estado_archivo
+Usaría estos:
+descargado → llegó desde n8n / correo
+ocr_generado → opcional, solo si quieres auditar OCR
+movido o renombrado → ya quedó en destino final
+error → falló algo con el archivo
+En tu caso, puedes seguir con renombrado, porque ya lo vienes usando. No hace falta inventar otro si ya te sirve.
+2) Regla para no reprocesar
+La regla debe ser esta:
+solo se procesan documentos con estado_documento = 'pendiente'
+opcionalmente también error, si quieres reintentos manuales o automáticos
+Yo dejaría por ahora:
+SQL
+WHERE d.estado_documento IN ('pendiente', 'error')
+y no incluiría clasificado ni no_identificado.
+Cambio exacto
+Ahora tienes esto: �
+GitHub
+Python
+SQL_SELECT_PENDING = """
+SELECT
+ d.id AS documento_id,
+ d.correo_id,
+ d.proveedor_id,
+ d.tipo_documental,
+ d.serie,
+ d.numero,
+ d.ruc,
+ d.razon_social,
+ d.fecha_emision,
+ d.estado_documento,
+ a.id AS archivo_id,
+ a.ruta_temporal,
+ a.nombre_archivo_actual,
+ a.nombre_archivo_original
+FROM documentos d
+JOIN archivos a ON a.documento_id = d.id
+WHERE d.estado_documento IN ('pendiente', 'no_identificado', 'clasificado', 'error')
+ORDER BY d.id ASC;
+"""
+Déjalo así:
+Python
+SQL_SELECT_PENDING = """
+SELECT
+ d.id AS documento_id,
+ d.correo_id,
+ d.proveedor_id,
+ d.tipo_documental,
+ d.serie,
+ d.numero,
+ d.ruc,
+ d.razon_social,
+ d.fecha_emision,
+ d.estado_documento,
+ a.id AS archivo_id,
+ a.ruta_temporal,
+ a.nombre_archivo_actual,
+ a.nombre_archivo_original
+FROM documentos d
+JOIN archivos a ON a.documento_id = d.id
+WHERE d.estado_documento IN ('pendiente', 'error')
+ORDER BY d.id ASC;
+"""
+Y también cambia esta otra consulta, porque ahorita repite el mismo problema: �
+GitHub
+Python
+SQL_SELECT_CORREOS_PENDIENTES = """
+SELECT DISTINCT correo_id
+FROM documentos
+WHERE estado_documento IN ('pendiente', 'no_identificado', 'clasificado', 'error')
+ AND correo_id IS NOT NULL
+ORDER BY correo_id;
+"""
+por esta:
+Python
+SQL_SELECT_CORREOS_PENDIENTES = """
+SELECT DISTINCT correo_id
+FROM documentos
+WHERE estado_documento IN ('pendiente', 'error')
+  AND correo_id IS NOT NULL
+ORDER BY correo_id;
+"""
+3) Cuándo borrar ocr_tmp
+Debe borrarse solo si:
+el OCR temporal existe
+el documento terminó en clasificado
+el archivo final realmente quedó en destino
+Eso evita borrar evidencia si hubo falla a mitad del proceso.
+Ahora mismo, en enrich_document(...) generas el OCR en OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}", pero no lo retornas para usarlo después. �
+GitHub
+Entonces conviene hacer dos cambios.
+Cambio A: devolver la ruta OCR desde enrich_document
+Agrega una variable ocr_output_path:
+Python
+def enrich_document(item: dict) -> dict:
+    pdf_path = resolve_absolute_path(item["ruta_temporal"])
+    text = ""
+    ocr_output_path = None
 
+    try:
+        text = extract_text_from_pdf(pdf_path)
+    except Exception:
+        text = ""
 
-gestiondocumental=# select * from documentos;
- id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero  |     ruc     |       razon_social        | fecha_emision | fecha_venc
-imiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |         creado_en
-          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_id |
-                nombre_final                              |            ruta_windows_final
-----+-----------+--------------+-----------------+----------+-------+---------+-------------+---------------------------+---------------+-----------
---------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+-------------           |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.047584
-  6 |            6 |         4 | F231-00101492.pdf               | 04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | .pd
-f      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRIC
-OS_S_A.pdf      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.094866
-(6 rows)
+    if not text.strip():
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
+        ocr_ok = run_ocr(pdf_path, ocr_output)
 
+        if ocr_ok and ocr_output.exists():
+            ocr_output_path = ocr_output
+            try:
+                text = extract_text_from_pdf(ocr_output)
+            except Exception:
+                text = ""
 
-gestiondocumental=# select * from documentos;
- id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero  |     ruc     |       razon_social        | fecha_emision | fecha
-_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |
- creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_id
-|                              nombre_final                              |            ruta_windows_final
-----+-----------+--------------+-----------------+----------+-------+---------+-------------+---------------------------+---------------+------
--------------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+--------
---------------------+----------------------------+--------------------+--------------+-----------------+--------------+------------------------
-+------------------------------------------------------------------------+------------------------------------------
-  1 |         1 |          754 | factura         |          | F231  | 0101493 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
-             |        |  555.70 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
--21 12:02:50.079706 | 2026-04-21 12:04:23.385236 |                  2 | 04-0001      |               1 | t            |
-| 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-  2 |         1 |         1655 | orden_compra    |          | OC    | 007886  | 20565747356 | BBTI S.A.C.               |               |
-             |        |  470.98 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
--21 12:02:50.079706 | 2026-04-21 12:04:23.436025 |                  2 | 04-0001      |               1 | f            |                      1
-| 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf                 | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-  3 |         1 |          754 | adjunto_factura |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-05-30    |
-             |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
--21 12:02:50.079706 | 2026-04-21 12:04:23.484127 |                  2 | 04-0001      |               1 | f            |                      1
-| 04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-  4 |         4 |          754 | factura         |          | F231  | 0101492 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
-             |        |   77.36 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
--21 12:02:50.079706 | 2026-04-21 12:04:28.000641 |                  2 | 04-0002      |               2 | t            |
-| 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-  5 |         4 |         1655 | orden_compra    |          | OC    | 007898  | 20565747356 | BBTI S.A.C.               |               |
-             |        |   65.56 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
--21 12:02:50.079706 | 2026-04-21 12:04:28.047584 |                  2 | 04-0002      |               2 | f            |                      4
-| 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf                 | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-  6 |         4 |          754 | adjunto_factura |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
-             |        |   77.36 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
--21 12:02:50.079706 | 2026-04-21 12:04:28.094866 |                  2 | 04-0002      |               2 | f            |                      4
-| 04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | \\\\servidor\\documentos\\BBTI SAC\ABRIL
-(6 rows)
+    fields = extract_basic_fields(text, item["nombre_archivo_original"])
+    cliente_raw = extract_cliente_destino_raw(text)
+    cliente_match = find_cliente_destino_by_alias(cliente_raw)
 
+    return {
+        **item,
+        "text": text,
+        "fields": fields,
+        "cliente_raw": cliente_raw,
+        "cliente_match": cliente_match,
+        "ocr_output_path": str(ocr_output_path) if ocr_output_path else None,
+        # lo demás que ya retornas
+    }
+Cambio B: borrar el OCR luego del move exitoso
+Dentro de process_correo(...), después de mover el archivo y actualizar BD, agrega la limpieza.
+Tú ya mueves con move_file(pdf_path, destino_abs) y luego actualizas documentos y archivos. �
+GitHub +1
+Quedaría así:
+Python
+from pathlib import Path
 
-gestiondocumental=# SELECT * FROM correos_ingresados ORDER BY id DESC;
- id | origen | proveedor_correo |                  message_id                   | thread_id | remitente_nombre |           remitente_email
-      | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                     asunto                      | cuerpo_texto | cu
-erpo_html |    fecha_correo     |     fecha_recepcion      | leido | procesado | estado_correo | cantidad_adjuntos | observacion |        cread
-o_en         |       actualizado_en
-----+--------+------------------+-----------------------------------------------+-----------+------------------+-------------------------------
-------+----------+-------------------+-----------------+------------------+-------------------------------------------------+--------------+---
-----------+---------------------+--------------------------+-------+-----------+---------------+-------------------+-------------+-------------
--------------+----------------------------
-  4 | correo | imap             | <69e69d4e.050a0220.20184c.69bb@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
-l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101492 - BBTI S.A.C. |              |
-          | 2026-04-20 21:40:30 | 2026-04-21 12:02:39.1794 | f     | f         | descargado    |                 1 |             | 2026-04-21 1
-2:02:39.1794 | 2026-04-21 12:02:47.355033
-  1 | correo | imap             | <69e69d97.050a0220.1b82a7.1b03@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
-l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101493 - BBTI S.A.C. |              |
-          | 2026-04-20 21:41:43 | 2026-04-21 12:02:39.1794 | f     | f         | descargado    |                 1 |             | 2026-04-21 1
-2:02:39.1794 | 2026-04-21 12:02:47.355033
-(2 rows)
+# dentro del for doc in enriched o donde corresponda
+ocr_output_path = doc.get("ocr_output_path")
+
+if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+    move_file(pdf_path, destino_abs)
+
+with get_cursor(commit=True) as (_, cur):
+    cur.execute(
+        SQL_UPDATE_DOCUMENTO,
+        {
+            "proveedor_id": proveedor_id,
+            "cliente_destino_id": cliente_id_final,
+            "tipo_documental": tipo_documental,
+            "serie": fields["serie"],
+            "numero": fields["numero"],
+            "ruc": ruc_emisor,
+            "razon_social": razon_social_emisor,
+            "fecha_emision": doc["fecha_emision_norm"],
+            "importe": fields["importe"],
+            "estado_documento": estado_documento,
+            "grupo_codigo": grupo_codigo,
+            "correlativo_mes": correlativo_mes,
+            "es_principal": es_principal,
+            "documento_principal_id": documento_principal_ref,
+            "nombre_final": nombre_final,
+            "ruta_windows_final": ruta_windows_final,
+            "documento_id": doc["documento_id"],
+        },
+    )
+
+    cur.execute(
+        SQL_UPDATE_ARCHIVO,
+        {
+            "nombre_archivo_actual": nombre_final,
+            "ruta_temporal": destino_relativo,
+            "estado_archivo": "renombrado",
+            "archivo_id": doc["archivo_id"],
+        },
+    )
+
+# borrar OCR temporal solo si todo salió bien
+if estado_documento == "clasificado" and ocr_output_path:
+    try:
+        ocr_path = Path(ocr_output_path)
+        if ocr_path.exists():
+            ocr_path.unlink()
+            print(f"[DEBUG] OCR temporal eliminado: {ocr_path.name}")
+    except Exception as e:
+        print(f"[WARN] no se pudo eliminar OCR temporal {ocr_output_path}: {e}")
+4) Qué haría con correos_ingresados
+Tu tabla correos_ingresados todavía muestra:
+procesado = f
+estado_correo = descargado
+aunque sus documentos ya quedaron clasificados. Eso te puede generar confusión operativa. Según lo que muestras, el correo ya pasó de descarga y sus adjuntos ya fueron tratados.
+Yo usaría esto:
+correos_ingresados.estado_correo
+descargado → solo llegó el correo y se guardaron adjuntos
+procesado → todos sus documentos terminaron en clasificado o no_identificado
+error → hubo falla técnica al procesar el correo
+Y además:
+procesado = true cuando termine el lote del correo
+Entonces, cuando termine process_correo(items), podrías evaluar:
+si todos los documentos del correo quedaron en clasificado o no_identificado
+marcar el correo como procesado
+Ejemplo SQL:
+SQL
+UPDATE correos_ingresados
+SET
+    procesado = TRUE,
+    estado_correo = 'procesado',
+    actualizado_en = NOW()
+WHERE id = %(correo_id)s;
+Si quieres, incluso más fino:
+procesado_parcial si algunos quedaron clasificado y otros error
+Pero para empezar, con procesado basta.
+5) Regla operativa final que te recomiendo
+Déjalo así:
+Documento
+entra como pendiente
+si se clasifica bien → clasificado
+si no se reconoce bien → no_identificado
+si explota algo → error
+Archivo
+entra como descargado
+si se mueve y renombra bien → renombrado
+si falla → error
+Correo
+entra como descargado
+cuando terminen todos sus documentos → procesado
+si falla algo grave del lote → error
+Con eso, en la siguiente corrida:
+solo buscas pendiente o error
+clasificado ya nunca vuelve a entrar
+no_identificado queda fuera hasta que alguien lo revise manualmente
+6) Lo que más te conviene aplicar ya
+Haz estos 3 cambios primero:
+Primero
+Python
+WHERE d.estado_documento IN ('pendiente', 'error')
+Segundo borrar ocr_tmp solo después de que el archivo final exista y la BD haya sido actualizada.
+Tercero marcar correos_ingresados.procesado = true y estado_correo = 'procesado' al terminar bien el lote.
+7) Pequeño detalle que vi en tus datos
+En adjunto_factura del documento 3 aparece fecha 2026-05-30, pero en el documento 6 aparece 2026-04-15. Eso no rompe tu agrupación porque el grupo lo estás tomando de la factura principal, no del adjunto, pero sí te puede ensuciar metadatos si luego usas esa fecha para auditoría o búsquedas. Tu selección de factura principal se basa en la factura con mejor señal, no en el adjunto, así que el grupo está bien aunque esa fecha secundaria venga rara. �
+GitHub +1
+Te conviene que para adjunto_factura la fecha pueda heredarse de la factura principal si el OCR del adjunto devuelve algo dudoso.
+Si quieres, en el siguiente mensaje te dejo el bloque exacto de procesar_pendientes.py ya reescrito con:
+limpieza de ocr_tmp,
+actualización de correos_ingresados,
+y consultas corregidas para que no reprocese.
