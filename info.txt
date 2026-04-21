@@ -1,90 +1,171 @@
-Sí, ese orden es el correcto.
-Prioridad ahora
-Primero deja cerrada la lógica de negocio local con:
-n8n descarga
-guarda en BD
-guarda en inbox
-procesar_pendientes.py clasifica
-renombra
-mueve a:
-pendientes_clasificados
-pendientes_revision
-no_identificados
-Y recién después conectas la copia a red.
-Por qué conviene así
-Porque si metes la red ahorita, vas a mezclar dos problemas:
-lógica documental
-permisos / montaje / credenciales / rutas compartidas
-Y luego no sabrás si falló por:
-clasificación
-reglas
-acceso SMB
-usuario
-unidad montada
-Meta inmediata
-Tu flujo debe quedar estable así:
-Paso 1
-n8n:
-descarga adjuntos PDF
-crea correos_ingresados
-crea documentos
-crea archivos
-deja todo en storage/files/inbox/...
-Paso 2
-procesar_pendientes.py:
-detecta tipo documental
-extrae fecha
-extrae RUC
-obtiene proveedor si puede
-detecta cliente destino si puede
-si hay factura principal:
-genera grupo 04-000x
-clasifica
-renombra
-mueve a pendientes_clasificados
-si no hay factura principal:
-manda a pendientes_revision
-si no entiende nada:
-no_identificados
-Paso 3
-BD consistente:
-correos_ingresados.estado_correo
-documentos.estado_documento
-archivos.estado_archivo
-ruta_temporal
-nombre_final
+Perfecto. Aquí tienes la matriz final de decisión para congelar la lógica de negocio.
+Matriz final de decisión
+1. Si el correo tiene una factura válida
+Condiciones mínimas:
+tipo factura
+RUC extraído o razonablemente identificable
+fecha de emisión identificable
+Entonces:
+Acción
+esa factura será el documento principal
+se genera grupo_codigo tipo 04-0001
+se toma el mes desde fecha_emision
+se clasifican y renombran los demás adjuntos del correo
+Destino
+carpeta: pendientes_clasificados/YYYY/MM/
+estado correo: procesado
+estado documento: clasificado
+estado archivo: renombrado
+2. Si el correo tiene factura legible y factura escaneada del mismo comprobante
+Condiciones:
+ambas pertenecen al mismo correo
+mismo RUC emisor
+una tiene serie+número y la otra no
+Entonces:
+Acción
+la factura legible = factura
+la escaneada = adjunto_factura
+Destino
+ambas a pendientes_clasificados/YYYY/MM/
+grupo común
+la legible como principal
+3. Si el correo tiene factura y además OC / guía / requerimiento / cotización
+Entonces:
+Acción
+factura = principal
+OC = orden_compra
+guía = guia_remision
+requerimiento = requerimiento_compra
+cotización = cotizacion
+otros PDFs = adjunto_documento
+Destino
+todo a pendientes_clasificados/YYYY/MM/
+mismo grupo_codigo
+4. Si el correo no tiene factura, pero sí documentos útiles
+Ejemplos:
+solo guía
+solo OC
+solo certificado
+solo cotización
+solo requerimiento
+Entonces:
+Acción
+no se genera grupo automático
+sí se guarda el tipo documental detectado
+sí se guarda RUC / serie / número / fecha si existen
+queda pendiente de asociación manual
+Destino
+carpeta: pendientes_revision/YYYY/MM/
+estado correo: sin_factura_principal
+estado documento: pendiente_asociacion
+estado archivo: observado
+5. Si hay factura pero no tiene fecha reconocible
+Entonces:
+Acción
+no clasificar automáticamente
+guardar todo lo extraído
+mandar a revisión
+Destino
+carpeta: pendientes_revision/YYYY/MM/
+estado correo: factura_sin_fecha
+estado documento: revision_manual
+estado archivo: observado
+6. Si el documento no se entiende
+Ejemplos:
+PDF vacío
+OCR fallido
+contenido irreconocible
+archivo extraño
+Entonces:
+Acción
+marcar como no identificado
+guardar nombre original y cualquier metadato mínimo
+Destino
+carpeta: no_identificados/YYYY/MM/
+estado documento: no_identificado
+Tipos documentales definitivos
+Usa estos y no más por ahora:
+Plain text
+factura
+adjunto_factura
+orden_compra
+guia_remision
+requerimiento_compra
+cotizacion
+certificado_calidad
+adjunto_documento
+otro
+Estados documentales definitivos
+Plain text
+clasificado
+pendiente_asociacion
+revision_manual
+no_identificado
+Estados de correo definitivos
+Plain text
+procesado
+procesado_con_observaciones
+sin_factura_principal
+factura_sin_fecha
+error
+Estados de archivo definitivos
+Plain text
+descargado
+renombrado
+observado
+Reglas de carpeta
+inbox/
+Solo lo recién descargado por n8n.
+pendientes_clasificados/
+Solo lo ya resuelto correctamente.
+pendientes_revision/
+Todo lo válido pero que necesita revisión humana.
+no_identificados/
+Lo que no se pudo entender.
+ocr_tmp/
+Solo temporales OCR.
+Regla de oro del sistema
+Si hay factura válida
+Automatiza.
+Si no hay factura válida
+Revisión.
+Si no se entiende
+No identificado.
+Regla de mes
+Siempre usa:
 fecha_emision
-Cuándo recién pasar a red
-Cuando hagas 3 o 4 pruebas seguidas y veas que:
-no reprocesa clasificados
-guía no se vuelve factura
-certificado no se vuelve factura
-factura FE65 sale bien
-Promelsa sale bien
-pendientes_revision solo contiene lo realmente observado
-Ahí sí recién haces:
-ruta_windows_final
-copia o move a red
-validación de permisos
-Mi recomendación práctica
-Tu criterio debe ser este:
-“Primero proceso bien local, luego sincronizo a red.”
-Es lo más seguro.
-Qué haría yo en tu lugar hoy
-dejaría fijo SQL_SELECT_PENDING
-afinaría classifier.py
-probaría varios correos reales
-validaría carpetas locales
-validaría estados en BD
-recién después haría la función de copiado a red
-Conclusión
-Sí: todavía no copies a la red.
-Primero deja impecable el flujo:
-n8n → inbox → procesar_pendientes.py → BD + carpetas locales
-Y cuando eso esté estable, pasamos a la red sin dolor.
-El siguiente paso natural es dejar una pequeña matriz final de decisión tipo:
-si hay factura → clasificado
-si hay guía sola → revisión
-si hay certificado → revisión
-si no se entiende → no identificado
-para que tu lógica ya quede congelada.
+Nunca:
+fecha del correo
+fecha de recepción
+fecha del archivo
+Regla de cliente destino
+Se resuelve por:
+cliente detectado en la factura
+alias de cliente destino
+si no, queda para revisión
+Regla para red compartida
+Todavía no se aplica.
+Primero debe quedar estable:
+n8n descarga bien
+BD guarda bien
+procesar_pendientes.py clasifica bien
+carpetas locales quedan correctas
+Después se hace la copia/movimiento a la red.
+Checklist para dar por estable la lógica local
+Debe cumplirse esto en varias pruebas seguidas:
+factura FE65 sale como factura
+guía sola sale como guia_remision y va a revisión
+certificado sale como certificado_calidad y va a revisión
+grupos 04-000x no se reprocesan
+adjuntos escaneados salen como adjunto_factura
+clasificados no vuelven a pendientes_revision
+Conclusión final
+Tu lógica congelada debe ser esta:
+factura manda, revisión resuelve, BD registra todo, carpetas separan el trabajo humano.
+Si quieres, el siguiente paso es convertir esta matriz en una tabla técnica tipo:
+condición
+tipo documental
+estado
+carpeta
+acción
+para que la tengas como guía de implementación.
