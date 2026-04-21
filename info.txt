@@ -1,302 +1,90 @@
-Perfecto esa logica es la mas correcta considerar que en un correo puede llegar la factura y no llegar la OC, tambien quisiera guardar la fecha de emision en la base datos eso me define el mes a donde se dirige la carpeta ademas te muestro la estructura de carpetas donde se debe copiar si todo es correcto, tengo una duda porque poner los meses si en las tablas puedo saber de que mes y el cliente con la factura el ruc me dice la razon social con la orden de compra cliente me dice a quien a sido emitido. que me recomiendas vi que esa carpeta a donde la quiero mover en windows esta protegido por un usuario y una clave.
-BBIT 01$ ls -l 6\ PERIODO\ 2026/
-ls: cannot access '6 PERIODO 2026/': No such file or directory
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l
-BB TECNOLOGIA/ CIMA ENERGY/   HUANCAVELICA/  ILUMINACION/   KIMBIRI/
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l CIMA\ ENERGY/
-total 392
--rw-r--r-- 1 BBTI 01 197121 322459 Mar 11 09:40 20260311110927415.pdf
-drwxr-xr-x 1 BBTI 01 197121      0 Apr 20 16:00 ABRIL/
-drwxr-xr-x 1 BBTI 01 197121      0 Mar  4 09:36 ENERO/
-drwxr-xr-x 1 BBTI 01 197121      0 Mar 18 15:44 FEBRERO/
-drwxr-xr-x 1 BBTI 01 197121      0 Apr 21 10:33 MARZO/
--rw-r--r-- 1 BBTI 01 197121  12288 Apr 15 08:23 Thumbs.db
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l CIMA\ ENERGY/ABRIL/
-total 1704
--rw-r--r-- 1 BBTI 01 197121 43007 Apr 20 15:53 20418896915-01-F051-00231355.pdf
--rw-r--r-- 1 BBTI 01 197121 43029 Apr 20 15:57 20418896915-01-F051-00231356.pdf
--rw-r--r-- 1 BBTI 01 197121 43036 Apr 20 15:52 20418896915-01-F051-00231357.pdf
-...
-
-BBTI 01@PROGRAMACION MINGW64 /Y
-$ ls -l
-total 6497
--rw-r--r-- 1 BBTI 01 197121  969689 Mar 18 08:27 '04-260 F001-1302.pdf'
--rw-r--r-- 1 BBTI 01 197121  391840 Mar 18 08:28 '04-274 E001-56.pdf'
--rw-r--r-- 1 BBTI 01 197121  951921 Mar 18 08:29 '04-70 E001-341.pdf'
-drwxr-xr-x 1 BBTI 01 197121       0 Jul 22  2022 '1 PERIODO 2021'/
-drwxr-xr-x 1 BBTI 01 197121       0 Sep 28  2022 '2 PERIODO 2022'/
--rw-r--r-- 1 BBTI 01 197121  213842 Feb  2 09:12  20260202092812342.pdf
--rw-r--r-- 1 BBTI 01 197121  117327 Feb 20 14:40  20260220145554234.pdf
--rw-r--r-- 1 BBTI 01 197121  562945 Mar 18 08:28  20260318095809304.pdf
--rw-r--r-- 1 BBTI 01 197121  238650 Apr 10 17:41  20260410191125904.pdf
-drwxr-xr-x 1 BBTI 01 197121       0 Jan 23  2024 '3 PERIODO 2023'/
-drwxr-xr-x 1 BBTI 01 197121       0 Oct 23  2024 '4 PERIODO 2024'/
-drwxr-xr-x 1 BBTI 01 197121       0 Nov  6 19:02 '5 PERIODO 2025'/
-drwxr-xr-x 1 BBTI 01 197121       0 Feb 18 17:28 '6 PERIODO 2026'/
-drwxr-xr-x 1 BBTI 01 197121       0 Jan  5 12:04 '7 IMPORTACION'/
--rw-r--r-- 1 BBTI 01 197121   23428 Jan  6 15:19 'BBTI NOVIEMRE.xlsx'
--rw-r--r-- 1 BBTI 01 197121   22723 Jan  6 15:16 'BBTI OCTUBRE.xlsx'
--rw-r--r-- 1 BBTI 01 197121   23196 Feb  6 09:25 'BBTI SETIEMBRE.xlsx'
--rw-r--r-- 1 BBTI 01 197121 3102720 Jan 13 17:58  Thumbs.db
--rwxr-xr-x 1 BBTI 01 197121     598 Apr 15 08:20 'finanzas (192.168.0.143) (Y) - Acceso directo.lnk'*
--rw-r--r-- 1 BBTI 01 197121     165 Jun  9  2023 '~$CLAVES.xlsx'
-
-BBTI 01@PROGRAMACION MINGW64 /Y
-$ ls -l 6\ PERIODO\ 2026/
-total 8
-drwxr-xr-x 1 BBTI 01 197121 0 Apr  7 12:25 'BB TECNOLOGIA'/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 20 15:50 'CIMA ENERGY'/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:58  HUANCAVELICA/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:21  ILUMINACION/
-drwxr-xr-x 1 BBTI 01 197121 0 Mar 17 08:58  KIMBIRI/
-
-BBTI 01@PROGRAMACION MINGW64 /Y
-$ cd 6\ PERIODO\ 2026/
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l
-BB TECNOLOGIA/ CIMA ENERGY/   HUANCAVELICA/  ILUMINACION/   KIMBIRI/
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l
-total 8
-drwxr-xr-x 1 BBTI 01 197121 0 Apr  7 12:25 'BB TECNOLOGIA'/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 20 15:50 'CIMA ENERGY'/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:58  HUANCAVELICA/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:21  ILUMINACION/
-drwxr-xr-x 1 BBTI 01 197121 0 Mar 17 08:58  KIMBIRI/
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l BB\ TECNOLOGIA/
-total 476
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 20 08:35 ABRIL/
-drwxr-xr-x 1 BBTI 01 197121 0 Mar  4 15:56 ENERO/
-drwxr-xr-x 1 BBTI 01 197121 0 Mar 23 12:16 FEBRERO/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 21 10:16 MARZO/
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l BB\ TECNOLOGIA/ABRIL/
-total 42660
--rw-r--r-- 1 BBTI 01 197121  663489 Apr 14 17:33 '04-0001 F001 20417 10072442429 BERROSPI POLO SERGIO ARMANDO.pdf'
--rw-r--r-- 1 BBTI 01 197121  135048 Apr 14 17:34 '04-0002 F553 3296618 20523621212 LIMA EXPRESA S.A.C..pdf'
--rw-r--r-- 1 BBTI 01 197121  129431 Apr 14 17:34 '04-0003 F008 1028538 20523621212 LIMA EXPRESA S.A.C..pdf'
-...
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l HUANCAVELICA/
-ABRIL/   ENERO/   FEBRERO/ MARZO/
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l HUANCAVELICA/ABRIL/
-total 15356
--rw-r--r-- 1 BBTI 01 197121  371120 Apr 17 16:19 '04-0001 F001 1081 20565747356 BBTI SAC.pdf'
--rw-r--r-- 1 BBTI 01 197121  459244 Apr 17 16:19 '04-0002 F004 106271 20169004359 UNIVERSIDAD NACIONAL DE INGENIERIA UNI.pdf'
--rw-r--r-- 1 BBTI 01 197121  822946 Apr 17 16:19 '04-0003 E001 309 10470355099 TEALDO LOZA FRANCHESCA MARGOT.pdf'
--rw-r--r-- 1 BBTI 01 197121  264463 Apr 17 16:19 '04-0004 F201 3315 20612768103 COMPANY HATUN MUSQUY SAC.pdf'
--rw-r--r-- 1 BBTI 01 197121 1033805 Apr 17 16:19 '04-0005 F001 1233 20534042185 REPRESENTACIONES NABEL SRL.pdf'
--rw-r--r-- 1 BBTI 01 197121  840167 Apr 17 16:19 '04-0007 FF19 19371440 20100130204 BANCO BBVA PERU.pdf'
-...
-
-$ ls -l KIMBIRI/
-1 ENERO/                                                    3 MARZO/
-2 FEBRERO - NO SE REGISTRO Y NO SE DECLARO NINGUNA FACTURA/ Thumbs.db
-
-BBTI 01@PROGRAMACION MINGW64 /Y/6 PERIODO 2026
-$ ls -l KIMBIRI/3\ MARZO/
-total 21492
--rw-r--r-- 1 BBTI 01 197121  70654 Mar  5 10:01 1.pdf
--rw-r--r-- 1 BBTI 01 197121  70235 Mar 17 09:41 10.pdf
--rw-r--r-- 1 BBTI 01 197121  75343 Mar 17 09:47 11.pdf
--rw-r--r-- 1 BBTI 01 197121  74028 Mar 17 09:50 12.pdf
--rw-r--r-- 1 BBTI 01 197121  75299 Mar 17 10:01 13.pdf
-...
-
- 
-
- 
- Perfecto, vamos a dejarte un diseño final sólido (nivel producción) para que ya no te enredes más con estados, carpetas y tipos.
-🧩 1. TIPOS DOCUMENTALES (definitivos)
-Usa solo estos:
-Plain text
-factura
-adjunto_factura
-orden_compra
-guia_remision
-requerimiento_compra
-cotizacion
-adjunto_documento
-otro
-🔹 Explicación clara
-factura → documento principal
-adjunto_factura → escaneado / duplicado / ilegible de factura
-orden_compra → OC
-guia_remision → guía
-requerimiento_compra → requerimiento interno
-cotizacion → cotización proveedor
-adjunto_documento → TODO lo que acompaña pero no es clave
-otro → basura / no identificable
-🧠 2. ESTADOS DE DOCUMENTO (clave del sistema)
-Plain text
-clasificado
-pendiente_asociacion
-revision_manual
-no_identificado
-🔹 Significado real
-✅ clasificado
-Todo OK:
-tiene grupo
-tiene tipo claro
-ya fue renombrado
-👉 Va a:
-Bash
-pendientes_clasificados/
-⚠️ pendiente_asociacion
-Documento válido PERO incompleto:
-Ejemplos:
-guía sin factura
-certificado sin factura
-OC sin factura
-👉 Va a:
-Bash
-pendientes_revision/
-👉 Aquí entra:
-tu último caso actual ✔
-🔍 revision_manual
-Caso más complejo:
-datos inconsistentes
-OCR dudoso
-múltiples facturas
-cliente no identificado
-👉 También va a:
-Bash
-pendientes_revision/
-❌ no_identificado
-No se pudo entender nada:
-👉 Va a:
-Bash
-no_identificados/
-📂 3. ESTRUCTURA FINAL DE CARPETAS
-Bash
-storage/files/
-
-inbox/                  # entrada (n8n)
-ocr_tmp/                # temporales OCR
-
-pendientes_clasificados/
-    2026/04/
-
-pendientes_revision/
-    2026/04/
-
-no_identificados/
-    2026/04/
-🔄 4. FLUJO REAL DEL SISTEMA
-🟢 CASO 1: correo con factura
-✔ genera grupo
-✔ todo se mueve a clasificados
-Plain text
-04-0005 FACTURA ...
-04-0005 ORDEN_COMPRA ...
-04-0005 GUIA ...
-04-0005 ADJUNTO_FACTURA ...
-04-0005 ADJUNTO_DOCUMENTO ...
-👉 estado:
-Plain text
-clasificado
-🟡 CASO 2: sin factura pero con docs útiles
-Ejemplo:
-solo guía
-certificado
-OC
-👉 resultado:
-se detecta tipo
-NO hay grupo
-se envía a revisión
-👉 estado:
-Plain text
-pendiente_asociacion
-🔴 CASO 3: documento raro
-👉 estado:
-Plain text
-no_identificado
-🧠 5. REGLA DE ORO (TU SISTEMA)
-Plain text
-SI hay factura → AUTOMATIZA TODO
-SI no hay factura → REVISION
-💥 Esa es la clave. No la compliques más.
-🏷️ 6. NOMENCLATURA FINAL
-✔ Clasificados
-Plain text
-04-0003 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
-04-0003 GUIA T073 0665284 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
-04-0003 ADJUNTO_DOCUMENTO CERTIFICADO_CALIDAD.pdf
-⚠️ Revisión
-(Opcional simplificado)
-Plain text
-REV_FACTURA FE65 0812829.pdf
-REV_GUIA T073 0665284.pdf
-REV_CERTIFICADO_CALIDAD.pdf
-O simplemente mantener nombre original (más práctico ahora).
-🧱 7. CAMBIO CLAVE QUE TE FALTABA
-👉 YA lo detectaste bien:
-Aunque vaya a revisión, igual debes guardar:
-tipo_documental
-serie
-numero
-ruc
-fecha
-💥 Eso ya lo corregimos con mark_documents_as_review().
-🧠 8. ESTADO DE CORREO (final)
-Plain text
-procesado
-pendiente_revision
-sin_factura_principal
-error
-Ejemplo real tuyo
-correo 1
-Plain text
-Certificado de calidad
-👉 estado:
-Plain text
-sin_factura_principal
-correo 2
-Plain text
-factura detectada pero mal clasificada
-👉 debería ser:
-Plain text
-pendiente_revision
-correo 3
-Plain text
-guía sola
-👉 estado:
-Plain text
-pendiente_revision
-🚀 CONCLUSIÓN FINAL
-Tu sistema ya está BIEN diseñado.
-Solo faltaba:
-✔ Simplificar
-No clasificar todo → solo lo importante
-✔ Separar bien
-automático
-revisión
-✔ Guardar metadata siempre
-(incluso en revisión)
-🧠 FRASE CLAVE (quédate con esto)
-👉 “No todo se automatiza, pero todo se organiza.”
-🚀 SIGUIENTE PASO (te recomiendo)
-Si quieres avanzar nivel PRO:
-👉 hacemos una pantalla web tipo bandeja de revisión donde puedas:
-ver PDF
-ver OCR
-editar tipo
-asociar factura
-aprobar
-Eso ya convierte tu sistema en algo tipo ERP documental 🔥
-Si quieres, en el siguiente paso te diseño: 👉 la tabla + API + UI para esa bandeja de revisión.
+Sí, ese orden es el correcto.
+Prioridad ahora
+Primero deja cerrada la lógica de negocio local con:
+n8n descarga
+guarda en BD
+guarda en inbox
+procesar_pendientes.py clasifica
+renombra
+mueve a:
+pendientes_clasificados
+pendientes_revision
+no_identificados
+Y recién después conectas la copia a red.
+Por qué conviene así
+Porque si metes la red ahorita, vas a mezclar dos problemas:
+lógica documental
+permisos / montaje / credenciales / rutas compartidas
+Y luego no sabrás si falló por:
+clasificación
+reglas
+acceso SMB
+usuario
+unidad montada
+Meta inmediata
+Tu flujo debe quedar estable así:
+Paso 1
+n8n:
+descarga adjuntos PDF
+crea correos_ingresados
+crea documentos
+crea archivos
+deja todo en storage/files/inbox/...
+Paso 2
+procesar_pendientes.py:
+detecta tipo documental
+extrae fecha
+extrae RUC
+obtiene proveedor si puede
+detecta cliente destino si puede
+si hay factura principal:
+genera grupo 04-000x
+clasifica
+renombra
+mueve a pendientes_clasificados
+si no hay factura principal:
+manda a pendientes_revision
+si no entiende nada:
+no_identificados
+Paso 3
+BD consistente:
+correos_ingresados.estado_correo
+documentos.estado_documento
+archivos.estado_archivo
+ruta_temporal
+nombre_final
+fecha_emision
+Cuándo recién pasar a red
+Cuando hagas 3 o 4 pruebas seguidas y veas que:
+no reprocesa clasificados
+guía no se vuelve factura
+certificado no se vuelve factura
+factura FE65 sale bien
+Promelsa sale bien
+pendientes_revision solo contiene lo realmente observado
+Ahí sí recién haces:
+ruta_windows_final
+copia o move a red
+validación de permisos
+Mi recomendación práctica
+Tu criterio debe ser este:
+“Primero proceso bien local, luego sincronizo a red.”
+Es lo más seguro.
+Qué haría yo en tu lugar hoy
+dejaría fijo SQL_SELECT_PENDING
+afinaría classifier.py
+probaría varios correos reales
+validaría carpetas locales
+validaría estados en BD
+recién después haría la función de copiado a red
+Conclusión
+Sí: todavía no copies a la red.
+Primero deja impecable el flujo:
+n8n → inbox → procesar_pendientes.py → BD + carpetas locales
+Y cuando eso esté estable, pasamos a la red sin dolor.
+El siguiente paso natural es dejar una pequeña matriz final de decisión tipo:
+si hay factura → clasificado
+si hay guía sola → revisión
+si hay certificado → revisión
+si no se entiende → no identificado
+para que tu lógica ya quede congelada.
