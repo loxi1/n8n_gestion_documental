@@ -666,7 +666,7 @@ def group_by_correo(rows: list[dict]) -> dict[int, list[dict]]:
 def enrich_document(item: dict) -> dict:
     pdf_path = resolve_absolute_path(item["ruta_temporal"])
     text = ""
-    ocr_output_path = None
+    ocr_output = None
 
     try:
         text = extract_text_from_pdf(pdf_path)
@@ -678,17 +678,29 @@ def enrich_document(item: dict) -> dict:
         month = pdf_path.parent.name
         ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
         ocr_ok = run_ocr(pdf_path, ocr_output)
-
         if ocr_ok and ocr_output.exists():
-            ocr_output_path = ocr_output
             try:
                 text = extract_text_from_pdf(ocr_output)
             except Exception:
                 text = ""
 
     fields = extract_basic_fields(text, item["nombre_archivo_original"])
+
     cliente_raw = extract_cliente_destino_raw(text)
     cliente_match = find_cliente_destino_by_alias(cliente_raw)
+
+    fecha_norm = normalize_date(fields["fecha_emision"])
+    fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
+
+    razon_social_emisor = item.get("razon_social") or None
+    if not razon_social_emisor:
+        m = re.search(
+            r"\bEMISOR[:\s]+(.+?)(?:\bDIRECCION\b|\bRUC\b)",
+            normalize_text(text),
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            razon_social_emisor = m.group(1).strip()
 
     return {
         **item,
@@ -699,7 +711,7 @@ def enrich_document(item: dict) -> dict:
         "fecha_emision_norm": fecha_norm,
         "fecha_emision_date": fecha_date,
         "razon_social_emisor_detectada": razon_social_emisor,
-        "ocr_output_path": str(ocr_output) if 'ocr_output' in locals() and ocr_output.exists() else None,
+        "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
     }
 
 if __name__ == "__main__":

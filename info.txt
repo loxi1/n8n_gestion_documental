@@ -118,83 +118,168 @@ total 21492
 ...
 
  
-  El error ya está localizado:
-Plain text
-NameError: name 'fecha_norm' is not defined
-Eso significa que en enrich_document() estás retornando:
-Python
-"fecha_emision_norm": fecha_norm,
-"fecha_emision_date": fecha_date,
-pero no definiste antes fecha_norm y fecha_date.
-Solución
-Reemplaza completa tu función enrich_document() por esta:
-Python
-def enrich_document(item: dict) -> dict:
-    pdf_path = resolve_absolute_path(item["ruta_temporal"])
-    text = ""
-    ocr_output = None
+revisar el repo:
+$ ls -l storage/files/inbox/2026/04/
+total 388
+-rw-r--r-- 1 BBTI 01 197121 213180 Apr 21 14:31 posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf
+-rw-r--r-- 1 BBTI 01 197121  93585 Apr 21 14:31 posible_documento_20260421193059970_ADR5100000156043530002FBAC343AD91FD18FA7_1.pdf
+-rw-r--r-- 1 BBTI 01 197121  83385 Apr 21 14:31 posible_documento_20260421193059970_ADR5100000156094930002FBAC343AD91FD18FA7_1.pdf
 
-    try:
-        text = extract_text_from_pdf(pdf_path)
-    except Exception:
-        text = ""
+$ ls -l storage/files/ocr_tmp/2026/04/
+total 2072
+-rw-r--r-- 1 BBTI 01 197121  258672 Apr 21 12:04 ocr_posible_documento_20260421170233670_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf
+-rw-r--r-- 1 BBTI 01 197121  287937 Apr 21 12:04 ocr_posible_documento_20260421170233670_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf
+-rw-r--r-- 1 BBTI 01 197121 1566024 Apr 21 15:10 ocr_posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf
 
-    if not text.strip():
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
-        ocr_ok = run_ocr(pdf_path, ocr_output)
-        if ocr_ok and ocr_output.exists():
-            try:
-                text = extract_text_from_pdf(ocr_output)
-            except Exception:
-                text = ""
 
-    fields = extract_basic_fields(text, item["nombre_archivo_original"])
+$ ls -l storage/files/pendientes_clasificados/2026/04/
+total 720
+-rw-r--r-- 1 BBTI 01 197121 239444 Apr 21 12:02 '04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60786 Apr 21 12:02 '04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  76340 Apr 21 12:02 '04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf'
+-rw-r--r-- 1 BBTI 01 197121 219646 Apr 21 12:02 '04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60453 Apr 21 12:02 '04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  72746 Apr 21 12:02 '04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf'
 
-    cliente_raw = extract_cliente_destino_raw(text)
-    cliente_match = find_cliente_destino_by_alias(cliente_raw)
+gestiondocumental=# select * from archivos;
+ id | documento_id | correo_id |         nombre_archivo_original          |
+               nombre_archivo_actual                                | extension |    mime_t
+ype    | tamano_bytes | hash_sha256 |                                             ruta_temp
+oral                                              | ruta_final | es_principal | estado_arch
+ivo |         creado_en          |       actualizado_en
+----+--------------+-----------+------------------------------------------+----------------
+--------------------------------------------------------------------+-----------+----------
+-------+--------------+-------------+------------------------------------------------------
+--------------------------------------------------+------------+--------------+------------
+----+----------------------------+----------------------------
+  1 |            1 |         1 | 20100084172-01-F231-0101493.pdf          | 04-0001 FACTURA
+ F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf             | .pdf      | applicati
+on/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231
+0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf |            | t            | renombrado
+    | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.385236
+  2 |            2 |         1 | 007886.pdf                               | 04-0001 ORDEN_C
+OMPRA 007886 20565747356 BBTI_S_A_C.pdf                             | .pdf      | applicati
+on/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ORDEN_COMPRA
+007886 20565747356 BBTI_S_A_C.pdf                 |            | t            | renombrado
+    | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.436025
+  3 |            3 |         1 | F231-00101493.pdf                        | 04-0001 ADJUNTO
+_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf                  | .pdf      | applicati
+on/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ADJUNTO_FACTU
+RA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      |            | t            | renombrado
+    | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.484127
+  4 |            4 |         4 | 20100084172-01-F231-0101492.pdf          | 04-0002 FACTURA
+ F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf             | .pdf      | applicati
+on/pdf |              |             | pendientes_clasificados/2026/04/04-0002 FACTURA F231
+0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf |            | t            | renombrado
+    | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.000641
+  5 |            5 |         4 | 007898.pdf                               | 04-0002 ORDEN_C
+OMPRA 007898 20565747356 BBTI_S_A_C.pdf                             | .pdf      | applicati
+on/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ORDEN_COMPRA
+007898 20565747356 BBTI_S_A_C.pdf                 |            | t            | renombrado
+    | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.047584
+  6 |            6 |         4 | F231-00101492.pdf                        | 04-0002 ADJUNTO
+_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf                  | .pdf      | applicati
+on/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ADJUNTO_FACTU
+RA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      |            | t            | renombrado
+    | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.094866
+  7 |            7 |        13 | G-0FE65-0812829-5172524590-90026-1_1.PDF | posible_documen
+to_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf | .pdf      | applicati
+on/pdf |              |             | inbox/2026/04/posible_documento_20260421193059969_ADR
+510000015602343000AB56143BB971FD18FA6_1.pdf       |            | t            | descargado
+    | 2026-04-21 14:31:00.494691 | 2026-04-21 14:31:00.494691
+  8 |            8 |        14 | FE65-0812829.pdf                         | posible_documen
+to_20260421193059970_ADR5100000156043530002FBAC343AD91FD18FA7_1.pdf | .pdf      | applicati
+on/pdf |              |             | inbox/2026/04/posible_documento_20260421193059970_ADR
+5100000156043530002FBAC343AD91FD18FA7_1.pdf       |            | t            | descargado
+    | 2026-04-21 14:31:00.494691 | 2026-04-21 14:31:00.494691
+  9 |            9 |        15 | 20370146994-09-T073-0665284.pdf.pdf      | posible_documen
+to_20260421193059970_ADR5100000156094930002FBAC343AD91FD18FA7_1.pdf | .pdf      | applicati
+on/pdf |              |             | inbox/2026/04/posible_documento_20260421193059970_ADR
+5100000156094930002FBAC343AD91FD18FA7_1.pdf       |            | t            | descargado
+    | 2026-04-21 14:31:00.494691 | 2026-04-21 14:31:00.494691
+(9 rows)
 
-    fecha_norm = normalize_date(fields["fecha_emision"])
-    fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
 
-    razon_social_emisor = item.get("razon_social") or None
-    if not razon_social_emisor:
-        m = re.search(
-            r"\bEMISOR[:\s]+(.+?)(?:\bDIRECCION\b|\bRUC\b)",
-            normalize_text(text),
-            re.IGNORECASE | re.DOTALL,
-        )
-        if m:
-            razon_social_emisor = m.group(1).strip()
+gestiondocumental=#
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero  |     ruc     |       razon_social        | fecha_emision | fecha
+_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |
+ creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_id
+|                              nombre_final                              |            ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+---------+-------------+---------------------------+---------------+------
+-------------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+--------
+--------------------+----------------------------+--------------------+--------------+-----------------+--------------+------------------------
++------------------------------------------------------------------------+------------------------------------------
+  1 |         1 |          754 | factura         |          | F231  | 0101493 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
+             |        |  555.70 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:23.385236 |                  2 | 04-0001      |               1 | t            |
+| 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  2 |         1 |         1655 | orden_compra    |          | OC    | 007886  | 20565747356 | BBTI S.A.C.               |               |
+             |        |  470.98 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:23.436025 |                  2 | 04-0001      |               1 | f            |                      1
+| 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf                 | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  3 |         1 |          754 | adjunto_factura |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-05-30    |
+             |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:23.484127 |                  2 | 04-0001      |               1 | f            |                      1
+| 04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  4 |         4 |          754 | factura         |          | F231  | 0101492 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
+             |        |   77.36 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:28.000641 |                  2 | 04-0002      |               2 | t            |
+| 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  5 |         4 |         1655 | orden_compra    |          | OC    | 007898  | 20565747356 | BBTI S.A.C.               |               |
+             |        |   65.56 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:28.047584 |                  2 | 04-0002      |               2 | f            |                      4
+| 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf                 | \\\\servidor\\documentos\\BBTI SAC\ABRIL  6 |         4 |          7
+54 | adjunto_factura |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |                   |        |   77
+.36 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04-21 12:02:50.079706 | 2026-0
+4-21 12:04:28.094866 |                  2 | 04-0002      |               2 | f            |                      4 | 04-0002 ADJUNTO_FACTURA 20
+100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | \\\\servidor\\documentos\\BBTI SAC\ABRIL  7 |        13 |              |                 |
+    |       |         |             |                           |               |                   |        |         |     |                |
+       |                  | pendiente        | Documento descargado desde n8n | 2026-04-21 14:31:00.30123  | 2026-04-21 14:31:00.30123  |
+              |              |                 | f            |                        |
+                 |
+  8 |        14 |              |                 |          |       |         |             |                           |               |
+             |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04
+-21 14:31:00.30123  | 2026-04-21 14:31:00.30123  |                    |              |                 | f            |
+|                                                                        |
+  9 |        15 |              |                 |          |       |         |             |                           |               |
+             |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04
+-21 14:31:00.30123  | 2026-04-21 14:31:00.30123  |                    |              |                 | f            |
+|                                                                        |
+(9 rows)
 
-    return {
-        **item,
-        "text": text,
-        "fields": fields,
-        "cliente_raw": cliente_raw,
-        "cliente_match": cliente_match,
-        "fecha_emision_norm": fecha_norm,
-        "fecha_emision_date": fecha_date,
-        "razon_social_emisor_detectada": razon_social_emisor,
-        "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
-    }
-Por qué pasó
-Porque en alguna edición quedó el return final, pero se borró o movió esta parte:
-Python
-fecha_norm = normalize_date(fields["fecha_emision"])
-fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
-Verificación
-Después de guardar, corre:
-Bash
-python -m py_compile procesar_pendientes.py
-Si no muestra nada, luego:
-Bash
-python procesar_pendientes.py
-Si quieres revisar rápido
-Busca dentro de procesar_pendientes.py que enrich_document() tenga estas 3 líneas antes del return:
-Python
-fields = extract_basic_fields(text, item["nombre_archivo_original"])
-fecha_norm = normalize_date(fields["fecha_emision"])
-fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
-Pégame la nueva salida de python procesar_pendientes.py cuando corra otra vez.
+
+gestiondocumental=#
+gestiondocumental=# select * from correos_ingresados;
+ id | origen | proveedor_correo |                             message_id                             | thread_id | remitente_nombre |
+ remitente_email           | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                      asunto
+   | cuerpo_texto | cuerpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado |     estado_correo     | cantidad_adjun
+tos |                         observacion                         |         creado_en          |       actualizado_en
+----+--------+------------------+--------------------------------------------------------------------+-----------+------------------+----------
+---------------------------+----------+-------------------+-----------------+------------------+-----------------------------------------------
+---+--------------+-------------+---------------------+----------------------------+-------+-----------+-----------------------+---------------
+----+-------------------------------------------------------------+----------------------------+----------------------------
+  1 | correo | imap             | <69e69d97.050a0220.1b82a7.1b03@mx.google.com>                      |           |                  | notificac
+iones01.promelsa@gmail.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101493 - BBTI S.A.C
+.  |              |             | 2026-04-20 21:41:43 | 2026-04-21 12:02:39.1794   | f     | f         | descargado            |
+  1 |                                                             | 2026-04-21 12:02:39.1794   | 2026-04-21 12:02:47.355033
+  4 | correo | imap             | <69e69d4e.050a0220.20184c.69bb@mx.google.com>                      |           |                  | notificac
+iones01.promelsa@gmail.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101492 - BBTI S.A.C
+.  |              |             | 2026-04-20 21:40:30 | 2026-04-21 12:02:39.1794   | f     | f         | descargado            |
+  1 |                                                             | 2026-04-21 12:02:39.1794   | 2026-04-21 12:02:47.355033
+ 13 | correo | imap             | <ADR510000015602343000AB56143BB971FD18FA6E44FB047C000@aasa.com.pe> |           |                  | certcali@
+aasa.com.pe                |          |                   |                 |                  | Cert. de Calidad de la Factura Nro.0FE65-08128
+29 |              |             | 2026-04-21 06:00:13 | 2026-04-21 14:31:00.118741 | f     | f         | sin_factura_principal |
+  1 | No se encontr¾ factura principal en el correo.              | 2026-04-21 14:31:00.118741 | 2026-04-21 15:10:04.727862
+ 14 | correo | imap             | <ADR5100000156043530002FBAC343AD91FD18FA758C3947F6000@aasa.com.pe> |           |                  | fecaasa@a
+asa.com.pe                 |          |                   |                 |                  | CAASA: EnvÝo de factura de venta N░ FE65-08128
+29 |              |             | 2026-04-21 06:30:05 | 2026-04-21 14:31:00.118741 | f     | f         | factura_sin_fecha     |
+  1 | La factura principal no tiene fecha de emisi¾n reconocible. | 2026-04-21 14:31:00.118741 | 2026-04-21 15:10:04.963352
+ 15 | correo | imap             | <ADR5100000156094930002FBAC343AD91FD18FA7E203FDD5E000@aasa.com.pe> |           |                  | fecaasa@a
+asa.com.pe                 |          |                   |                 |                  | CAASA: EnvÝo de guÝa electr¾nica N░ T073-06652
+84 |              |             | 2026-04-21 07:00:45 | 2026-04-21 14:31:00.118741 | f     | f         | sin_factura_principal |
+  1 | No se encontr¾ factura principal en el correo.              | 2026-04-21 14:31:00.118741 | 2026-04-21 15:10:05.241154
+(5 rows)
+
+
+gestiondocumental=#
