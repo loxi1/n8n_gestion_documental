@@ -27,10 +27,8 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
         "GUIA REMISION ELECTRONICA" in text_u
         or "GUIA DE REMISION ELECTRONICA" in text_u
         or "GUIA DE REMISION" in text_u
-        or "GUIA REMISION" in text_u
-        or re.search(r"\bT\d{3}[- ]\d+\b", text_u)
+        or re.search(r"\bNRO\.?\s*T\d{3}[- ]\d+\b", text_u)
         or re.search(r"\bT\d{3}[- ]\d+\b", name_u)
-        or re.search(r"\bGR\d{3}[- ]\d+\b", text_u)
         or re.search(r"\bGR\d{3}[- ]\d+\b", name_u)
     ):
         return "guia_remision"
