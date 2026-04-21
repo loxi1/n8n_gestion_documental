@@ -120,4 +120,182 @@ total 21492
  
 
  
- Sí, por favor
+ Perfecto, vamos a dejarte un diseño final sólido (nivel producción) para que ya no te enredes más con estados, carpetas y tipos.
+🧩 1. TIPOS DOCUMENTALES (definitivos)
+Usa solo estos:
+Plain text
+factura
+adjunto_factura
+orden_compra
+guia_remision
+requerimiento_compra
+cotizacion
+adjunto_documento
+otro
+🔹 Explicación clara
+factura → documento principal
+adjunto_factura → escaneado / duplicado / ilegible de factura
+orden_compra → OC
+guia_remision → guía
+requerimiento_compra → requerimiento interno
+cotizacion → cotización proveedor
+adjunto_documento → TODO lo que acompaña pero no es clave
+otro → basura / no identificable
+🧠 2. ESTADOS DE DOCUMENTO (clave del sistema)
+Plain text
+clasificado
+pendiente_asociacion
+revision_manual
+no_identificado
+🔹 Significado real
+✅ clasificado
+Todo OK:
+tiene grupo
+tiene tipo claro
+ya fue renombrado
+👉 Va a:
+Bash
+pendientes_clasificados/
+⚠️ pendiente_asociacion
+Documento válido PERO incompleto:
+Ejemplos:
+guía sin factura
+certificado sin factura
+OC sin factura
+👉 Va a:
+Bash
+pendientes_revision/
+👉 Aquí entra:
+tu último caso actual ✔
+🔍 revision_manual
+Caso más complejo:
+datos inconsistentes
+OCR dudoso
+múltiples facturas
+cliente no identificado
+👉 También va a:
+Bash
+pendientes_revision/
+❌ no_identificado
+No se pudo entender nada:
+👉 Va a:
+Bash
+no_identificados/
+📂 3. ESTRUCTURA FINAL DE CARPETAS
+Bash
+storage/files/
+
+inbox/                  # entrada (n8n)
+ocr_tmp/                # temporales OCR
+
+pendientes_clasificados/
+    2026/04/
+
+pendientes_revision/
+    2026/04/
+
+no_identificados/
+    2026/04/
+🔄 4. FLUJO REAL DEL SISTEMA
+🟢 CASO 1: correo con factura
+✔ genera grupo
+✔ todo se mueve a clasificados
+Plain text
+04-0005 FACTURA ...
+04-0005 ORDEN_COMPRA ...
+04-0005 GUIA ...
+04-0005 ADJUNTO_FACTURA ...
+04-0005 ADJUNTO_DOCUMENTO ...
+👉 estado:
+Plain text
+clasificado
+🟡 CASO 2: sin factura pero con docs útiles
+Ejemplo:
+solo guía
+certificado
+OC
+👉 resultado:
+se detecta tipo
+NO hay grupo
+se envía a revisión
+👉 estado:
+Plain text
+pendiente_asociacion
+🔴 CASO 3: documento raro
+👉 estado:
+Plain text
+no_identificado
+🧠 5. REGLA DE ORO (TU SISTEMA)
+Plain text
+SI hay factura → AUTOMATIZA TODO
+SI no hay factura → REVISION
+💥 Esa es la clave. No la compliques más.
+🏷️ 6. NOMENCLATURA FINAL
+✔ Clasificados
+Plain text
+04-0003 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
+04-0003 GUIA T073 0665284 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
+04-0003 ADJUNTO_DOCUMENTO CERTIFICADO_CALIDAD.pdf
+⚠️ Revisión
+(Opcional simplificado)
+Plain text
+REV_FACTURA FE65 0812829.pdf
+REV_GUIA T073 0665284.pdf
+REV_CERTIFICADO_CALIDAD.pdf
+O simplemente mantener nombre original (más práctico ahora).
+🧱 7. CAMBIO CLAVE QUE TE FALTABA
+👉 YA lo detectaste bien:
+Aunque vaya a revisión, igual debes guardar:
+tipo_documental
+serie
+numero
+ruc
+fecha
+💥 Eso ya lo corregimos con mark_documents_as_review().
+🧠 8. ESTADO DE CORREO (final)
+Plain text
+procesado
+pendiente_revision
+sin_factura_principal
+error
+Ejemplo real tuyo
+correo 1
+Plain text
+Certificado de calidad
+👉 estado:
+Plain text
+sin_factura_principal
+correo 2
+Plain text
+factura detectada pero mal clasificada
+👉 debería ser:
+Plain text
+pendiente_revision
+correo 3
+Plain text
+guía sola
+👉 estado:
+Plain text
+pendiente_revision
+🚀 CONCLUSIÓN FINAL
+Tu sistema ya está BIEN diseñado.
+Solo faltaba:
+✔ Simplificar
+No clasificar todo → solo lo importante
+✔ Separar bien
+automático
+revisión
+✔ Guardar metadata siempre
+(incluso en revisión)
+🧠 FRASE CLAVE (quédate con esto)
+👉 “No todo se automatiza, pero todo se organiza.”
+🚀 SIGUIENTE PASO (te recomiendo)
+Si quieres avanzar nivel PRO:
+👉 hacemos una pantalla web tipo bandeja de revisión donde puedas:
+ver PDF
+ver OCR
+editar tipo
+asociar factura
+aprobar
+Eso ya convierte tu sistema en algo tipo ERP documental 🔥
+Si quieres, en el siguiente paso te diseño: 👉 la tabla + API + UI para esa bandeja de revisión.
