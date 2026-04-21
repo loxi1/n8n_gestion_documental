@@ -49,6 +49,7 @@ def build_final_name(
 
     tipo_map = {
         "factura": "FACTURA",
+        "adjunto_factura": "ADJUNTO_FACTURA",
         "guia": "GUIA",
         "orden_compra": "ORDEN_COMPRA",
         "requerimiento_compra": "REQUERIMIENTO_COMPRA",
@@ -73,6 +74,10 @@ def build_final_name(
     elif tipo_documental in ["orden_compra", "requerimiento_compra", "nota_credito"]:
         if numero_txt:
             parts.append(numero_txt)
+
+    elif tipo_documental == "adjunto_factura":
+        # no agrega serie/numero si no existen
+        pass
 
     else:
         if serie_txt:

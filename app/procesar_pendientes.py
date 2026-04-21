@@ -481,6 +481,15 @@ def process_correo(items: list[dict]) -> None:
             else cliente_destino_id
         )
 
+        if (
+            tipo_documental == "factura"
+            and not fields["serie"]
+            and not fields["numero"]
+            and ruc_emisor
+            and factura_principal["fields"]["ruc"] == ruc_emisor
+        ):
+            tipo_documental = "adjunto_factura"
+
         nombre_final = build_final_name(
             grupo_codigo=grupo_codigo,
             tipo_documental=tipo_documental,
