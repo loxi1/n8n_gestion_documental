@@ -3,6 +3,7 @@ from __future__ import annotations
 import platform
 import re
 import subprocess
+import requests
 from datetime import datetime, date
 from pathlib import Path
 
@@ -14,13 +15,13 @@ from core.file_manager import build_final_name, move_file
 from core.clientes_destino import extract_cliente_destino_raw, find_cliente_destino_by_alias
 from core.grupo_documental import (
     get_next_correlativo_mes,
-    get_documentos_por_correo,
     extract_oc,
     build_operation_key,
     select_factura_principal,
 )
 from core.text_utils import normalize_text
 from core.windows_path import build_windows_target_path
+
 
 SQL_SELECT_PENDING = """
 SELECT
@@ -40,16 +41,8 @@ SELECT
     a.nombre_archivo_original
 FROM documentos d
 JOIN archivos a ON a.documento_id = d.id
-WHERE d.estado_documento IN ('pendiente', 'error')
+WHERE d.estado_documento IN ('pendiente', 'no_identificado', 'clasificado', 'error')
 ORDER BY d.id ASC;
-"""
-
-SQL_SELECT_CORREOS_PENDIENTES = """
-SELECT DISTINCT correo_id
-FROM documentos
-WHERE estado_documento IN ('pendiente', 'error')
-  AND correo_id IS NOT NULL
-ORDER BY correo_id;
 """
 
 SQL_UPDATE_DOCUMENTO = """
@@ -75,6 +68,14 @@ SET
 WHERE id = %(documento_id)s;
 """
 
+SQL_UPDATE_DOCUMENTO_ESTADO_SIMPLE = """
+UPDATE documentos
+SET
+    estado_documento = %(estado_documento)s,
+    actualizado_en = NOW()
+WHERE id = %(documento_id)s;
+"""
+
 SQL_UPDATE_ARCHIVO = """
 UPDATE archivos
 SET
@@ -95,35 +96,6 @@ SET
 WHERE id = %(correo_id)s;
 """
 
-SQL_UPDATE_DOCUMENTO_ESTADO_SIMPLE = """
-UPDATE documentos
-SET
-    estado_documento = %(estado_documento)s,
-    actualizado_en = NOW()
-WHERE id = %(documento_id)s;
-"""
-
-def fetch_proveedor_from_api(ruc: str) -> dict | None:
-    if not ruc or not APISPERU_TOKEN:
-        return None
-
-    url = f"https://dniruc.apisperu.com/api/v1/ruc/{ruc}?token={APISPERU_TOKEN}"
-
-    try:
-        resp = requests.get(url, timeout=15)
-        if resp.status_code != 200:
-            return None
-
-        data = resp.json()
-        return {
-            "ruc": data.get("ruc"),
-            "nombre": data.get("razonSocial"),
-            "direccion": data.get("direccion"),
-        }
-    except Exception as exc:
-        print(f"[API RUC ERROR] ruc={ruc} error={exc}")
-        return None
-
 
 def resolve_absolute_path(relative_path: str) -> Path:
     return STORAGE_DIR / relative_path
@@ -143,10 +115,26 @@ def normalize_date(value: str | None) -> str | None:
         return None
 
     raw = value.strip().upper()
+
     meses = {
         "ENE": "01", "FEB": "02", "MAR": "03", "ABR": "04",
         "MAY": "05", "JUN": "06", "JUL": "07", "AGO": "08",
         "SEP": "09", "OCT": "10", "NOV": "11", "DIC": "12",
+    }
+
+    meses_largos = {
+        "ENERO": "01",
+        "FEBRERO": "02",
+        "MARZO": "03",
+        "ABRIL": "04",
+        "MAYO": "05",
+        "JUNIO": "06",
+        "JULIO": "07",
+        "AGOSTO": "08",
+        "SEPTIEMBRE": "09",
+        "OCTUBRE": "10",
+        "NOVIEMBRE": "11",
+        "DICIEMBRE": "12",
     }
 
     m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
@@ -169,6 +157,20 @@ def normalize_date(value: str | None) -> str | None:
     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
     if m:
         return raw
+
+    m = re.match(r"^(\d{1,2}) DE ([A-ZÁÉÍÓÚ]+) DEL (\d{4})$", raw)
+    if m:
+        day, mon_txt, year = m.groups()
+        mon_txt = (
+            mon_txt.replace("Á", "A")
+            .replace("É", "E")
+            .replace("Í", "I")
+            .replace("Ó", "O")
+            .replace("Ú", "U")
+        )
+        mon = meses_largos.get(mon_txt)
+        if mon:
+            return f"{year}-{mon}-{str(day).zfill(2)}"
 
     return None
 
@@ -215,7 +217,32 @@ def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
         return False
 
 
-def get_or_create_proveedor(ruc: str | None, razon_social: str | None = None, direccion: str | None = None) -> dict | None:
+def fetch_proveedor_from_api(ruc: str) -> dict | None:
+    if not ruc or not APISPERU_TOKEN:
+        return None
+
+    url = f"https://dniruc.apisperu.com/api/v1/ruc/{ruc}?token={APISPERU_TOKEN}"
+
+    try:
+        resp = requests.get(url, timeout=15)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return {
+            "ruc": data.get("ruc"),
+            "nombre": data.get("razonSocial"),
+            "direccion": data.get("direccion"),
+        }
+    except Exception as exc:
+        print(f"[API RUC ERROR] ruc={ruc} error={exc}")
+        return None
+
+
+def get_or_create_proveedor(
+    ruc: str | None,
+    razon_social: str | None = None,
+    direccion: str | None = None,
+) -> dict | None:
     if not ruc:
         return None
 
@@ -253,6 +280,24 @@ def get_or_create_proveedor(ruc: str | None, razon_social: str | None = None, di
         return dict(row) if row else None
 
 
+def update_correo_estado(
+    correo_id: int,
+    procesado: bool,
+    estado_correo: str,
+    observacion: str | None = None,
+) -> None:
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            SQL_UPDATE_CORREO,
+            {
+                "correo_id": correo_id,
+                "procesado": procesado,
+                "estado_correo": estado_correo,
+                "observacion": observacion,
+            },
+        )
+
+
 def try_extract_razon_social(text: str, fallback: str | None = None) -> str:
     text_n = normalize_text(text)
 
@@ -271,170 +316,11 @@ def try_extract_razon_social(text: str, fallback: str | None = None) -> str:
     return fallback or "SIN_RAZON_SOCIAL"
 
 
-def move_to_bucket(pdf_path: Path, bucket: str, file_name: str) -> str:
-    year = pdf_path.parent.parent.name
-    month = pdf_path.parent.name
-    destino_relativo = f"{bucket}/{year}/{month}/{file_name}"
-    destino_abs = STORAGE_DIR / destino_relativo
-
-    if pdf_path.exists() and pdf_path.name != file_name:
-        move_file(pdf_path, destino_abs)
-
-    return destino_relativo
-
-
-def process_one_document(item: dict) -> dict | None:
-    documento_id = item["documento_id"]
-    archivo_id = item["archivo_id"]
-    correo_id = item["correo_id"]
-    ruta_temporal = item["ruta_temporal"]
-    nombre_archivo_actual = item["nombre_archivo_actual"]
-    nombre_archivo_original = item["nombre_archivo_original"]
-
-    pdf_path = resolve_absolute_path(ruta_temporal)
-    if not pdf_path.exists():
-        print(f"[ERROR] No existe archivo: {pdf_path}")
-        return None
-
-    text = ""
-    try:
-        text = extract_text_from_pdf(pdf_path)
-    except Exception as exc:
-        print(f"[WARN] Error leyendo PDF directo {pdf_path.name}: {exc}")
-
-    if not text.strip():
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
-
-        if run_ocr(pdf_path, ocr_output) and ocr_output.exists():
-            try:
-                text = extract_text_from_pdf(ocr_output)
-                if text.strip():
-                    print(f"[OCR OK] documento_id={documento_id} archivo={pdf_path.name}")
-            except Exception as exc:
-                print(f"[OCR READ ERROR] {exc}")
-
-    if not text.strip():
-        return {
-            "documento_id": documento_id,
-            "archivo_id": archivo_id,
-            "correo_id": correo_id,
-            "tipo_documental": "otro",
-            "serie": None,
-            "numero": None,
-            "ruc": None,
-            "razon_social": "SIN_RAZON_SOCIAL",
-            "fecha_emision": None,
-            "fecha_emision_date": None,
-            "importe": None,
-            "cliente_destino_id": None,
-            "ruta_windows_final": None,
-            "oc": None,
-            "operation_key": build_operation_key(correo_id, "otro", None, None, None),
-            "estado_documento": "no_identificado",
-            "nombre_archivo_actual": nombre_archivo_actual,
-            "nombre_archivo_original": nombre_archivo_original,
-            "ruta_temporal": ruta_temporal,
-            "proveedor_id": None,
-        }
-
-    fields = extract_basic_fields(text, nombre_archivo_original)
-    tipo_documental = fields["tipo_documental"]
-    fecha_emision = normalize_date(fields["fecha_emision"])
-    fecha_emision_date = parse_iso_date(fecha_emision)
-
-    cliente_raw = extract_cliente_destino_raw(text)
-    cliente_match = find_cliente_destino_by_alias(cliente_raw)
-    cliente_destino_id = cliente_match["id"] if cliente_match else None
-    ruta_windows_final = None
-
-    if cliente_match and fecha_emision_date:
-        ruta_windows_final = build_windows_target_path(cliente_match["ruta_windows"], fecha_emision_date)
-
-    razon_social = try_extract_razon_social(text, item.get("razon_social"))
-    ruc = fields["ruc"]
-
-    proveedor = get_or_create_proveedor(ruc, razon_social)
-    proveedor_id = proveedor["id"] if proveedor else None
-    if proveedor and proveedor.get("nombre"):
-        razon_social = proveedor["nombre"]
-
-    oc = extract_oc(text)
-
-    operation_key = build_operation_key(
-        correo_id=correo_id,
-        tipo_documental=tipo_documental,
-        ruc=ruc,
-        oc=oc,
-        cliente_destino_id=cliente_destino_id,
-    )
-
-    estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
-
-    return {
-        "documento_id": documento_id,
-        "archivo_id": archivo_id,
-        "correo_id": correo_id,
-        "tipo_documental": tipo_documental,
-        "serie": fields["serie"],
-        "numero": fields["numero"],
-        "ruc": ruc,
-        "razon_social": razon_social,
-        "fecha_emision": fecha_emision,
-        "fecha_emision_date": fecha_emision_date,
-        "importe": fields["importe"],
-        "cliente_destino_id": cliente_destino_id,
-        "ruta_windows_final": ruta_windows_final,
-        "oc": oc,
-        "operation_key": operation_key,
-        "estado_documento": estado_documento,
-        "nombre_archivo_actual": nombre_archivo_actual,
-        "nombre_archivo_original": nombre_archivo_original,
-        "ruta_temporal": ruta_temporal,
-        "proveedor_id": proveedor_id,
-    }
-
-
-def save_processed_document(item: dict) -> None:
-    pdf_path = resolve_absolute_path(item["ruta_temporal"])
-    bucket = "pendientes_clasificados" if item["estado_documento"] == "clasificado" else "no_identificados"
-    destino_relativo = move_to_bucket(pdf_path, bucket, item["nombre_final"])
-
-    with get_cursor(commit=True) as (_, cur):
-        cur.execute(
-            SQL_UPDATE_DOCUMENTO,
-            {
-                "proveedor_id": item["proveedor_id"],
-                "cliente_destino_id": item["cliente_destino_id"],
-                "tipo_documental": item["tipo_documental"],
-                "serie": item["serie"],
-                "numero": item["numero"],
-                "ruc": item["ruc"],
-                "razon_social": item["razon_social"],
-                "fecha_emision": item["fecha_emision"],
-                "importe": item["importe"],
-                "estado_documento": item["estado_documento"],
-                "grupo_codigo": item["grupo_codigo"],
-                "correlativo_mes": item["correlativo_mes"],
-                "es_principal": item["es_principal"],
-                "documento_principal_id": item["documento_principal_id"],
-                "nombre_final": item["nombre_final"],
-                "ruta_windows_final": item["ruta_windows_final"],
-                "documento_id": item["documento_id"],
-            },
-        )
-        cur.execute(
-            SQL_UPDATE_ARCHIVO,
-            {
-                "nombre_archivo_actual": item["nombre_final"],
-                "ruta_temporal": destino_relativo,
-                "estado_archivo": "renombrado",
-                "archivo_id": item["archivo_id"],
-            },
-        )
-
-def mark_documents_as_review(items: list[dict], estado_documento: str, bucket: str = "pendientes_revision") -> None:
+def mark_documents_as_review(
+    items: list[dict],
+    estado_documento: str,
+    bucket: str = "pendientes_revision",
+) -> None:
     for item in items:
         pdf_path = resolve_absolute_path(item["ruta_temporal"])
         file_name = item["nombre_archivo_actual"]
@@ -456,7 +342,6 @@ def mark_documents_as_review(items: list[dict], estado_documento: str, bucket: s
                     "documento_id": item["documento_id"],
                 },
             )
-
             cur.execute(
                 SQL_UPDATE_ARCHIVO,
                 {
@@ -467,22 +352,69 @@ def mark_documents_as_review(items: list[dict], estado_documento: str, bucket: s
                 },
             )
 
-def update_correo_estado(
-    correo_id: int,
-    procesado: bool,
-    estado_correo: str,
-    observacion: str | None = None,
-) -> None:
-    with get_cursor(commit=True) as (_, cur):
-        cur.execute(
-            SQL_UPDATE_CORREO,
-            {
-                "correo_id": correo_id,
-                "procesado": procesado,
-                "estado_correo": estado_correo,
-                "observacion": observacion,
-            },
+
+def get_pending_rows():
+    with get_cursor() as (_, cur):
+        cur.execute(SQL_SELECT_PENDING)
+        return [dict(r) for r in cur.fetchall()]
+
+
+def group_by_correo(rows: list[dict]) -> dict[int, list[dict]]:
+    grouped: dict[int, list[dict]] = {}
+    for row in rows:
+        grouped.setdefault(row["correo_id"], []).append(row)
+    return grouped
+
+
+def enrich_document(item: dict) -> dict:
+    pdf_path = resolve_absolute_path(item["ruta_temporal"])
+    text = ""
+    ocr_output = None
+
+    try:
+        text = extract_text_from_pdf(pdf_path)
+    except Exception:
+        text = ""
+
+    if not text.strip():
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
+        ocr_ok = run_ocr(pdf_path, ocr_output)
+        if ocr_ok and ocr_output.exists():
+            try:
+                text = extract_text_from_pdf(ocr_output)
+            except Exception:
+                text = ""
+
+    fields = extract_basic_fields(text, item["nombre_archivo_original"])
+    cliente_raw = extract_cliente_destino_raw(text)
+    cliente_match = find_cliente_destino_by_alias(cliente_raw)
+    fecha_norm = normalize_date(fields["fecha_emision"])
+    fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
+
+    razon_social_emisor = item.get("razon_social") or None
+    if not razon_social_emisor:
+        m = re.search(
+            r"\bEMISOR[:\s]+(.+?)(?:\bDIRECCION\b|\bRUC\b)",
+            normalize_text(text),
+            re.IGNORECASE | re.DOTALL,
         )
+        if m:
+            razon_social_emisor = m.group(1).strip()
+
+    return {
+        **item,
+        "text": text,
+        "fields": fields,
+        "cliente_raw": cliente_raw,
+        "cliente_match": cliente_match,
+        "fecha_emision_norm": fecha_norm,
+        "fecha_emision_date": fecha_date,
+        "razon_social_emisor_detectada": razon_social_emisor,
+        "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
+    }
+
 
 def process_correo(items: list[dict]) -> None:
     enriched = [enrich_document(x) for x in items]
@@ -507,6 +439,22 @@ def process_correo(items: list[dict]) -> None:
 
     correo_id = items[0]["correo_id"]
 
+    if not factura_principal:
+        print(f"[WARN] correo_id={correo_id} sin factura principal")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="pendiente_asociacion",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="sin_factura_principal",
+            observacion="No se encontró factura principal en el correo.",
+        )
+        return
+
+    fecha_principal = factura_principal.get("fecha_emision_date")
     if not fecha_principal:
         print(f"[WARN] correo_id={correo_id} factura sin fecha")
         mark_documents_as_review(
@@ -514,18 +462,6 @@ def process_correo(items: list[dict]) -> None:
             estado_documento="revision_manual",
             bucket="pendientes_revision",
         )
-        update_correo_estado(
-            correo_id=correo_id,
-            procesado=False,
-            estado_correo="factura_sin_fecha",
-            observacion="La factura principal no tiene fecha de emisión reconocible.",
-        )
-        return
-
-    fecha_principal = factura_principal.get("fecha_emision_date")
-    
-    if not fecha_principal:
-        print(f"[WARN] correo_id={correo_id} factura sin fecha")
         update_correo_estado(
             correo_id=correo_id,
             procesado=False,
@@ -676,13 +612,6 @@ def process_correo(items: list[dict]) -> None:
     )
 
 
-def get_correos_pendientes() -> list[int]:
-    with get_cursor() as (_, cur):
-        cur.execute(SQL_SELECT_CORREOS_PENDIENTES)
-        rows = cur.fetchall()
-        return [int(r["correo_id"]) for r in rows]
-
-
 def main() -> None:
     rows = get_pending_rows()
     if not rows:
@@ -696,68 +625,6 @@ def main() -> None:
         print(f"[INFO] procesando correo_id={correo_id} documentos={len(items)}")
         process_correo(items)
 
-
-def get_pending_rows():
-    with get_cursor() as (_, cur):
-        cur.execute(SQL_SELECT_PENDING)
-        return [dict(r) for r in cur.fetchall()]
-
-def group_by_correo(rows: list[dict]) -> dict[int, list[dict]]:
-    grouped: dict[int, list[dict]] = {}
-    for row in rows:
-        grouped.setdefault(row["correo_id"], []).append(row)
-    return grouped
-
-def enrich_document(item: dict) -> dict:
-    pdf_path = resolve_absolute_path(item["ruta_temporal"])
-    text = ""
-    ocr_output = None
-
-    try:
-        text = extract_text_from_pdf(pdf_path)
-    except Exception:
-        text = ""
-
-    if not text.strip():
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
-        ocr_ok = run_ocr(pdf_path, ocr_output)
-        if ocr_ok and ocr_output.exists():
-            try:
-                text = extract_text_from_pdf(ocr_output)
-            except Exception:
-                text = ""
-
-    fields = extract_basic_fields(text, item["nombre_archivo_original"])
-
-    cliente_raw = extract_cliente_destino_raw(text)
-    cliente_match = find_cliente_destino_by_alias(cliente_raw)
-
-    fecha_norm = normalize_date(fields["fecha_emision"])
-    fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
-
-    razon_social_emisor = item.get("razon_social") or None
-    if not razon_social_emisor:
-        m = re.search(
-            r"\bEMISOR[:\s]+(.+?)(?:\bDIRECCION\b|\bRUC\b)",
-            normalize_text(text),
-            re.IGNORECASE | re.DOTALL,
-        )
-        if m:
-            razon_social_emisor = m.group(1).strip()
-
-    return {
-        **item,
-        "text": text,
-        "fields": fields,
-        "cliente_raw": cliente_raw,
-        "cliente_match": cliente_match,
-        "fecha_emision_norm": fecha_norm,
-        "fecha_emision_date": fecha_date,
-        "razon_social_emisor_detectada": razon_social_emisor,
-        "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
-    }
 
 if __name__ == "__main__":
     main()

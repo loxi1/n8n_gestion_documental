@@ -118,181 +118,202 @@ total 21492
 ...
 
  
-          
- 
-Perfecto, aquí tienes el classifier.py final alineado con todo lo que ya construiste:
-Detecta factura / OC / guía / otros
-Soporta casos como F231-0101493 y FE65-0812829
-Extrae fecha normal y fecha larga (21 DE ABRIL DEL 2026)
-Detecta RUC, importe y OC
-Funciona bien con OCR imperfecto
-Preparado para tu lógica de ADJUNTO_FACTURA
-✅ app/core/classifier.py (VERSIÓN FINAL)
-Python
-import re
-from core.text_utils import normalize_text
+
+Listo correo ya me marie con las carpetas y sus estados por favor revisar el repo y las carpetas y dame la conclucion:
+$ python procesar_pendientes.py
+Correos pendientes encontrados: 5
+[INFO] procesando correo_id=1 documentos=3
+[DEBUG] correo_id=1 enriquecidos:
+{'documento_id': 1, 'archivo': '04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101493', 'ruc': '20100084172', 'oc': '007886', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': None}
+{'documento_id': 2, 'archivo': '04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 3, 'archivo': '04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': '20100084172', 'oc': None, 'cliente_raw': '4000019957 - BBTIS.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI'}, 'fecha': None}
+[DEBUG] factura_principal = {'documento_id': 1, 'correo_id': 1, 'proveedor_id': 754, 'tipo_documental': 'factura', 'serie': 'F231', 'numero': '0101493', 'ruc': '20100084172', 'razon_social': 'PROMOTORES ELECTRICOS S A', 'fecha_emision': datetime.date(2026, 4, 15), 'estado_documento': 'clasificado', 'archivo_id': 1, 'ruta_temporal': 'pendientes_clasificados/2026/04/04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf', 'nombre_archivo_actual': '04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101493.pdf', 'text': 'Página 1 de 1\nFECHA DE EMISIÓN: 15/04/2026\nEMISOR: Promotores Electricos S A\nDIRECCIÓN: AV. NICOLAS ARRIOLA NRO. 899 URB. STA CATALINA - LA\nVICTORIA - LIMA - LIMA - PERÚ\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nRUC: 20100084172\nFACTURA ELECTRÓNICA\nN° F231-0101493\n \nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA: Callao norte\nMONEDA: DOLAR AMERICANO GUÍA DE\nREMISIÓN: N° OC: 007886\nPEDIDO FACTURA CONDICIÓN PAGO FORMA DE PAGO VENCIMIENTO\n1100335764 9100354646 FACTURA 45 DIAS CREDITO 30/05/2026\nITEM CÓDIGO CANTIDAD UM DESCRIPCIÓN   VALOR\nUNITARIO\nDESCUENTO VALOR DE\nVENTA\nIGV PRECIO VTA\nUNI INCL IGV\n010 1030098 600.00 M CABLE H07Z1-K 1.5MM2 750V LSZH AZUL CL5\nMARCA: MIGUELEZ\nMODELO: AFIRENAS-L H07Z1-K\n0.41 72.57 173.43 31.22 0.34\n020 1005442 300.00 M CABLE H07Z1-K 1.5MM2 750V LSZH ROJO CL5\nMARCA: MIGUELEZ\nMODELO: AFIRENAS-L H07Z1-K\n0.41 36.29 86.71 15.61 0.34\n030 1042542 100.00 M CABLE PUES.TIERR.CPT 2.5MM2 LSZH.AM/VER\nMARCA: INDECO\nMODELO: FREETOX-PC NH-90\n0.73 21.54 51.46 9.26 0.61\n040 1042543 200.00 M CABLE NH-90 4MM2 750V LSZH.NEGRO PRACT\nMARCA: INDECO\nMODELO: FREETOX-PC NH-90\n1.13 66.67 159.33 28.68 0.94\n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n:\nSON: QUINIENTOS CINCUENTA Y CINCO Y 70/100 DOLARES AMERICANOS TOTAL DSCTO: 197.07 OP.GRAVADAS: 470.93\nOP.INAFECTAS: 0.00\nOP. EXONERADAS: 0.00\nOP.GRATUITAS: 0.00\n OTROS CARGOS: 0.00\nIGV (18.00%): 84.77\n TOTAL (USD $): 555.70\nCuota001:USD $ 555.70- Fecha Venc : 2026-05-30\nVALOR RESUMEN : RFZY9wDxnjtAlraMKa48qJSKpwk=\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http://efact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N° 0180050001886 /SUNAT', 'fields': {'tipo_documental': 'factura', 'serie': 'F231', 'numero': '0101493', 'ruc': '20100084172', 'fecha_emision': None, 'importe': '197.07', 'oc': '007886'}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': None, 'fecha_emision_date': None, 'razon_social_emisor_detectada': 'PROMOTORES ELECTRICOS S A', 'ocr_output_path': None}
+[WARN] correo_id=1 factura sin fecha
+[INFO] procesando correo_id=4 documentos=3
+[DEBUG] correo_id=4 enriquecidos:
+{'documento_id': 4, 'archivo': '04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101492', 'ruc': '20100084172', 'oc': '007898', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': None}
+{'documento_id': 5, 'archivo': '04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+{'documento_id': 6, 'archivo': '04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': '20100084172', 'oc': None, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': None}
+[DEBUG] factura_principal = {'documento_id': 4, 'correo_id': 4, 'proveedor_id': 754, 'tipo_documental': 'factura', 'serie': 'F231', 'numero': '0101492', 'ruc': '20100084172', 'razon_social': 'PROMOTORES ELECTRICOS S A', 'fecha_emision': datetime.date(2026, 4, 15), 'estado_documento': 'clasificado', 'archivo_id': 4, 'ruta_temporal': 'pendientes_clasificados/2026/04/04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf', 'nombre_archivo_actual': '04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101492.pdf', 'text': 'Página 1 de 1\nFECHA DE EMISIÓN: 15/04/2026\nEMISOR: Promotores Electricos S A\nDIRECCIÓN: AV. NICOLAS ARRIOLA NRO. 899 URB. STA CATALINA - LA\nVICTORIA - LIMA - LIMA - PERÚ\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nRUC: 20100084172\nFACTURA ELECTRÓNICA\nN° F231-0101492\n \nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA: Callao norte\nMONEDA: DOLAR AMERICANO GUÍA DE\nREMISIÓN: N° OC: 007898\nPEDIDO FACTURA CONDICIÓN PAGO FORMA DE PAGO VENCIMIENTO\n1100335999 9100354645 FACTURA 30 DIAS CREDITO 15/05/2026\nITEM CÓDIGO CANTIDAD UM DESCRIPCIÓN   VALOR\nUNITARIO\nDESCUENTO VALOR DE\nVENTA\nIGV PRECIO VTA\nUNI INCL IGV\n010 1027818 10.00 M CABLE H07Z1-K 35MM2 750V LSZH NEGRO CL5\nMARCA: MIGUELEZ\nMODELO: AFIRENAS-L H07Z1-K\n9.30 27.44 65.56 11.80 7.74\n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n:\nSON: SETENTA Y SIETE Y 36/100 DOLARES AMERICANOS TOTAL DSCTO: 27.44 OP.GRAVADAS: 65.56\nOP.INAFECTAS: 0.00\nOP. EXONERADAS: 0.00\nOP.GRATUITAS: 0.00\n OTROS CARGOS: 0.00\nIGV (18.00%): 11.80\n TOTAL (USD $): 77.36\nCuota001:USD $ 77.36- Fecha Venc : 2026-05-15\nVALOR RESUMEN : xyjwFie8lGcyo9FdMbkxatY8KJ8=\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http://efact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N° 0180050001886 /SUNAT', 'fields': {'tipo_documental': 'factura', 'serie': 'F231', 'numero': '0101492', 'ruc': '20100084172', 'fecha_emision': None, 'importe': '27.44', 'oc': '007898'}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': None, 'fecha_emision_date': None, 'razon_social_emisor_detectada': 'PROMOTORES ELECTRICOS S A', 'ocr_output_path': None}
+[WARN] correo_id=4 factura sin fecha
+[INFO] procesando correo_id=13 documentos=1
+[DEBUG] correo_id=13 enriquecidos:
+{'documento_id': 7, 'archivo': 'posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
+[DEBUG] factura_principal = {'documento_id': 7, 'correo_id': 13, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 7, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf', 'nombre_archivo_original': 'G-0FE65-0812829-5172524590-90026-1_1.PDF', 'text': 'ACEROS\nA AREQUIPA\nCARRETERA PANAMERICANA SUR N?* 241, ICA, Pisco, Paracas. Teléfonos: (+51) 54232430, 54215341 Fax: 54219796.\nCERTIFICADO DE CALIDAD\nN* G-OFE65-0812829-5172524590-90026-1_1\nN* Factura: OFE65-0812829\nCLIENTE :BBTI S.A.C.\nDESPACHO : N* APRO\nFECHA — :2026-04-21\nCon el presente documento certificamos que comercializamos Plancha Zincada Lisa de Acero que cumplen\ncon la norma:\nJIS G3302 GRADO SGCH\nEn las dimensiones de: 1.9 X 1200 X 2400MM\nPropiedades Mecánicas referenciales de acuerdo a la norma ASTM A653/A653M.\nLímite de Fluencia, = 205 - 380 MPa\nAlargamiento en 50 mm, mínimo: = 20 % (*)\n(*) Valores referenciales\nDoblado a 180”: Sin Fisura\nGalvanizado: Se garantiza un revestimiento mínimo G30 ó Z90 (90 g / m2, total en ambas caras), según\nNormas ASTM A653/A653M.\nComposición Química (%):\nC =0.02-0.15 Mn = 0.60 máximo\nP =0.030 máximo S =0.035 máximo\nCu=0.25 máximo Ni =0.20 máximo\nCr =0.15 máximo Mo = 0.06 máximo\nV =0.008 máximo Nb = 0.008 máximo\nTi = 0.025 máximo\nEl producto cumple con las características dimensionales y de forma establecidas.\nSe garantiza el producto para su uso estándar.\nAtentamente,\nSUPERINTENDENTE DE METALURGIA\nPágina 1 de 1\nCÓDIGO: QCQA02-E010 - VERSIÓN: 02', 'fields': {'tipo_documental': 'factura', 'serie': None, 'numero': None, 'ruc': None, 'fecha_emision': None, 'importe': '0.02', 'oc': None}, 'cliente_raw': None, 'cliente_match': None, 'fecha_emision_norm': None, 'fecha_emision_date': None, 'razon_social_emisor_detectada': None, 'ocr_output_path': 'C:\\D\\Proyectos\\GestionDocumental\\n8n-local\\storage\\files\\ocr_tmp\\2026\\04\\ocr_posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf'}
+[WARN] correo_id=13 factura sin fecha
+[INFO] procesando correo_id=14 documentos=1
+[DEBUG] correo_id=14 enriquecidos:
+{'documento_id': 8, 'archivo': 'posible_documento_20260421193059970_ADR5100000156043530002FBAC343AD91FD18FA7_1.pdf', 'tipo': 'factura', 'serie': 'FE65', 'numero': '0812829', 'ruc': '20370146994', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': '2026-04-21'}
+[DEBUG] factura_principal = {'documento_id': 8, 'correo_id': 14, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 8, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260421193059970_ADR5100000156043530002FBAC343AD91FD18FA7_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260421193059970_ADR5100000156043530002FBAC343AD91FD18FA7_1.pdf', 'nombre_archivo_original': 'FE65-0812829.pdf', 'text': 'FACTURA ELECTRÓNICAN° INTERNO               :\nORDEN VENTA          :\nN° GUIA REMISIÓN    :\nSEDE CONDICIONES DE PAGOCLIENTE FLETE POR T.M.PEDIDO U O/CZ-OFO C G\n5112719657\n5172524590\n1000 20 100000-8002 823 CALLAO 007926 1100028455 F/ 60 Dias\nCARRETERA PANAMERICANA SUR NRO 241, ICA Pisco Paracas\n01-FE65-0812829\n(+51) 54.23.2430, 54.21.5341 Fax: 54.21.9796.Teléfonos:\nBBTI S.A.C.\nREG. UNICO DE CONTRIBUYENTES: 20565747356\nITEM CODIGO DETALLE UNIDAD CANTIDAD VALOR TOTAL VALOR VENTA TOTAL PRECIO PRECIO UNITARIODESCUENTO\n% IMPORTE\nRUC: 20370146994\nCALLAO,  21 DE ABRIL DEL 2026\nNro. FE65-0812829T073-0665284\n402681 PZL JISG3302 1.9MM X 1200MM X 2400MM ST 100.0 44.30 20.00 3,544.00 4,181.92 41.821 886.00\nResumen:\nDE OSAMBELA VENTURO CLAUDIO ALBERTO\nSI EL PAGO SE EFECTUA EN S/. REGIRÁ EL TIPO DE CAMBIO VENTA US$ DE LA FECHA DE CANCELACIÓN\nUSD 637.92\nUSD 4,181.92\nUSD 3,544.00\nUSD 0.00\nUSD 0.00\nUSD 0.00\nUSD 0.00\nUSD 3,544.00\nUSD 0.00\nUSD 0.00\nUSD 0.00\nCUATRO MIL CIENTO OCHENTA Y UN CON 92/100 DOLARES AMERICANOSSON:\nDESP.: APRO\nTotal valor venta operaciones gratuitas\nTotal valor venta\nTotal valor venta gravada\nTotal valor venta inafecta\nTotal valor venta exonerada\nImporte Total\nTotal descuentos globales\nIntereses\nComisiones\nFletes y seguros\nIGV (18.00%)\nEmitido a través deRepresentación impresa de la factura electrónica, consulte en www.acerosarequipa.com\n Autorizado mediante la Resolución de intendencia N° N 0520050000009/SUNAT\n++zy7aeF7eyRXqj8Y9AhcRibQoA=\nAceros Arequipa cuenta con una Línea Ética que permite reportar conductas anti éticas, como fraude y corrupción. Puedes reportarlas en https://www.lineaeticaacerosarequipa.com/ o al +51-1-219-7134\n \n1) En caso de mora, el presente documento generará las tasas de interés compensatorio y moratorio, más altas que la ley permita a su último tenedor.\n2) Los intervinientes se someten a la competencia de los Jueces del Distrito Judicial de Lima.\nSi hubiera algún reclamo será aceptado para revisión, dentro de las 48 horas de efectuada la entrega de mercadería. Pasado este periodo no se aceptarán reclamos.\nEl receptor declara conocer que CAASA tiene una política COVID19 que declaro conocer y cumplir durante la compraventa de bienes o prestación de servicios', 'fields': {'tipo_documental': 'factura', 'serie': 'FE65', 'numero': '0812829', 'ruc': '20370146994', 'fecha_emision': '21 DE ABRIL DEL 2026', 'importe': '44.30', 'oc': None}, 'cliente_raw': None, 'cliente_match': None, 'fecha_emision_norm': '2026-04-21', 'fecha_emision_date': datetime.date(2026, 4, 21), 'razon_social_emisor_detectada': None, 'ocr_output_path': None}
+[OK] correo=14 doc=8 tipo=factura grupo=04-0003 nombre=04-0003 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
+[INFO] procesando correo_id=15 documentos=1
+[DEBUG] correo_id=15 enriquecidos:
+{'documento_id': 9, 'archivo': 'posible_documento_20260421193059970_ADR5100000156094930002FBAC343AD91FD18FA7_1.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': '20565747356', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': '2026-04-21'}
+[DEBUG] factura_principal = {'documento_id': 9, 'correo_id': 15, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 9, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260421193059970_ADR5100000156094930002FBAC343AD91FD18FA7_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260421193059970_ADR5100000156094930002FBAC343AD91FD18FA7_1.pdf', 'nombre_archivo_original': '20370146994-09-T073-0665284.pdf.pdf', 'text': 'GUIA REMISIÓN ELECTRÓNICA\nFECHA FACT/BOLETA:\nNRO BOLETA:\nORDEN VENTA:\nSEDE CLIENTEPEDIDO U O/CZTCE R\nZH CCCL07 LIMOSCALLA 3111 007926 1100028455\nCARRETERA PANAMERICANA SUR NRO 241, ICA Pisco Paracas\n(+51) 54.23.2430, 54.21.5341 Fax: 54.21.9796.Teléfonos:\nCOMPRADOR: BBTI S.A.C.\nRUC: 20565747356\nITEM CODIGO DETALLE UNIDAD CANTIDAD\nRUC: 20370146994\nCALLAO,  21 DE ABRIL DEL 2026\nNro. T073-0665284\n5112719657\nN° FACTURA:\nN° INTERNO:\nFECHA INICIO TRASLADO:\n5103900271\n21/04/2026\n1352033\n09T0730665284\nDT:\n \n \nQR SUNAT\nFecha Entrega Transportista: 21/04/2026\n402681 PZL JISG3302 1.9MM X 1200MM X 2400MM ST 100.0001\nEmitido a través deRepresentación impresa de la guía de remisión electrónica, consulte en www.acerosarequipa.com\n Autorizado mediante la Resolución de intendencia N° N 0520050000009/SUNAT\nTRASLADO/\nSEDES OTROSEXPORTACIÓNVENTA CONSIGNA-\nCIÓN\nTRANSFOR-\nMACIÓN\nX\nDEVOLUCIONCOMPRA\nEMITIDO POR REVISADO POR REVISADO POR RECIBI CONFORME\nDOC.IDENTID:\nDirección Transportista: CAL.MONTERREY NRO. 217 URB. MONTERREY INDEPENDENCIA HUARAZ ANCASH PERU\nPlaca: F6R750\nRUC: 20608611461\nLicencia Cond.: Q46366391 - Doc. Identidad: 46366391\nPeso (TNE): 4.325\nN° Despacho: APRO\nResumen : hwKQIxXXnc8QdAeevSIHXLD+DLc=\nConfig. Veh.: C3\nPunto de Partida: AV. ARGENTINA  5682 PROV. CONST. DEL CALLAO CALLAO PROV. CONST. DEL\nPunto de Llegada: CAL. 6 MZA. D LOTE. 13 URB. INDUST CALLAO PROV. CONST. DEL CALLAO\nFecha impresión: 21/04/2026 00:48:32 AM\nChofer: RUBEN LEONARDO QUISPE PEREZ\nEmpresa de Transportes: TRANSPORTE Y FACTORIA MOTORS S.A.', 'fields': {'tipo_documental': 'factura', 'serie': None, 'numero': None, 'ruc': '20565747356', 'fecha_emision': '21 DE ABRIL DEL 2026', 'importe': None, 'oc': None}, 'cliente_raw': None, 'cliente_match': None, 'fecha_emision_norm': '2026-04-21', 'fecha_emision_date': datetime.date(2026, 4, 21), 'razon_social_emisor_detectada': None, 'ocr_output_path': None}
+[DEBUG] doc=9 reclasificado a ADJUNTO_FACTURA
+[OK] correo=15 doc=9 tipo=adjunto_factura grupo=04-0004 nombre=04-0004 ADJUNTO_FACTURA 20565747356 BBTI_S_A_C.pdf
+(venv) 
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/ocr_tmp/2026/04/
+total 2612
+-rw-r--r-- 1 BBTI 01 197121  287936 Apr 21 15:59 'ocr_04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  258676 Apr 21 15:59 'ocr_04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  258672 Apr 21 12:04  ocr_posible_documento_20260421170233670_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf
+-rw-r--r-- 1 BBTI 01 197121  287937 Apr 21 12:04  ocr_posible_documento_20260421170233670_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf
+-rw-r--r-- 1 BBTI 01 197121 1566024 Apr 21 15:59  ocr_posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_clasificados/2026/04/
+total 176
+-rw-r--r-- 1 BBTI 01 197121 93585 Apr 21 14:31 '04-0003 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf'
+-rw-r--r-- 1 BBTI 01 197121 83385 Apr 21 14:31 '04-0004 ADJUNTO_FACTURA 20565747356 BBTI_S_A_C.pdf'
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_revision/2026/04/
+total 932
+-rw-r--r-- 1 BBTI 01 197121 239444 Apr 21 12:02 '04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60786 Apr 21 12:02 '04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  76340 Apr 21 12:02 '04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf'
+-rw-r--r-- 1 BBTI 01 197121 219646 Apr 21 12:02 '04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60453 Apr 21 12:02 '04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  72746 Apr 21 12:02 '04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf'
+-rw-r--r-- 1 BBTI 01 197121 213180 Apr 21 14:31  posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$
+
+gestiondocumental=# select * from correos_ingresados;
+ id | origen | proveedor_correo |                             message_id                             | thread_id | remitente_nombre |
+ remitente_email           | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                      asunto
+   | cuerpo_texto | cuerpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado |   estado_correo   | cantidad_adjuntos
+|                                                    observacion                                                     |         creado_en
+   |       actualizado_en
+----+--------+------------------+--------------------------------------------------------------------+-----------+------------------+----------
+---------------------------+----------+-------------------+-----------------+------------------+-----------------------------------------------
+---+--------------+-------------+---------------------+----------------------------+-------+-----------+-------------------+-------------------
++--------------------------------------------------------------------------------------------------------------------+-------------------------
+---+----------------------------
+  1 | correo | imap             | <69e69d97.050a0220.1b82a7.1b03@mx.google.com>                      |           |                  | notificac
+iones01.promelsa@gmail.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101493 - BBTI S.A.C
+.  |              |             | 2026-04-20 21:41:43 | 2026-04-21 12:02:39.1794   | f     | f         | factura_sin_fecha |                 1
+| La factura principal no tiene fecha de emisi¾n reconocible.                                                        | 2026-04-21 12:02:39.1794
+   | 2026-04-21 15:59:22.278157
+  4 | correo | imap             | <69e69d4e.050a0220.20184c.69bb@mx.google.com>                      |           |                  | notificac
+iones01.promelsa@gmail.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101492 - BBTI S.A.C
+.  |              |             | 2026-04-20 21:40:30 | 2026-04-21 12:02:39.1794   | f     | f         | factura_sin_fecha |                 1
+| La factura principal no tiene fecha de emisi¾n reconocible.                                                        | 2026-04-21 12:02:39.1794
+   | 2026-04-21 15:59:26.472114
+ 13 | correo | imap             | <ADR510000015602343000AB56143BB971FD18FA6E44FB047C000@aasa.com.pe> |           |                  | certcali@
+aasa.com.pe                |          |                   |                 |                  | Cert. de Calidad de la Factura Nro.0FE65-08128
+29 |              |             | 2026-04-21 06:00:13 | 2026-04-21 14:31:00.118741 | f     | f         | factura_sin_fecha |                 1
+| La factura principal no tiene fecha de emisi¾n reconocible.                                                        | 2026-04-21 14:31:00.1187
+41 | 2026-04-21 15:59:33.769804
+ 14 | correo | imap             | <ADR5100000156043530002FBAC343AD91FD18FA758C3947F6000@aasa.com.pe> |           |                  | fecaasa@a
+asa.com.pe                 |          |                   |                 |                  | CAASA: EnvÝo de factura de venta N░ FE65-08128
+29 |              |             | 2026-04-21 06:30:05 | 2026-04-21 14:31:00.118741 | f     | t         | procesado         |                 1
+| Procesado correctamente. Documentos: 1, clasificados: 1, no_identificados: 0, adjuntos_factura: 0, grupo: 04-0003. | 2026-04-21 14:31:00.1187
+41 | 2026-04-21 15:59:34.252892
+ 15 | correo | imap             | <ADR5100000156094930002FBAC343AD91FD18FA7E203FDD5E000@aasa.com.pe> |           |                  | fecaasa@a
+asa.com.pe                 |          |                   |                 |                  | CAASA: EnvÝo de guÝa electr¾nica N░ T073-06652
+84 |              |             | 2026-04-21 07:00:45 | 2026-04-21 14:31:00.118741 | f     | t         | procesado         |                 1
+| Procesado correctamente. Documentos: 1, clasificados: 1, no_identificados: 0, adjuntos_factura: 1, grupo: 04-0004. | 2026-04-21 14:31:00.1187
+41 | 2026-04-21 15:59:34.485177
+(5 rows)
 
 
-def _search(pattern: str, text: str, flags=0):
-    m = re.search(pattern, text, flags)
-    return m.group(1).strip() if m else None
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero  |     ruc     |          razon_social          | fecha_emision |
+fecha_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |
+      creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principa
+l_id |                                nombre_final                                |            ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+---------+-------------+--------------------------------+---------------+-
+------------------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+---
+-------------------------+----------------------------+--------------------+--------------+-----------------+--------------+-------------------
+-----+----------------------------------------------------------------------------+------------------------------------------
+  1 |         1 |          754 | factura         |          | F231  | 0101493 | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-04-15    |
+                  |        |  555.70 |     |                |       |                  | revision_manual  | Documento descargado desde n8n | 20
+26-04-21 12:02:50.079706 | 2026-04-21 15:59:22.193754 |                  2 | 04-0001      |               1 | t            |
+     | 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf     | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  2 |         1 |         1655 | orden_compra    |          | OC    | 007886  | 20565747356 | BBTI S.A.C.                    |               |
+                  |        |  470.98 |     |                |       |                  | revision_manual  | Documento descargado desde n8n | 20
+26-04-21 12:02:50.079706 | 2026-04-21 15:59:22.225172 |                  2 | 04-0001      |               1 | f            |
+   1 | 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf                     | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  3 |         1 |          754 | adjunto_factura |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-05-30    |
+                  |        |         |     |                |       |                  | revision_manual  | Documento descargado desde n8n | 20
+26-04-21 12:02:50.079706 | 2026-04-21 15:59:22.252391 |                  2 | 04-0001      |               1 | f            |
+   1 | 04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf          | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  4 |         4 |          754 | factura         |          | F231  | 0101492 | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-04-15    |
+                  |        |   77.36 |     |                |       |                  | revision_manual  | Documento descargado desde n8n | 20
+26-04-21 12:02:50.079706 | 2026-04-21 15:59:26.377734 |                  2 | 04-0002      |               2 | t            |
+     | 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf     | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  5 |         4 |         1655 | orden_compra    |          | OC    | 007898  | 20565747356 | BBTI S.A.C.                    |               |
+                  |        |   65.56 |     |                |       |                  | revision_manual  | Documento descargado desde n8n | 20
+26-04-21 12:02:50.079706 | 2026-04-21 15:59:26.420699 |                  2 | 04-0002      |               2 | f            |
+   4 | 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf                     | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  6 |         4 |          754 | adjunto_factura |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-04-15    |
+                  |        |   77.36 |     |                |       |                  | revision_manual  | Documento descargado desde n8n | 20
+26-04-21 12:02:50.079706 | 2026-04-21 15:59:26.44773  |                  2 | 04-0002      |               2 | f            |
+   4 | 04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf          | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  7 |        13 |              |                 |          |       |         |             |                                |               |
+                  |        |         |     |                |       |                  | revision_manual  | Documento descargado desde n8n | 20
+26-04-21 14:31:00.30123  | 2026-04-21 15:59:33.714426 |                    |              |                 | f            |
+     |                                                                            |
+  8 |        14 |          956 | factura         |          | FE65  | 0812829 | 20370146994 | CORPORACION ACEROS AREQUIPA S. | 2026-04-21    |
+                  |        |   44.30 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 20
+26-04-21 14:31:00.30123  | 2026-04-21 15:59:34.21823  |                    | 04-0003      |               3 | t            |
+     | 04-0003 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf |
+  9 |        15 |         1655 | adjunto_factura |          |       |         | 20565747356 | BBTI S.A.C.                    | 2026-04-21    |
+                  |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 20
+26-04-21 14:31:00.30123  | 2026-04-21 15:59:34.459741 |                    | 04-0004      |               4 | t            |
+     | 04-0004 ADJUNTO_FACTURA 20565747356 BBTI_S_A_C.pdf                         |
+(9 rows)
 
 
-def detect_tipo_documental(text: str, file_name: str) -> str:
-    text_u = normalize_text(text)
-    name_u = normalize_text(file_name)
+gestiondocumental=# select * from archivos;
+ id | documento_id | correo_id |         nombre_archivo_original          |                               nombre_archivo_actual
+                | extension |    mime_type    | tamano_bytes | hash_sha256 |                                                 ruta_temporal
+                                             | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
 
-    if "FACTURA" in text_u or re.search(r"\bF[A-Z0-9]{2,4}-\d+\b", text_u):
-        return "factura"
+----+--------------+-----------+------------------------------------------+--------------------------------------------------------------------
+----------------+-----------+-----------------+--------------+-------------+-------------------------------------------------------------------
+---------------------------------------------+------------+--------------+----------------+----------------------------+-----------------------
+-----
+  1 |            1 |         1 | 20100084172-01-F231-0101493.pdf          | 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.
+pdf             | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0001 FACTURA F231 0101493 201000841
+72 PROMOTORES_ELECTRICOS_S_A.pdf             |            | t            | observado      | 2026-04-21 12:02:58.138198 | 2026-04-21 15:59:22.19
+3754
+  2 |            2 |         1 | 007886.pdf                               | 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf
+                | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0001 ORDEN_COMPRA 007886 2056574735
+6 BBTI_S_A_C.pdf                             |            | t            | observado      | 2026-04-21 12:02:58.138198 | 2026-04-21 15:59:22.22
+5172
+  3 |            3 |         1 | F231-00101493.pdf                        | 04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+                | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0001 ADJUNTO_FACTURA 20100084172 PR
+OMOTORES_ELECTRICOS_S_A.pdf                  |            | t            | observado      | 2026-04-21 12:02:58.138198 | 2026-04-21 15:59:22.25
+2391
+  4 |            4 |         4 | 20100084172-01-F231-0101492.pdf          | 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.
+pdf             | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0002 FACTURA F231 0101492 201000841
+72 PROMOTORES_ELECTRICOS_S_A.pdf             |            | t            | observado      | 2026-04-21 12:02:58.138198 | 2026-04-21 15:59:26.37
+7734
+  5 |            5 |         4 | 007898.pdf                               | 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf
+                | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0002 ORDEN_COMPRA 007898 2056574735
+6 BBTI_S_A_C.pdf                             |            | t            | observado      | 2026-04-21 12:02:58.138198 | 2026-04-21 15:59:26.42
+0699
+  6 |            6 |         4 | F231-00101492.pdf                        | 04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+                | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0002 ADJUNTO_FACTURA 20100084172 PR
+OMOTORES_ELECTRICOS_S_A.pdf                  |            | t            | observado      | 2026-04-21 12:02:58.138198 | 2026-04-21 15:59:26.44
+773
+  7 |            7 |        13 | G-0FE65-0812829-5172524590-90026-1_1.PDF | posible_documento_20260421193059969_ADR510000015602343000AB56143BB9
+71FD18FA6_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421193059969_AD
+R510000015602343000AB56143BB971FD18FA6_1.pdf |            | t            | observado      | 2026-04-21 14:31:00.494691 | 2026-04-21 15:59:33.71
+4426
+  8 |            8 |        14 | FE65-0812829.pdf                         | 04-0003 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIP
+A_S.pdf         | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0003 FACTURA FE65 0812829 20370
+146994 CORPORACION_ACEROS_AREQUIPA_S.pdf     |            | t            | renombrado     | 2026-04-21 14:31:00.494691 | 2026-04-21 15:59:34.21
+823
+  9 |            9 |        15 | 20370146994-09-T073-0665284.pdf.pdf      | 04-0004 ADJUNTO_FACTURA 20565747356 BBTI_S_A_C.pdf
+                | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0004 ADJUNTO_FACTURA 2056574735
+6 BBTI_S_A_C.pdf                             |            | t            | renombrado     | 2026-04-21 14:31:00.494691 | 2026-04-21 15:59:34.45
+9741
+(9 rows)
 
-    if "ORDEN DE COMPRA" in text_u or name_u.startswith("OC"):
-        return "orden_compra"
-
-    if "GUIA DE REMISION" in text_u or "GUIA ELECTRONICA" in text_u:
-        return "guia_remision"
-
-    return "otro"
-
-
-def extract_basic_fields(text: str, file_name: str) -> dict:
-    text_u = normalize_text(text)
-
-    tipo_documental = detect_tipo_documental(text, file_name)
-
-    serie = None
-    numero = None
-    ruc = None
-    fecha_emision = None
-    importe = None
-    oc = None
-
-    # =========================
-    # FACTURA (F231, FE65, etc)
-    # =========================
-    if tipo_documental == "factura":
-        patrones = [
-            r"\b(F\d{3,4})[- ](\d{3,})\b",              # F231-0101493
-            r"\b(FE\d{2,4})[- ](\d{3,})\b",             # FE65-0812829
-            r"\bN[°º]\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
-            r"\bNRO\.?\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
-        ]
-
-        for p in patrones:
-            m = re.search(p, text_u)
-            if m:
-                serie = m.group(1)
-                numero = m.group(2)
-                break
-
-    # =========================
-    # ORDEN DE COMPRA
-    # =========================
-    if tipo_documental == "orden_compra":
-        m = re.search(r"\bOC[- ]?(\d{4,})\b", text_u)
-        if m:
-            serie = "OC"
-            numero = m.group(1)
-
-    # =========================
-    # GUÍA DE REMISIÓN
-    # =========================
-    if tipo_documental == "guia_remision":
-        m = re.search(r"\b(T\d{3})[- ](\d{3,})\b", text_u)
-        if m:
-            serie = m.group(1)
-            numero = m.group(2)
-
-    # =========================
-    # RUC
-    # =========================
-    ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
-
-    # =========================
-    # FECHA
-    # =========================
-    fecha_emision = _search(
-        r"\bFECHA DE EMISION[:\s]*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
-        text_u,
-    )
-
-    if not fecha_emision:
-        fecha_emision = _search(
-            r"\b([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
-            text_u,
-        )
-
-    # Fecha larga tipo: 21 DE ABRIL DEL 2026
-    if not fecha_emision:
-        fecha_emision = _search(
-            r"\b([0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
-            text_u,
-        )
-
-    # =========================
-    # IMPORTE
-    # =========================
-    importe = _search(
-        r"TOTAL.*?([0-9]+[.,][0-9]{2})",
-        text_u,
-        flags=re.DOTALL,
-    )
-
-    # =========================
-    # ORDEN DE COMPRA (desde factura)
-    # =========================
-    oc = _search(r"\bOC[:\s]*([0-9]{4,})\b", text_u)
-
-    return {
-        "tipo_documental": tipo_documental,
-        "serie": serie,
-        "numero": numero,
-        "ruc": ruc,
-        "fecha_emision": fecha_emision,
-        "importe": importe,
-        "oc": oc,
-    }
-🔥 Qué mejora este classifier
-✔ Caso Promelsa (ya lo tienes)
-
-F231-0101493
-✔ Detecta serie y número perfecto
-✔ Caso Aceros Arequipa (tu problema actual)
-
-FE65-0812829
-CALLAO, 21 DE ABRIL DEL 2026
-Ahora:
-✔ detecta FE65
-✔ detecta 0812829
-✔ detecta fecha larga
-✔ evita factura_sin_fecha
-✔ OCR imperfecto
-Incluso si viene:
-
-N° F231 0101493
-✔ también lo detecta
-✔ Preparado para tu lógica
-Esto permite que en procesar_pendientes.py funcione:
-Python
-if (
-    tipo_documental == "factura"
-    and not fields["serie"]
-    and not fields["numero"]
-):
-    tipo_documental = "adjunto_factura"
-🧠 Recomendación PRO (siguiente nivel)
-Si quieres dejar esto industrial nivel SUNAT, el siguiente paso sería:
-Validar RUC contra nombre (API ya lo tienes)
-Detectar moneda (USD vs PEN)
-Detectar múltiples facturas en un mismo PDF (caso raro pero real)
-🚀 Estado actual de tu sistema
-Ya estás en nivel:
-✔ ingestión automática
-✔ OCR fallback
-✔ clasificación inteligente
-✔ agrupación por correo
-✔ deduplicación lógica (adjunto_factura)
-✔ trazabilidad en BD
-✔ rutas finales en red
-Si quieres, el siguiente paso potente es:
-👉 pantalla web de revisión (pendientes_revision) tipo bandeja humana
-Eso ya sería sistema empresarial completo. 
