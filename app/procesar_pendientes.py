@@ -477,7 +477,8 @@ def process_correo(items: list[dict]) -> None:
         )
         return
 
-    fecha_principal = factura_principal["fecha_emision_date"]
+    fecha_principal = factura_principal.get("fecha_emision_date")
+    
     if not fecha_principal:
         print(f"[WARN] correo_id={correo_id} factura sin fecha")
         update_correo_estado(
@@ -695,8 +696,10 @@ def enrich_document(item: dict) -> dict:
         "fields": fields,
         "cliente_raw": cliente_raw,
         "cliente_match": cliente_match,
-        "ocr_output_path": str(ocr_output_path) if ocr_output_path else None,
-        # lo demás que ya retornas
+        "fecha_emision_norm": fecha_norm,
+        "fecha_emision_date": fecha_date,
+        "razon_social_emisor_detectada": razon_social_emisor,
+        "ocr_output_path": str(ocr_output) if 'ocr_output' in locals() and ocr_output.exists() else None,
     }
 
 if __name__ == "__main__":
