@@ -42,7 +42,27 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
     ):
         return "orden_compra"
 
-    # 4. FACTURA
+    # 4. REQUERIMIENTO
+    if (
+        "REQUERIMIENTO DE COMPRA" in text_u
+        or "REQUERIMIENTO" in text_u
+        or re.search(r"\bREQ[- ]?\d{3,}\b", text_u)
+        or re.search(r"\bREQ[- ]?\d{3,}\b", name_u)
+    ):
+        return "requerimiento_compra"
+
+    # 5. COTIZACION
+    if (
+        "COTIZACION" in text_u
+        or "COTIZACIÓN" in text_u
+        or "PROFORMA" in text_u
+        or "COTIZACION" in name_u
+        or "COTIZACIÓN" in name_u
+        or "PROFORMA" in name_u
+    ):
+        return "cotizacion"
+
+    # 6. FACTURA
     if (
         "FACTURA ELECTRONICA" in text_u
         or "FACTURA" in text_u
@@ -115,42 +135,52 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
                 numero = m.group(1).strip()
                 break
 
-    # Fecha de emisión
+    elif doc_type == "requerimiento_compra":
+        patrones = [
+            r"\bREQ[- ]?(\d{3,})\b",
+            r"\bREQUERIMIENTO(?: DE COMPRA)?\s*N[^0-9]{0,5}([0-9]{3,})\b",
+        ]
+        for patron in patrones:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                serie = "REQ"
+                numero = m.group(1).strip()
+                break
+
+    # Fecha
     fecha_emision = _search(
         r"\bFECHA(?: DE EMISION| DE EMISION:| DE EMISION\s*:)?\s*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
         text_u,
     )
-
     if not fecha_emision:
         fecha_emision = _search(r"\b([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
-
     if not fecha_emision:
         fecha_emision = _search(r"\b([0-9]{2}-[0-9]{2}-[0-9]{4})\b", text_u)
-
     if not fecha_emision:
         fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
-
     if not fecha_emision:
         fecha_emision = _search(
             r"\b([0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
             text_u,
         )
+    if not fecha_emision:
+        fecha_emision = _search(r"\bFECHA\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
 
-    # OC dentro de factura o guía
+    # OC
     oc = _search(r"\bOC[:\s]*([0-9]{4,})\b", text_u)
     if not oc:
         oc = _search(r"\bN[°º]?\s*OC[:\s]*([0-9]{4,})\b", text_u)
 
     # Importe
-    # Se priorizan textos más cercanos al total final
     patrones_importe = [
         r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9.,]*)\b",
         r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
         r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
-        r"\bIMPORTE TOTAL\s*[:.]?\s*([0-9][0-9.,]*)\b",
-        r"\bTOTAL[:\sA-Z$/.]*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*\(\$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*[:.]?\s*([0-9][0-9.,]*)\b",
     ]
-
     for patron in patrones_importe:
         m = re.search(patron, text_u, re.IGNORECASE)
         if m:

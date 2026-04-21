@@ -1,856 +1,141 @@
-Sí. Te dejo los códigos finales para probar limpio:
-app/core/classifier.py
-app/procesar_pendientes.py
-Usa estos antes de volver a limpiar BD y carpetas.
-app/core/classifier.py
-Python
-from __future__ import annotations
-
-import re
-from typing import Any
-from core.text_utils import normalize_text
-
-
-def _search(pattern: str, text: str, flags: int = re.IGNORECASE) -> str | None:
-    match = re.search(pattern, text, flags)
-    return match.group(1).strip() if match else None
-
-
-def detect_tipo_documental(text: str, file_name: str) -> str:
-    text_u = normalize_text(text)
-    name_u = normalize_text(file_name)
-
-    # 1. CERTIFICADO DE CALIDAD
-    if (
-        "CERTIFICADO DE CALIDAD" in text_u
-        or "CERT. DE CALIDAD" in text_u
-        or "CERTIFICADO" in name_u
-    ):
-        return "certificado_calidad"
-
-    # 2. GUIA DE REMISION
-    if (
-        "GUIA REMISION ELECTRONICA" in text_u
-        or "GUIA DE REMISION ELECTRONICA" in text_u
-        or "GUIA DE REMISION" in text_u
-        or re.search(r"\bNRO\.?\s*T\d{3}[- ]\d+\b", text_u)
-        or re.search(r"\bT\d{3}[- ]\d+\b", name_u)
-        or re.search(r"\bGR\d{3}[- ]\d+\b", name_u)
-    ):
-        return "guia_remision"
-
-    # 3. ORDEN DE COMPRA
-    if (
-        "ORDEN DE COMPRA" in text_u
-        or "ORDEN DE COMRA" in text_u
-        or re.search(r"\bOC[- ]?\d{4,}\b", text_u)
-        or re.search(r"\bOC[- ]?\d{4,}\b", name_u)
-    ):
-        return "orden_compra"
-
-    # 4. REQUERIMIENTO
-    if (
-        "REQUERIMIENTO DE COMPRA" in text_u
-        or "REQUERIMIENTO" in text_u
-        or re.search(r"\bREQ[- ]?\d{3,}\b", text_u)
-        or re.search(r"\bREQ[- ]?\d{3,}\b", name_u)
-    ):
-        return "requerimiento_compra"
-
-    # 5. COTIZACION
-    if (
-        "COTIZACION" in text_u
-        or "COTIZACIÓN" in text_u
-        or "PROFORMA" in text_u
-        or "COTIZACION" in name_u
-        or "COTIZACIÓN" in name_u
-        or "PROFORMA" in name_u
-    ):
-        return "cotizacion"
-
-    # 6. FACTURA
-    if (
-        "FACTURA ELECTRONICA" in text_u
-        or "FACTURA" in text_u
-        or re.search(r"\bF\d{3,4}-\d+\b", text_u)
-        or re.search(r"\bF\d{3,4}-\d+\b", name_u)
-        or re.search(r"\bFE\d{2,4}-\d+\b", text_u)
-        or re.search(r"\bFE\d{2,4}-\d+\b", name_u)
-        or re.search(r"\bNRO\.?\s*F[A-Z0-9]{2,4}-\d+\b", text_u)
-    ):
-        return "factura"
-
-    return "otro"
-
-
-def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
-    text_u = normalize_text(text)
-    doc_type = detect_tipo_documental(text, file_name)
-
-    ruc = None
-    serie = None
-    numero = None
-    fecha_emision = None
-    importe = None
-    oc = None
-
-    # RUC
-    ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
-    if not ruc:
-        ruc = _search(r"\bR\.U\.C\.?\s*(?:N[°º.]?)?\s*([0-9]{11})\b", text_u)
-    if not ruc:
-        ruc = _search(r"\bREG\.?\s*UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b", text_u)
-
-    # Serie / número por tipo
-    if doc_type == "factura":
-        patrones = [
-            r"\b(F\d{3,4})[- ](\d{3,})\b",
-            r"\b(FE\d{2,4})[- ](\d{3,})\b",
-            r"\bN[°º]\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
-            r"\bNRO\.?\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
-        ]
-        for patron in patrones:
-            m = re.search(patron, text_u, re.IGNORECASE)
-            if m:
-                serie = m.group(1).strip()
-                numero = m.group(2).strip()
-                break
-
-    elif doc_type == "guia_remision":
-        patrones = [
-            r"\b(T\d{3})[- ](\d{3,})\b",
-            r"\b(GR\d{3})[- ](\d{3,})\b",
-            r"\bNRO\.?\s*(T\d{3})[- ](\d{3,})\b",
-        ]
-        for patron in patrones:
-            m = re.search(patron, text_u, re.IGNORECASE)
-            if m:
-                serie = m.group(1).strip()
-                numero = m.group(2).strip()
-                break
-
-    elif doc_type == "orden_compra":
-        patrones = [
-            r"\bOC[- ]?(\d{4,})\b",
-            r"\bORDEN DE COMPRA\s*N[^0-9]{0,5}([0-9]{4,})\b",
-        ]
-        for patron in patrones:
-            m = re.search(patron, text_u, re.IGNORECASE)
-            if m:
-                serie = "OC"
-                numero = m.group(1).strip()
-                break
-
-    elif doc_type == "requerimiento_compra":
-        patrones = [
-            r"\bREQ[- ]?(\d{3,})\b",
-            r"\bREQUERIMIENTO(?: DE COMPRA)?\s*N[^0-9]{0,5}([0-9]{3,})\b",
-        ]
-        for patron in patrones:
-            m = re.search(patron, text_u, re.IGNORECASE)
-            if m:
-                serie = "REQ"
-                numero = m.group(1).strip()
-                break
-
-    # Fecha
-    fecha_emision = _search(
-        r"\bFECHA(?: DE EMISION| DE EMISION:| DE EMISION\s*:)?\s*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
-        text_u,
-    )
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{2}-[0-9]{2}-[0-9]{4})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(
-            r"\b([0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
-            text_u,
-        )
-    if not fecha_emision:
-        fecha_emision = _search(r"\bFECHA\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
-
-    # OC
-    oc = _search(r"\bOC[:\s]*([0-9]{4,})\b", text_u)
-    if not oc:
-        oc = _search(r"\bN[°º]?\s*OC[:\s]*([0-9]{4,})\b", text_u)
-
-    # Importe
-    patrones_importe = [
-        r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9.,]*)\b",
-        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
-        r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
-        r"\bTOTAL\s*\(\$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
-        r"\bTOTAL\s*[:.]?\s*([0-9][0-9.,]*)\b",
-    ]
-    for patron in patrones_importe:
-        m = re.search(patron, text_u, re.IGNORECASE)
-        if m:
-            importe = m.group(1).strip()
-            break
-
-    return {
-        "tipo_documental": doc_type,
-        "serie": serie,
-        "numero": numero,
-        "ruc": ruc,
-        "fecha_emision": fecha_emision,
-        "importe": importe,
-        "oc": oc,
-    }
-app/procesar_pendientes.py
-Python
-from __future__ import annotations
-
-import platform
-import re
-import subprocess
-from datetime import datetime, date
-from pathlib import Path
-
-import requests
-
-from core.config import STORAGE_DIR, OCR_TMP_DIR, APISPERU_TOKEN
-from core.db import get_cursor
-from core.extractor_pdf import extract_text_from_pdf
-from core.classifier import extract_basic_fields
-from core.file_manager import build_final_name, move_file
-from core.clientes_destino import extract_cliente_destino_raw, find_cliente_destino_by_alias
-from core.grupo_documental import get_next_correlativo_mes, select_factura_principal
-from core.text_utils import normalize_text
-from core.windows_path import build_windows_target_path
-
-
-SQL_SELECT_PENDING = """
-SELECT
-    d.id AS documento_id,
-    d.correo_id,
-    d.proveedor_id,
-    d.tipo_documental,
-    d.serie,
-    d.numero,
-    d.ruc,
-    d.razon_social,
-    d.fecha_emision,
-    d.estado_documento,
-    a.id AS archivo_id,
-    a.ruta_temporal,
-    a.nombre_archivo_actual,
-    a.nombre_archivo_original
-FROM documentos d
-JOIN archivos a ON a.documento_id = d.id
-WHERE d.estado_documento IN ('pendiente', 'error')
-ORDER BY d.id ASC;
-"""
-
-SQL_UPDATE_DOCUMENTO = """
-UPDATE documentos
-SET
-    proveedor_id = %(proveedor_id)s,
-    cliente_destino_id = %(cliente_destino_id)s,
-    tipo_documental = %(tipo_documental)s,
-    serie = %(serie)s,
-    numero = %(numero)s,
-    ruc = %(ruc)s,
-    razon_social = %(razon_social)s,
-    fecha_emision = %(fecha_emision)s,
-    importe = %(importe)s,
-    estado_documento = %(estado_documento)s,
-    grupo_codigo = %(grupo_codigo)s,
-    correlativo_mes = %(correlativo_mes)s,
-    es_principal = %(es_principal)s,
-    documento_principal_id = %(documento_principal_id)s,
-    nombre_final = %(nombre_final)s,
-    ruta_windows_final = %(ruta_windows_final)s,
-    actualizado_en = NOW()
-WHERE id = %(documento_id)s;
-"""
-
-SQL_UPDATE_ARCHIVO = """
-UPDATE archivos
-SET
-    nombre_archivo_actual = %(nombre_archivo_actual)s,
-    ruta_temporal = %(ruta_temporal)s,
-    estado_archivo = %(estado_archivo)s,
-    actualizado_en = NOW()
-WHERE id = %(archivo_id)s;
-"""
-
-SQL_UPDATE_CORREO = """
-UPDATE correos_ingresados
-SET
-    procesado = %(procesado)s,
-    estado_correo = %(estado_correo)s,
-    observacion = %(observacion)s,
-    actualizado_en = NOW()
-WHERE id = %(correo_id)s;
-"""
-
-
-def resolve_absolute_path(relative_path: str) -> Path:
-    return STORAGE_DIR / relative_path
-
-
-def to_wsl_path(path: Path) -> str:
-    raw = str(path.resolve()).replace("\\", "/")
-    if len(raw) >= 2 and raw[1] == ":":
-        drive = raw[0].lower()
-        rest = raw[2:]
-        return f"/mnt/{drive}{rest}"
-    return raw
-
-
-def normalize_date(value: str | None) -> str | None:
-    if not value:
-        return None
-
-    raw = value.strip().upper()
-
-    meses = {
-        "ENE": "01", "FEB": "02", "MAR": "03", "ABR": "04",
-        "MAY": "05", "JUN": "06", "JUL": "07", "AGO": "08",
-        "SEP": "09", "OCT": "10", "NOV": "11", "DIC": "12",
-    }
-
-    meses_largos = {
-        "ENERO": "01",
-        "FEBRERO": "02",
-        "MARZO": "03",
-        "ABRIL": "04",
-        "MAYO": "05",
-        "JUNIO": "06",
-        "JULIO": "07",
-        "AGOSTO": "08",
-        "SEPTIEMBRE": "09",
-        "OCTUBRE": "10",
-        "NOVIEMBRE": "11",
-        "DICIEMBRE": "12",
-    }
-
-    m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
-    if m:
-        day, mon_txt, year = m.groups()
-        mon = meses.get(mon_txt)
-        if mon:
-            return f"{year}-{mon}-{day}"
-
-    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
-    if m:
-        day, mon, year = m.groups()
-        return f"{year}-{mon}-{day}"
-
-    m = re.match(r"^(\d{2})-(\d{2})-(\d{4})$", raw)
-    if m:
-        day, mon, year = m.groups()
-        return f"{year}-{mon}-{day}"
-
-    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
-    if m:
-        return raw
-
-    m = re.match(r"^(\d{1,2}) DE ([A-ZÁÉÍÓÚ]+) DEL (\d{4})$", raw)
-    if m:
-        day, mon_txt, year = m.groups()
-        mon_txt = (
-            mon_txt.replace("Á", "A")
-            .replace("É", "E")
-            .replace("Í", "I")
-            .replace("Ó", "O")
-            .replace("Ú", "U")
-        )
-        mon = meses_largos.get(mon_txt)
-        if mon:
-            return f"{year}-{mon}-{str(day).zfill(2)}"
-
-    return None
-
-
-def parse_iso_date(value: str | None) -> date | None:
-    if not value:
-        return None
-    return datetime.strptime(value, "%Y-%m-%d").date()
-
-
-def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
-    output_pdf.parent.mkdir(parents=True, exist_ok=True)
-    system_name = platform.system().lower()
-
-    if "windows" in system_name:
-        input_wsl = to_wsl_path(input_pdf)
-        output_wsl = to_wsl_path(output_pdf)
-        cmd = [
-            "C:\\Windows\\System32\\wsl.exe",
-            "bash",
-            "-lc",
-            f'/home/loxi1/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
-        ]
-    else:
-        cmd = [
-            "ocrmypdf",
-            "-l", "spa",
-            "--force-ocr",
-            str(input_pdf),
-            str(output_pdf),
-        ]
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            print("[OCR ERROR STDOUT]")
-            print(result.stdout)
-            print("[OCR ERROR STDERR]")
-            print(result.stderr)
-            return False
-        return True
-    except Exception as exc:
-        print(f"[OCR EXCEPTION] {exc}")
-        return False
-
-
-def fetch_proveedor_from_api(ruc: str) -> dict | None:
-    if not ruc or not APISPERU_TOKEN:
-        return None
-
-    url = f"https://dniruc.apisperu.com/api/v1/ruc/{ruc}?token={APISPERU_TOKEN}"
-
-    try:
-        resp = requests.get(url, timeout=15)
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        return {
-            "ruc": data.get("ruc"),
-            "nombre": data.get("razonSocial"),
-            "direccion": data.get("direccion"),
-        }
-    except Exception as exc:
-        print(f"[API RUC ERROR] ruc={ruc} error={exc}")
-        return None
-
-
-def get_or_create_proveedor(
-    ruc: str | None,
-    razon_social: str | None = None,
-    direccion: str | None = None,
-) -> dict | None:
-    if not ruc:
-        return None
-
-    with get_cursor(commit=True) as (_, cur):
-        cur.execute(
-            "SELECT id, ruc, nombre, direccion FROM proveedores WHERE ruc = %s",
-            (ruc,),
-        )
-        row = cur.fetchone()
-        if row:
-            return dict(row)
-
-    api_data = fetch_proveedor_from_api(ruc)
-
-    nombre_final = api_data.get("nombre") if api_data else (razon_social or "SIN_RAZON_SOCIAL")
-    direccion_final = api_data.get("direccion") if api_data else direccion
-
-    with get_cursor(commit=True) as (_, cur):
-        cur.execute(
-            """
-            INSERT INTO proveedores (ruc, nombre, direccion, creado_en, actualizado_en)
-            VALUES (%s, %s, %s, NOW(), NOW())
-            RETURNING id, ruc, nombre, direccion
-            """,
-            (ruc, nombre_final, direccion_final),
-        )
-        row = cur.fetchone()
-        return dict(row) if row else None
-
-
-def update_correo_estado(
-    correo_id: int,
-    procesado: bool,
-    estado_correo: str,
-    observacion: str | None = None,
-) -> None:
-    with get_cursor(commit=True) as (_, cur):
-        cur.execute(
-            SQL_UPDATE_CORREO,
-            {
-                "correo_id": correo_id,
-                "procesado": procesado,
-                "estado_correo": estado_correo,
-                "observacion": observacion,
-            },
-        )
-
-
-def get_pending_rows():
-    with get_cursor() as (_, cur):
-        cur.execute(SQL_SELECT_PENDING)
-        return [dict(r) for r in cur.fetchall()]
-
-
-def group_by_correo(rows: list[dict]) -> dict[int, list[dict]]:
-    grouped: dict[int, list[dict]] = {}
-    for row in rows:
-        grouped.setdefault(row["correo_id"], []).append(row)
-    return grouped
-
-
-def enrich_document(item: dict) -> dict:
-    pdf_path = resolve_absolute_path(item["ruta_temporal"])
-    text = ""
-    ocr_output = None
-
-    try:
-        text = extract_text_from_pdf(pdf_path)
-    except Exception:
-        text = ""
-
-    if not text.strip():
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
-        ocr_ok = run_ocr(pdf_path, ocr_output)
-        if ocr_ok and ocr_output.exists():
-            try:
-                text = extract_text_from_pdf(ocr_output)
-            except Exception:
-                text = ""
-
-    fields = extract_basic_fields(text, item["nombre_archivo_original"])
-    cliente_raw = extract_cliente_destino_raw(text)
-    cliente_match = find_cliente_destino_by_alias(cliente_raw)
-    fecha_norm = normalize_date(fields["fecha_emision"])
-    fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
-
-    razon_social_emisor = item.get("razon_social") or None
-    if not razon_social_emisor:
-        m = re.search(
-            r"\bEMISOR[:\s]+(.+?)(?:\bDIRECCION\b|\bRUC\b)",
-            normalize_text(text),
-            re.IGNORECASE | re.DOTALL,
-        )
-        if m:
-            razon_social_emisor = m.group(1).strip()
-
-    return {
-        **item,
-        "text": text,
-        "fields": fields,
-        "cliente_raw": cliente_raw,
-        "cliente_match": cliente_match,
-        "fecha_emision_norm": fecha_norm,
-        "fecha_emision_date": fecha_date,
-        "razon_social_emisor_detectada": razon_social_emisor,
-        "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
-    }
-
-
-def mark_documents_as_review(
-    items: list[dict],
-    estado_documento: str,
-    bucket: str = "pendientes_revision",
-) -> None:
-    for item in items:
-        pdf_path = resolve_absolute_path(item["ruta_temporal"])
-        file_name = item["nombre_archivo_actual"]
-
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-
-        destino_relativo = f"{bucket}/{year}/{month}/{file_name}"
-        destino_abs = STORAGE_DIR / destino_relativo
-
-        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
-            move_file(pdf_path, destino_abs)
-
-        fields = item.get("fields", {})
-        ruc_emisor = fields.get("ruc")
-        razon_social_emisor = item.get("razon_social_emisor_detectada") or item.get("razon_social") or "SIN_RAZON_SOCIAL"
-
-        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
-        proveedor_id = proveedor["id"] if proveedor else None
-
-        if proveedor and proveedor.get("nombre"):
-            razon_social_emisor = proveedor["nombre"]
-
-        with get_cursor(commit=True) as (_, cur):
-            cur.execute(
-                """
-                UPDATE documentos
-                SET
-                    proveedor_id = %(proveedor_id)s,
-                    tipo_documental = %(tipo_documental)s,
-                    serie = %(serie)s,
-                    numero = %(numero)s,
-                    ruc = %(ruc)s,
-                    razon_social = %(razon_social)s,
-                    fecha_emision = %(fecha_emision)s,
-                    importe = %(importe)s,
-                    estado_documento = %(estado_documento)s,
-                    actualizado_en = NOW()
-                WHERE id = %(documento_id)s
-                """,
-                {
-                    "proveedor_id": proveedor_id,
-                    "tipo_documental": fields.get("tipo_documental"),
-                    "serie": fields.get("serie"),
-                    "numero": fields.get("numero"),
-                    "ruc": ruc_emisor,
-                    "razon_social": razon_social_emisor,
-                    "fecha_emision": item.get("fecha_emision_norm"),
-                    "importe": fields.get("importe"),
-                    "estado_documento": estado_documento,
-                    "documento_id": item["documento_id"],
-                },
-            )
-
-            cur.execute(
-                SQL_UPDATE_ARCHIVO,
-                {
-                    "nombre_archivo_actual": file_name,
-                    "ruta_temporal": destino_relativo,
-                    "estado_archivo": "observado",
-                    "archivo_id": item["archivo_id"],
-                },
-            )
-
-
-def process_correo(items: list[dict]) -> None:
-    enriched = [enrich_document(x) for x in items]
-
-    print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
-    for d in enriched:
-        print({
-            "documento_id": d["documento_id"],
-            "archivo": d["nombre_archivo_actual"],
-            "tipo": d["fields"]["tipo_documental"],
-            "serie": d["fields"]["serie"],
-            "numero": d["fields"]["numero"],
-            "ruc": d["fields"]["ruc"],
-            "oc": d["fields"].get("oc"),
-            "cliente_raw": d.get("cliente_raw"),
-            "cliente_match": d.get("cliente_match"),
-            "fecha": d.get("fecha_emision_norm"),
-        })
-
-    factura_principal = select_factura_principal(enriched)
-    print("[DEBUG] factura_principal =", factura_principal)
-
-    correo_id = items[0]["correo_id"]
-
-    if not factura_principal:
-        print(f"[WARN] correo_id={correo_id} sin factura principal")
-        mark_documents_as_review(
-            items=enriched,
-            estado_documento="pendiente_asociacion",
-            bucket="pendientes_revision",
-        )
-        update_correo_estado(
-            correo_id=correo_id,
-            procesado=False,
-            estado_correo="sin_factura_principal",
-            observacion="No se encontró factura principal en el correo.",
-        )
-        return
-
-    fecha_principal = factura_principal.get("fecha_emision_date")
-    if not fecha_principal:
-        print(f"[WARN] correo_id={correo_id} factura sin fecha")
-        mark_documents_as_review(
-            items=enriched,
-            estado_documento="revision_manual",
-            bucket="pendientes_revision",
-        )
-        update_correo_estado(
-            correo_id=correo_id,
-            procesado=False,
-            estado_correo="factura_sin_fecha",
-            observacion="La factura principal no tiene fecha de emisión reconocible.",
-        )
-        return
-
-    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
-
-    cliente_match = factura_principal.get("cliente_match")
-    cliente_destino_id = cliente_match["id"] if cliente_match else None
-
-    ruta_windows_final = None
-    if cliente_match:
-        ruta_windows_final = build_windows_target_path(
-            cliente_match["ruta_windows"],
-            fecha_principal,
-        )
-
-    documento_principal_id = factura_principal["documento_id"]
-
-    total_docs = len(enriched)
-    total_clasificados = 0
-    total_no_identificados = 0
-    total_adjuntos_factura = 0
-
-    for doc in enriched:
-        fields = doc["fields"]
-        tipo_documental = fields["tipo_documental"]
-        ruc_emisor = fields["ruc"]
-        razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
-
-        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
-        proveedor_id = proveedor["id"] if proveedor else None
-
-        if proveedor and proveedor.get("nombre"):
-            razon_social_emisor = proveedor["nombre"]
-
-        es_principal = doc["documento_id"] == documento_principal_id
-        documento_principal_ref = None if es_principal else documento_principal_id
-
-        cliente_id_final = (
-            doc["cliente_match"]["id"]
-            if doc.get("cliente_match")
-            else cliente_destino_id
-        )
-
-        if (
-            tipo_documental == "factura"
-            and not fields["serie"]
-            and not fields["numero"]
-            and ruc_emisor
-            and factura_principal["fields"]["ruc"] == ruc_emisor
-        ):
-            tipo_documental = "adjunto_factura"
-            total_adjuntos_factura += 1
-            print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
-
-        if tipo_documental == "otro":
-            tipo_documental = "adjunto_documento"
-
-        nombre_final = build_final_name(
-            grupo_codigo=grupo_codigo,
-            tipo_documental=tipo_documental,
-            serie=fields["serie"],
-            numero=fields["numero"],
-            ruc_emisor=ruc_emisor,
-            razon_social_emisor=razon_social_emisor,
-            fallback_name=doc["nombre_archivo_actual"],
-        )
-
-        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-
-        estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
-        bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
-
-        if estado_documento == "clasificado":
-            total_clasificados += 1
-        else:
-            total_no_identificados += 1
-
-        destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
-        destino_abs = STORAGE_DIR / destino_relativo
-
-        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
-            move_file(pdf_path, destino_abs)
-
-        with get_cursor(commit=True) as (_, cur):
-            cur.execute(
-                SQL_UPDATE_DOCUMENTO,
-                {
-                    "proveedor_id": proveedor_id,
-                    "cliente_destino_id": cliente_id_final,
-                    "tipo_documental": tipo_documental,
-                    "serie": fields["serie"],
-                    "numero": fields["numero"],
-                    "ruc": ruc_emisor,
-                    "razon_social": razon_social_emisor,
-                    "fecha_emision": doc["fecha_emision_norm"],
-                    "importe": fields["importe"],
-                    "estado_documento": estado_documento,
-                    "grupo_codigo": grupo_codigo,
-                    "correlativo_mes": correlativo_mes,
-                    "es_principal": es_principal,
-                    "documento_principal_id": documento_principal_ref,
-                    "nombre_final": nombre_final,
-                    "ruta_windows_final": ruta_windows_final,
-                    "documento_id": doc["documento_id"],
-                },
-            )
-
-            cur.execute(
-                SQL_UPDATE_ARCHIVO,
-                {
-                    "nombre_archivo_actual": nombre_final,
-                    "ruta_temporal": destino_relativo,
-                    "estado_archivo": "renombrado",
-                    "archivo_id": doc["archivo_id"],
-                },
-            )
-
-        print(
-            f"[OK] correo={doc['correo_id']} "
-            f"doc={doc['documento_id']} "
-            f"tipo={tipo_documental} "
-            f"grupo={grupo_codigo} "
-            f"nombre={nombre_final}"
-        )
-
-    observacion = (
-        f"Procesado correctamente. "
-        f"Documentos: {total_docs}, "
-        f"clasificados: {total_clasificados}, "
-        f"no_identificados: {total_no_identificados}, "
-        f"adjuntos_factura: {total_adjuntos_factura}, "
-        f"grupo: {grupo_codigo}."
-    )
-
-    estado_correo = "procesado"
-    if total_no_identificados > 0:
-        estado_correo = "procesado_con_observaciones"
-
-    update_correo_estado(
-        correo_id=correo_id,
-        procesado=True,
-        estado_correo=estado_correo,
-        observacion=observacion,
-    )
-
-
-def main() -> None:
-    rows = get_pending_rows()
-    if not rows:
-        print("No hay documentos pendientes.")
-        return
-
-    grouped = group_by_correo(rows)
-    print(f"Correos pendientes encontrados: {len(grouped)}")
-
-    for correo_id, items in grouped.items():
-        print(f"[INFO] procesando correo_id={correo_id} documentos={len(items)}")
-        process_correo(items)
-
-
-if __name__ == "__main__":
-    main()
-Prueba limpia recomendada
-1. Compilar
-Bash
-python -m py_compile app/core/classifier.py
-python -m py_compile app/procesar_pendientes.py
-2. Limpiar BD
-SQL
-TRUNCATE archivos RESTART IDENTITY CASCADE;
-TRUNCATE documentos RESTART IDENTITY CASCADE;
-TRUNCATE correos_ingresados RESTART IDENTITY CASCADE;
-3. Limpiar carpetas
-Borra contenido de:
-storage/files/inbox/
-storage/files/pendientes_clasificados/
-storage/files/pendientes_revision/
-storage/files/no_identificados/
-storage/files/ocr_tmp/
-4. Ejecutar
-n8n
-luego python procesar_pendientes.py
-Cuando tengas la nueva salida, pégamela y la validamos contra la matriz final.
+esto esta en pendientes_revision pero e legible
+Tengo esto: RUC: 20370146994
+GUIA REMISIÓN ELECTRÓNICA
+Nro. T073-0665284
+
+RUC: 20370146994
+FACTURA ELECTRÓNICA
+Nro. FE65-0812829
+la factura esta en pendientes clasificados pero no veo la fecha de emision
+
+se repite ocr_posible_documento_20260421231903800_ADR510000015602343000AB56143BB971FD18FA6_1.pdf
+esta en pendientes_revision
+
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id |   tipo_documental   | tipo_doc | serie | numero  |     ruc     |          razon_social          | fecha_emisio
+n | fecha_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental |   estado_documento   |          observacion
+    |         creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_
+principal_id |                                nombre_final                                | ruta_windows_final
+----+-----------+--------------+---------------------+----------+-------+---------+-------------+--------------------------------+-------------
+--+-------------------+--------+---------+-----+----------------+-------+------------------+----------------------+----------------------------
+----+----------------------------+----------------------------+--------------------+--------------+-----------------+--------------+-----------
+-------------+----------------------------------------------------------------------------+--------------------
+  1 |         1 |              | certificado_calidad |          |       |         |             | SIN_RAZON_SOCIAL               | 2026-04-21
+  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
+n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.104565 |                    |              |                 | f            |
+             |                                                                            |
+  2 |         2 |          956 | factura             |          | FE65  | 0812829 | 20370146994 | CORPORACION ACEROS AREQUIPA S. | 2026-04-21
+  |                   |        |   18.00 |     |                |       |                  | clasificado          | Documento descargado desde
+n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.432264 |                    | 04-0001      |               1 | t            |
+             | 04-0001 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf |
+  3 |         3 |         1655 | guia_remision       |          | T073  | 0665284 | 20565747356 | BBTI S.A.C.                    | 2026-04-21
+  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
+n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.825177 |                    |              |                 | f            |
+             |                                                                            |
+(3 rows)
+creo que aca deberia buscar la fecha de emision si no existe deberia ponerlo en revision o tu que opinas,
+volvi a ejecutar el n8n y quedo asi: revisar los archivos:
+python procesar_pendientes.py
+Correos pendientes encontrados: 3
+[INFO] procesando correo_id=10 documentos=1
+[DEBUG] correo_id=10 enriquecidos:
+{'documento_id': 4, 'archivo': 'posible_documento_20260421233118813_499dd1f672b896e2880ca914260fd910_localho_1.pdf', 'tipo': 'guia_remision', 'serie': None, 'numero': None, 'ruc': '20100084172', 'oc': '7924', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-05-21'}
+[DEBUG] factura_principal = None
+[WARN] correo_id=10 sin factura principal
+[INFO] procesando correo_id=11 documentos=1
+[DEBUG] correo_id=11 enriquecidos:
+{'documento_id': 5, 'archivo': 'posible_documento_20260421233118813_f0d4c16297e8bffdc7757a449bcedf31_localho_1.pdf', 'tipo': 'guia_remision', 'serie': None, 'numero': None, 'ruc': '20100084172', 'oc': '7930', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-06-05'}
+[DEBUG] factura_principal = None
+[WARN] correo_id=11 sin factura principal
+[INFO] procesando correo_id=12 documentos=1
+[DEBUG] correo_id=12 enriquecidos:
+{'documento_id': 6, 'archivo': 'posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf', 'tipo': 'orden_compra', 'serie': None, 'numero': None, 'ruc': '20111740438', 'oc': None, 'cliente_raw': '. I.G.V. 18 PERCEPCION PRECIO DE VENTA DESCUENTO S S S S S S S SON NOVECIENTOS CUARENTA Y DOS CON 48 100 SOLES 942.48 0.00 942.48 798.71 0 798.71 ICBPER S 0.00 TOTAL BRUTO VALOR VENTA TOTAL A PAGAR F8BBB8F0B7F4D1B486EFF93D820C20F8BBB8F E2AAA2E0A07CB43C3874E9F5B164F0E2AAA2E EF9A65A092FAEE06E61342CE0D2EB8508F82E E23319A59F47C2DD95B42CAB414907A7AF5E1 7B13A6A2631183F898D43C1928552BA176640 4A6418A626E119BAB27B5ABA58AC905A50BD6 96EA35A7E23C352314C0996D9B4D06876FD0B 32A22AB0438A7406E156EF91EFE0F8A8F3139 F0EEE0F07CFAEE466B03DC4D1D9E9AE9F5C34 8888888088008088800808808080800808008 143.77 EN CASO SONEPAR TENGA ACCESO A SUS DATOS PERSONALES COMO CLIENTES PERSONA NATURAL SE LE INFORMA QUE SONEPAR TRATARA SUS DATOS PERSONALES BAJO EL DETALLE SENALADO EN HTTPS SONEPAR.PE WP-CONTENT UPLOADS 2022 11 CLAUSULA-TRATAMIENTO-DATOS-PERSONALES-CLIENTES.PDF ESTIMADO CLIENTE QUEREMOS RECORDARLE QUE LOS PAGOS DE SUS FACTURAS A CREDITO SOLO PODRAN SER REALIZADOS MEDIANTE TRANSFERENCIA BANCARIA Y O ABONO EN NUESTROS NUMEROS DE CUENTA CORRIENTE SEGUN LA PLAZA A LA QUE PERTENECE . TERMINOS Y CONDICIONES GENERALES DE VENTA SONEPAR 1.REGULACION ESTOS T ERMINOS Y CONDICIONES GENERALES DE VENTA EN LO SUCESIVO TYC EN CONCORDANCIA CON LAS CONDICIONES FIJADAS DENTRO DE LA RESPECTIVA COTIZACI ON U OFERTA COMERCIAL PRESENTADA POR PARTE DE SONEPAR PER U S .A.C EN LO SUCESIVO SONEPAR REGULARAN DE MANERA EXCLUSIVA LA RELACION COMERCIAL ENTRE SONEPAR Y EL COMPRADOR Y O EL SOLICITANTE DE LA OFERTA COMERCIAL EN ADELANTE COMPRADOR LA VENTA SUMINISTRO DE LOS PRODUCTOS Y LA PRESTACI ON DE NUESTROS SERVICIOS EN LO QUE LES APLIQUE EN LO SUCESIVO LOS PRODUCTOS INDEPENDIENTEMENTE DEL MEDIO O TRANSACCI ON A TRAVES DE LA CUAL SE EFECT UE LA VENTA CONSTITUYEN EL ACUERDO TOTAL ENTRE EL COMPRADOR Y SONEPAR. LA SOLICITUD DE PEDIDO U ORDEN DE COMPRA EN LO SUCESIVO OC REALIZADA POR PARTE DEL COMPRADOR A TRAV ES DE LA CUAL SE CONFIRME LA TRANSACCI ON CONSTITUIRA LA ACEPTACI ON EXPRESA DE LOS PRESENTES TYC GENERALES DE VENTA. AL EMITIR UNA ORDEN DE COMPRA OC EL COMPRADOR ACEPTA EXPRESAMENTE ESTOS TYC QUE PARA MAYOR DETALLE PUEDE INGRESAR A CONDICIONES DE VENTA EN WWW.SONEPAR.PE 2.VIGENCIA OFERTA SALVO ESTIPULACI ON CONTRARIA EN LA OFERTA COMERCIAL LA OFERTA TIENE UNA VIGENCIA DE SIETE 07 DIAS H ABILES. TRANSCURRIDO EL TERMINO ESTABLECIDO DEBERA SOLICITARSE ACTUALIZACION DE PRECIOS Y CONDICIONES ACEPTACIONES EXTEMPORANEAS PODRAN NO SER PROCESADAS. 3. ANTICORRUPCION LAS PARTES SE OBLIGAN A RESPETAR CUMPLIR Y HACER CUMPLIR EL CONJUNTO DE LEYES DE PER U CONVENCIONES Y TRATADOS INTERNACIONALES QUE PER U HAYA SUSCRITO EN MATERIA ANTICORRUPCI ON ASI COMO AQUELLOS INSTRUMENTOS INTERNACIONALES ANTICORRUPCI ON DE OBLIGATORIA OBSERVACION POR ALGUNA DE LAS PARTES DE ESTE ACUERDO. LAS PARTES SE OBLIGAN A NO OFRECER O PAGAR NING UN TIPO DE SOBORNO O CUALQUIER OTRA FORMA DE PAGO ILEGAL O FAVOR A NING UN TIPO DE SERVIDOR O FUNCIONARIO P UBLICO O EMPLEADO PRIVADO DE CUALQUIER NACI ON PARA INICIAR OBTENER O RETENER NING UN TIPO DE NEGOCIO O ACTIVIDAD RELACIONADA CON LA VENTA. EL OFRECIMIENTO O PAGO DE SOBORNOS O DE CUALQUIER OTRA FORMA DE PAGO ILEGAL O FAVOR A SERVIDORES O FUNCIONARIOS P UBLICOS O A CUALQUIER EMPLEADO ES CAUSAL PARA DAR POR TERMINADO EL NEGOCIO ENTRE LAS PARTES. LAS PARTES IMPLEMENTAR AN LAS MEDIDAS TENDIENTES A EVITAR QUE SUS OPERACIONES PUEDAN SER UTILIZADAS SIN SU CONOCIMIENTO Y CONSENTIMIENTO COMO INSTRUMENTOS PARA EL OCULTAMIENTO MANEJO INVERSION O APROVECHAMIENTO EN CUALQUIER FORMA DE DINERO U OTROS BIENES PROVENIENTES DE ACTIVIDADES DELICTIVAS O PARA DAR APARIENCIA DE LEGALIDAD A ESTAS ACTIVIDADES. SONEPAR PODR A DAR POR TERMINADO EL NEGOCIO ABSTENERSE DE EJECUTAR LA ORDEN DE COMPRA O SOLICITUD DE PEDIDO SIN QUE HAYA LUGAR AL PAGO DE INDEMNIZACI ON ALGUNA A FAVOR DEL COMPRADOR CUANDO ESTE SEA I CONDENADO POR PARTE DE LAS AUTORIDADES COMPETENTES POR DELITOS DE NARCOTR AFICO TERRORISMO SECUESTRO LAVADO DE ACTIVOS FINANCIACION DEL TERRORISMO CORRUPCION TRAFICO DE INFLUENCIAS PROLIFERACION DE ARMAS DE DESTRUCCI ON MASIVA ADMINISTRACION DE RECURSOS RELACIONADOS CON DICHAS ACTIVIDADES O EN CUALQUIER TIPO DE PROCESO JUDICIAL RELACIONADO CON LA COMISI ON DE LOS ANTERIORES DELITO. LO ANTERIOR INCLUYE TODO PROCESO SANCIONATORIO QUE IMPLIQUE RESTRICCIONES LEGALES A PROCESOS DE CONTRATACION O PARTICIPACI ON LO ANTERIOR CONFORME LOS RIESGOS TRABAJADOS POR SONEPAR EN SUS PROGRAMAS DE SPLAFT Y LINEAMIENTOS CORPORATIVOS II INCLUIDO EN LISTAS RESTRICTIVAS INHIBITORIAS O VINCULANTES TALES COMO LA LISTA DE LA OFICINA DE CONTROL DE ACTIVOS EN EL EXTERIOR -OFAC EMITIDA POR LA OFICINA DEL TESORO DE LOS ESTADOS UNIDOS DE AM ERICA LA LISTA DE LA ORGANIZACI ON DE LAS NACIONES UNIDAS Y OTRAS LISTAS P UBLICAS RELACIONADAS ASI COMO DE CUALQUIER OTRO DELITO RELACIONADO O CONEXO. EL C ODIGO DE ETICA DE SONEPAR DISPONIBLE EN HTTPS WWW.SONEPAR.PE PE-ES COMPROMISOS CUMPLIMIENTO-E-INTEGRIDAD ES DE OBLIGATORIO CUMPLIMIENTO Y HACE PARTE DEL PRESENTE CONTRATO Y CUALQUIER VULNERACION DEL MISMO PUEDE SER COMUNICADA EN NUESTRO CANAL DE DENUNCIAS HTTPS SONEPAR.INTEGRITYLINE.COM . LA ACEPTACI ON DE LA OC EST A SUJETA AL CUMPLIMIENTO DE LOS LINEAMIENTOS ESTABLECIDOS EN LOS PROCESOS DE DEBIDA DILIGENCIA QUE SE DESARROLLAN EN SONEPAR Y EL GRUPO SONEPAR SPLAFT Y DEMAS NORMAS. 4. DECLARACION AL MOMENTO DE EMITIR LA OC EL COMPRADOR GARANTIZA QUE CUMPLE LA REGULACI ON APLICABLE EN COMERCIO EXTERIOR RESTRICCIONES ECONOMICAS COMERCIALES FINANCIERAS EMBARGOS Y DEM AS IMPUESTOS POR ORGANISMOS INTERNACIONALES Y ESTADOS COMO INCLUSIONES EN LISTAS RESTRICTIVAS O INHIBITORIAS COMPROMETI ENDOSE A MANTENER INDEMNE AL GRUPO SONEPAR SONEPAR ANTE CUALQUIER ACCI ON O RECLAMACI ON DERIVADA DEL INCUMPLIMIENTO DE ESTA DISPOSICI ON O DEL OCULTAMIENTO DE INFORMACI ON SOBRE EL DESTINO FINAL DE LA MERCANC IA SU ESTATUS INTERNACIONAL DE CUMPLIMIENTO O EL DEL COMPRADOR FINAL. 5. DECLARACION DE CUMPLIMIENTO EL COMPRADOR CERTIFICA QUE NO UTILIZAR A TRANSFERIRA EXPORTARA REEXPORTARA REVENDERA NI DISPONDR A DE NING UN PRODUCTO SOFTWARE O TECNOLOG IA ADQUIRIDA U OBTENIDA DE SONEPAR O DE CUALQUIERA DE SUS FILIALES A NING UN DESTINO USUARIO FINAL O PARA CUALQUIER USO FINAL PROHIBIDO POR EL REGLAMENTO DE ADMINISTRACI ON DE EXPORTACIONES DE LOS ESTADOS UNIDOS EAR ADMINISTRADO POR EL DEPARTAMENTO DE COMERCIO DE LOS ESTADOS UNIDOS POR EL REGLAMENTO DE CONTROL DE ACTIVOS EXTRANJEROS DE LOS ESTADOS UNIDOS OFAC ADMINISTRADO POR EL DEPARTAMENTO DEL TESORO DE LOS ESTADOS UNIDOS O POR EL REGLAMENTO DE TR AFICO INTERNACIONAL DE ARMAS ITAR ADMINISTRADO POR EL DEPARTAMENTO DE ESTADO DE LOS ESTADOS UNIDOS O POR CUALQUIER OTRA LEY APLICABLE DONDE DICHA LEY NO ENTRE EN CONFLICTO CON LAS LEYES DE LOS ESTADOS UNIDOS. ADEMAS ASEGURA QUE DICHOS PRODUCTOS NO SE DESTINAR AN A ACTIVIDADES RELACIONADAS CON ARMAS DE DESTRUCCI ON MASIVA NI SE ENVIAR AN A PERSONAS O DESTINOS RESTRINGIDOS SALVO AUTORIZACI ON EXPRESA DE LAS AUTORIDADES COMPETENTES. PARA MAYOR DETALLE SOBRE ESTE PUNTO PUEDE INGRESAR A CONDICIONES DE VENTA EN WWW.SONEPAR.PE 6. CESION LOS PRESENTES TYC NO PODR AN SER CEDIDOS POR NINGUNA DE LAS PARTES SIN EL PREVIO CONSENTIMIENTO EXPRESO POR ESCRITO DE LA OTRA EL CUAL NO SER A NEGADO SIN RAZ ON FUNDADA . SONEPAR PODR A CEDER SIN AUTORIZACI ON ALGUNA PREVIA A SU EMPRESA MATRIZ SUS SUBSIDIARIAS O FILIALES EL PRESENTE NEGOCIO EN CUALQUIER MOMENTO. 7. INDEMNIDAD POR PROPIEDAD INTELECTUAL SONEPAR REMITIR A AL FABRICANTE CUALQUIER DEMANDA O PROCEDIMIENTO CONTRA DEL COMPRADOR COMO RESULTADO DE ALGUNA RECLAMACI ON EN RELACI ON AL DISE NO O CONSTRUCCI ON DE LOS PRODUCTOS VENDIDOS O SOBRE LOS QUE EL FABRICANTE HAYA OTORGADO LICENCIA QUE VIOLEN ALGUNA PATENTE DERECHOS DE AUTOR PROPIEDAD INTELECTUAL O MARCAS REGISTRADAS CONFORME A LAS NORMAS NACIONALES E INTERNACIONALES SIEMPRE QUE EL COMPRADOR NOTIFIQUE POR ESCRITO A SONEPAR DE DICHA RECLAMACI ON DEMANDA O PROCEDIMIENTO. LA DEFENSA Y RESPONSABILIDAD SE ASUMIR A POR CADA FABRICANTE CONFORME A SUS ESTIPULACIONES. SONEPAR NO ASUMIR A RESPONSABILIDAD ECON OMICA ALGUNA NI TOMAR A PARTE DENTRO DEL PROCESO SALVO QUE LAS CIRCUNSTANCIAS O LAS AUTORIDADES COMPETENTES ASI LO EXIJAN. 8.TERMINACION ANTICIPADA SONEPAR PODR A DAR POR TERMINADA ANTICIPADAMENTE LA EJECUCI ON DE LAS ACTIVIDADES O SUSPENDER LA ENTREGA DE PRODUCTOS POR INCAPACIDAD FINANCIERA PARA CUMPLIR LOS PAGOS QUE ENTRE OTROS SE PRESUME CUANDO SE DECLARA EN ESTADO DE INSOLVENCIA EL COMPRADOR Y O POR INCUMPLIMIENTO DE LAS OBLIGACIONES DE LAVADO DE ACTIVOS FINANCIACION DEL TERRORISMO FRAUDE SOBORNO O CORRUPCION. 9. PRECIO Y CANTIDADES SALVO CONDICI ON EXPRESA EN CONTRARIO EN LA OFERTA LOS PRECIOS INCLUIDOS EN LA OFERTA COMERCIAL TENDR AN UNA VIGENCIA DE SIETE 07 DIAS H ABILES Y EST AN SUJETOS A LAS CANTIDADES ESTABLECIDAS EN ELLA. CAMBIOS O MODIFICACIONES REQUERIR AN DE UNA ACTUALIZACI ON O NUEVA OFERTA. SONEPAR NO SE HACE RESPONSABLE POR MODIFICACIONES QUE NO HAYAN SIDO PREVIAMENTE ACORDADAS. LO ANTERIOR EN OBSERVANCIA AL PRINCIPIO DE BUENA FE CONTRACTUAL DE LAS PARTES. 10. MODIFICACIONES PEDIDO UNA VEZ ACEPTADA LA PRESENTE OFERTA COMERCIAL POR CUALQUIER MEDIO EL T ERMINO PARA SOLICITAR MODIFICACIONES Y O CANCELACIONES SER A DE CUARENTA Y OCHO 48 HORAS CONTINUAS DESDE LA ACEPTACI ON DE LA OFERTA COMERCIAL O ENV IO DE LA OC SIEMPRE Y CUANDO HAYA UNA PREVIA EVALUACI ON DE SONEPAR Y ACUERDO ENTRE LAS PARTES. SONEPAR SE RESERVA EL DERECHO DE RECHAZAR CUALQUIER CAMBIO CUANDO EL FABRICANTE NO ADMITA MODIFICACIONES EN LA OC PUESTA POR SONEPAR EN LOS CASOS EN LOS CUALES SE GENEREN CONDICIONES INSEGURAS SEA T ECNICAMENTE NO RECOMENDABLE INCONSISTENTE CON LOS EST ANDARES Y ESPECIFICACIONES DE LA INGENIER IA O CALIDAD O INCOMPATIBLE CON LA CAPACIDAD DE DISE NO O MANUFACTURA DEL FABRICANTE. UNA VEZ ACEPTADA LA OFERTA COMERCIAL Y PAGADO EL ANTICIPO CUANDO APLIQUE SONEPAR DESPLIEGA UNA SERIE DE PROCESOS QUE IMPLICAN OC S ADICIONALES IMPORTACIONES FABRICACIONES ENTRE OTROS QUE DERIVAN EN CONSECUENCIAS CONTRACTUALES Y PECUNIARIAS PARA SONEPAR DE SER MODIFICADAS Y O CANCELADAS. EN CASO DE CAMBIOS AJUSTES O MODIFICACIONES INDEPENDIENTEMENTE DE LA ACEPTACI ON DE ESTAS SE INFORMAR AN PREVIAMENTE SI ES POSIBLE ANTICIPARLO LOS ALCANCES DEL CAMBIO U OPORTUNAMENTE CUANDO NO SEA POSIBLE CONOCERLOS CON ANTERIORIDAD. NO SER AN ACEPTADAS ANULACIONES DE PEDIDOS DE PRODUCTOS DE IMPORTACI ON O FABRICACI ON EXCLUSIVA CUYO PROCESO DE IMPORTACI ON O FABRICACI ON HAYAN SIDO INICIADOS. EL COMPRADOR ASUMIR A LOS PERJUICIOS DERIVADOS DE DICHAS AFECTACIONES AL PEDIDO INICIAL LOS SOBRECOSTOS CAMBIOS EN TIEMPOS DE ENTREGA COMPENSACION Y DEMAS NOVEDADES QUE SURJAN. 11. MODIFICACIONES TYC CUALQUIER MODIFICACI ON A LOS PRESENTES TYC NO SER A OBLIGATORIA PARA SONEPAR SALVO ACUERDO FIRMADO POR LAS PARTES EN EL QUE SE SENALE LA RENUNCIA A ESTOS TYC O A ALGUNA DE SUS DISPOSICIONES. SONEPAR DESCONOCE Y RECHAZA CUALESQUIER OTROS TYC QUE PUEDAN SER PROPUESTOS POR EL COMPRADOR SE ADJUNTEN O A LOS QUE SE HAGA REFERENCIA EN LA OC O SOLICITUD DE COMPRA. EL COMPRADOR ACEPTA AL ORDENAR SU COMPRA QUE SALVO LO INDICADO PREVIAMENTE ESTOS TYC GENERALES DE VENTA PREVALECERAN SOBRE CUALQUIER OTRO DOCUMENTO ADICIONAL INCONSISTENTE O QUE ENTRE EN CONFLICTO CON ESTE DOCUMENTO. LAS CONDICIONES Y T ERMINOS DE ENTREGA DE LAS OFERTAS COMERCIALES AL IGUAL QUE CUALQUIER MODIFICACI ON A LO QUE ALL I SE INDIQUE SIEMPRE SER A COMUNICADO DENTRO DEL CUERPO DE LA OFERTA COMERCIAL O EN NUEVAS VERSIONES DE ESTA. LAS CONDICIONES CONTENIDAS EN CANALES O DOCUMENTOS ALTERNOS NO SON V ALIDAS DE CARA A SONEPAR . LOS ASESORES COMERCIALES PODRAN SER CONSULTADOS PARA CONOCER EL ESTADO DEL PEDIDO EN FABRICA Y O EN SONEPAR. 12. PLAZO DE PAGO EL PLAZO M AXIMO PARA EL PAGO DE UNA FACTURA SER A EL QUE DETERMINE POR SISTEMA EL DEPARTAMENTO DE COBRANZAS. EN CASO DE CONTADO EL PAGO DEBE SER REALIZADO POR EL COMPRADOR EN SU TOTALIDAD DE MANERA ANTICIPADA AL DESPACHO DE LA MERCANC IA Y DEBIDAMENTE CONFIRMADO POR EL AREA ENCARGADA DE SONEPAR. EN CASO DE CR EDITO SONEPAR SE RESERVA EL DERECHO DE PROCESAR O DETENER LA EJECUCI ON DE LA OC CUANDO EL COMPRADOR EST E EN MORA Y O NO CUENTE CON LAS CONDICIONES CREDITICIAS QUE RESPALDE DICHO PROCESO. SONEPAR PODR A EXPEDIR FACTURAS PARCIALES Y SOLICITAR PAGOS SUCESIVOS. SONEPAR SE RESERVA EL DERECHO DE 1 ENTREGAR FACTURAS DE MANERA ELECTR ONICA Y 2 SUSPENDER EL CUMPLIMIENTO DE CUALQUIER OBLIGACI ON EN EL CASO DE QUE EL PAGO NO SE EFECT UE EN LA FECHA CORRESPONDIENTE. NO EST A PERMITIDO EL PAGO POR COMPENSACI ON. SE AGREGARAN CARGOS POR CONCEPTO DE INTERESES A LAS FACTURAS VENCIDAS A LA TASA M AXIMA LEGAL PERMITIDA MENSUAL. SONEPAR PARA EFECTOS DE LA PRESENTACION DE LA RESPECTIVA FACTURA PROCEDER A DE CONFORMIDAD CON LA LEY RADICANDO EN LA DIRECCI ON DE CORREO ELECTR ONICO ASIGNADA POR PARTE DEL COMPRADOR ANTE SUNAT PARA REMISI ON DE LA FACTURA ELECTR ONICA. LOS DOCUMENTOS INTERNOS QUE SEAN REQUERIDOS POR TR AMITES Y CONTROLES DEL COMPRADOR NO PODR AN SER OBST ACULO PARA EL PAGO DE LAS FACTURAS CUANDO EL PRODUCTO HAYA SIDO ENTREGADO O EL SERVICIO PRESTADO. EL COMPRADOR RENUNCIA A LA CONSTITUCION EN MORA EN LOS TERMINOS DE LEY. 13. TERMINOS DE LA ENTREGA LA ENTREGA SE REALIZAR A DE CONFORMIDAD CON LO ESTABLECIDO EN LA OFERTA COMERCIAL PRESENTADA U OC LUGAR QUE ESTARA SUJETO A VERIFICACI ON DE COBERTURA Y ACEPTACI ON DE SONEPAR. LA ENTREGA DEL MATERIAL SE ENTIENDE ACEPTADA CON LA GU IA O NOTA DE ENTREGA EN LA', 'cliente_match': None, 'fecha': None}
+[DEBUG] factura_principal = None
+[WARN] correo_id=12 sin factura principal
+(venv) 
+se puso estas facturas en pendientes_revision
+RUC: 20100084172
+FACTURA ELECTRÓNICA
+N° F231-0101575
+FECHA DE EMISIÓN: 21/04/2026
+
+R.U.C. 20111740438
+FACTURA ELECTRÓNICA
+FF12-7700
+F. Emisión: 21/04/2026
+
+RUC: 20100084172
+FACTURA ELECTRÓNICA
+N° F231-0101576
+FECHA DE EMISIÓN: 21/04/2026
+
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id |   tipo_documental   | tipo_doc | serie | numero  |     ruc     |          razon_social          | fecha_emisio
+n | fecha_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental |   estado_documento   |          observacion
+    |         creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_
+principal_id |                                nombre_final                                | ruta_windows_final
+----+-----------+--------------+---------------------+----------+-------+---------+-------------+--------------------------------+-------------
+--+-------------------+--------+---------+-----+----------------+-------+------------------+----------------------+----------------------------
+----+----------------------------+----------------------------+--------------------+--------------+-----------------+--------------+-----------
+-------------+----------------------------------------------------------------------------+--------------------
+  1 |         1 |              | certificado_calidad |          |       |         |             | SIN_RAZON_SOCIAL               | 2026-04-21
+  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
+n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.104565 |                    |              |                 | f            |
+             |                                                                            |
+  2 |         2 |          956 | factura             |          | FE65  | 0812829 | 20370146994 | CORPORACION ACEROS AREQUIPA S. | 2026-04-21
+  |                   |        |   18.00 |     |                |       |                  | clasificado          | Documento descargado desde
+n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.432264 |                    | 04-0001      |               1 | t            |
+             | 04-0001 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf |
+  3 |         3 |         1655 | guia_remision       |          | T073  | 0665284 | 20565747356 | BBTI S.A.C.                    | 2026-04-21
+  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
+n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.825177 |                    |              |                 | f            |
+             |                                                                            |
+  4 |        10 |          754 | guia_remision       |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-05-21
+  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
+n8n | 2026-04-21 18:31:18.97216  | 2026-04-21 18:31:37.496883 |                    |              |                 | f            |
+             |                                                                            |
+  5 |        11 |          754 | guia_remision       |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-06-05
+  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
+n8n | 2026-04-21 18:31:18.97216  | 2026-04-21 18:31:37.758191 |                    |              |                 | f            |
+             |                                                                            |
+  6 |        12 |          828 | orden_compra        |          |       |         | 20111740438 | SONEPAR PERU S.A.C.            |
+  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
+n8n | 2026-04-21 18:31:18.97216  | 2026-04-21 18:31:38.108866 |                    |              |                 | f            |
+             |                                                                            |
+(6 rows)
+gestiondocumental=# select * from archivos;
+ id | documento_id | correo_id |         nombre_archivo_original          |                               nombre_archivo_actual
+                | extension |    mime_type    | tamano_bytes | hash_sha256 |                                                 ruta_temporal
+                                             | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
+
+----+--------------+-----------+------------------------------------------+--------------------------------------------------------------------
+----------------+-----------+-----------------+--------------+-------------+-------------------------------------------------------------------
+---------------------------------------------+------------+--------------+----------------+----------------------------+-----------------------
+-----
+  1 |            1 |         1 | G-0FE65-0812829-5172524590-90026-1_1.PDF | posible_documento_20260421231903800_ADR510000015602343000AB56143BB9
+71FD18FA6_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421231903800_AD
+R510000015602343000AB56143BB971FD18FA6_1.pdf |            | t            | observado      | 2026-04-21 18:21:21.472939 | 2026-04-21 18:22:12.10
+4565
+  2 |            2 |         2 | FE65-0812829.pdf                         | 04-0001 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIP
+A_S.pdf         | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA FE65 0812829 20370
+146994 CORPORACION_ACEROS_AREQUIPA_S.pdf     |            | t            | renombrado     | 2026-04-21 18:21:21.472939 | 2026-04-21 18:22:12.43
+2264
+  3 |            3 |         3 | 20370146994-09-T073-0665284.pdf.pdf      | posible_documento_20260421231903800_ADR5100000156094930002FBAC343AD
+91FD18FA7_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421231903800_AD
+R5100000156094930002FBAC343AD91FD18FA7_1.pdf |            | t            | observado      | 2026-04-21 18:21:21.472939 | 2026-04-21 18:22:12.82
+5177
+  4 |            4 |        10 | 20100084172-01-F231-0101575.pdf          | posible_documento_20260421233118813_499dd1f672b896e2880ca914260fd91
+0_localho_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421233118813_49
+9dd1f672b896e2880ca914260fd910_localho_1.pdf |            | t            | observado      | 2026-04-21 18:31:19.007301 | 2026-04-21 18:31:37.49
+6883
+  5 |            5 |        11 | 20100084172-01-F231-0101576.pdf          | posible_documento_20260421233118813_f0d4c16297e8bffdc7757a449bcedf3
+1_localho_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421233118813_f0
+d4c16297e8bffdc7757a449bcedf31_localho_1.pdf |            | t            | observado      | 2026-04-21 18:31:19.007301 | 2026-04-21 18:31:37.75
+8191
+  6 |            6 |        12 | 20111740438-01-FF12-7700.pdf             | posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E
+8A5BA2C2__1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421233118813_DB
+9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf |            | t            | observado      | 2026-04-21 18:31:19.007301 | 2026-04-21 18:31:38.10
+8866
+(6 rows)
+
+tambien analizar o validar los archivos

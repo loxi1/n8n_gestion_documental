@@ -64,14 +64,6 @@ SET
 WHERE id = %(documento_id)s;
 """
 
-SQL_UPDATE_DOCUMENTO_ESTADO_SIMPLE = """
-UPDATE documentos
-SET
-    estado_documento = %(estado_documento)s,
-    actualizado_en = NOW()
-WHERE id = %(documento_id)s;
-"""
-
 SQL_UPDATE_ARCHIVO = """
 UPDATE archivos
 SET
@@ -253,15 +245,8 @@ def get_or_create_proveedor(
 
     api_data = fetch_proveedor_from_api(ruc)
 
-    nombre_final = None
-    direccion_final = None
-
-    if api_data:
-        nombre_final = api_data.get("nombre")
-        direccion_final = api_data.get("direccion")
-    else:
-        nombre_final = razon_social or "SIN_RAZON_SOCIAL"
-        direccion_final = direccion
+    nombre_final = api_data.get("nombre") if api_data else (razon_social or "SIN_RAZON_SOCIAL")
+    direccion_final = api_data.get("direccion") if api_data else direccion
 
     with get_cursor(commit=True) as (_, cur):
         cur.execute(
@@ -292,43 +277,6 @@ def update_correo_estado(
                 "observacion": observacion,
             },
         )
-
-
-def mark_documents_as_review(
-    items: list[dict],
-    estado_documento: str,
-    bucket: str = "pendientes_revision",
-) -> None:
-    for item in items:
-        pdf_path = resolve_absolute_path(item["ruta_temporal"])
-        file_name = item["nombre_archivo_actual"]
-
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-
-        destino_relativo = f"{bucket}/{year}/{month}/{file_name}"
-        destino_abs = STORAGE_DIR / destino_relativo
-
-        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
-            move_file(pdf_path, destino_abs)
-
-        with get_cursor(commit=True) as (_, cur):
-            cur.execute(
-                SQL_UPDATE_DOCUMENTO_ESTADO_SIMPLE,
-                {
-                    "estado_documento": estado_documento,
-                    "documento_id": item["documento_id"],
-                },
-            )
-            cur.execute(
-                SQL_UPDATE_ARCHIVO,
-                {
-                    "nombre_archivo_actual": file_name,
-                    "ruta_temporal": destino_relativo,
-                    "estado_archivo": "observado",
-                    "archivo_id": item["archivo_id"],
-                },
-            )
 
 
 def get_pending_rows():
@@ -392,6 +340,76 @@ def enrich_document(item: dict) -> dict:
         "razon_social_emisor_detectada": razon_social_emisor,
         "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
     }
+
+
+def mark_documents_as_review(
+    items: list[dict],
+    estado_documento: str,
+    bucket: str = "pendientes_revision",
+) -> None:
+    for item in items:
+        pdf_path = resolve_absolute_path(item["ruta_temporal"])
+        file_name = item["nombre_archivo_actual"]
+
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+
+        destino_relativo = f"{bucket}/{year}/{month}/{file_name}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        fields = item.get("fields", {})
+        ruc_emisor = fields.get("ruc")
+        razon_social_emisor = item.get("razon_social_emisor_detectada") or item.get("razon_social") or "SIN_RAZON_SOCIAL"
+
+        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+        proveedor_id = proveedor["id"] if proveedor else None
+
+        if proveedor and proveedor.get("nombre"):
+            razon_social_emisor = proveedor["nombre"]
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                """
+                UPDATE documentos
+                SET
+                    proveedor_id = %(proveedor_id)s,
+                    tipo_documental = %(tipo_documental)s,
+                    serie = %(serie)s,
+                    numero = %(numero)s,
+                    ruc = %(ruc)s,
+                    razon_social = %(razon_social)s,
+                    fecha_emision = %(fecha_emision)s,
+                    importe = %(importe)s,
+                    estado_documento = %(estado_documento)s,
+                    actualizado_en = NOW()
+                WHERE id = %(documento_id)s
+                """,
+                {
+                    "proveedor_id": proveedor_id,
+                    "tipo_documental": fields.get("tipo_documental"),
+                    "serie": fields.get("serie"),
+                    "numero": fields.get("numero"),
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social_emisor,
+                    "fecha_emision": item.get("fecha_emision_norm"),
+                    "importe": fields.get("importe"),
+                    "estado_documento": estado_documento,
+                    "documento_id": item["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": file_name,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": "observado",
+                    "archivo_id": item["archivo_id"],
+                },
+            )
 
 
 def process_correo(items: list[dict]) -> None:
@@ -498,6 +516,9 @@ def process_correo(items: list[dict]) -> None:
             tipo_documental = "adjunto_factura"
             total_adjuntos_factura += 1
             print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
+
+        if tipo_documental == "otro":
+            tipo_documental = "adjunto_documento"
 
         nombre_final = build_final_name(
             grupo_codigo=grupo_codigo,
