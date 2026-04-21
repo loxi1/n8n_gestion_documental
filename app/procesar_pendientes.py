@@ -489,6 +489,7 @@ def process_correo(items: list[dict]) -> None:
             and factura_principal["fields"]["ruc"] == ruc_emisor
         ):
             tipo_documental = "adjunto_factura"
+            print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
 
         nombre_final = build_final_name(
             grupo_codigo=grupo_codigo,
