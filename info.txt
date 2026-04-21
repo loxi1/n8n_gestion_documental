@@ -119,181 +119,229 @@ total 21492
 
  
 
-Sí, ya con lo que mostraste puedo darte Sí. Te la dejo pulida y ordenada para que ya no se mezcle la lógica.
-Estado real del sistema
-Lo que ya funciona bien
-n8n ya guarda archivos con nombres únicos.
-ya no se pisan adjuntos entre correos.
-el flujo BD + archivos + OCR ya está caminando.
-ADJUNTO_FACTURA ya resolvió bien el caso de factura legible + factura escaneada.
-el caso FE65-0812829 ya salió correctamente como factura.
-la agrupación 04-0001, 04-0002, 04-0003 ya funciona.
-Lo que todavía está mal
-1. Se están reprocesando documentos ya resueltos
-Eso hizo que 04-0001 y 04-0002 pasaran de clasificados a revisión.
-2. El clasificador todavía confunde tipos documentales
-certificado de calidad lo toma como factura
-guía electrónica la toma como factura o adjunto_factura
-3. La extracción de fecha/importe todavía no es perfecta
-en Promelsa, al reprocesar, fecha_emision volvió como None
-algunos importes capturados son descuentos o valores parciales
-Conclusión funcional
-Tu sistema ya está en una etapa útil, pero todavía no está listo para correr solo en producción continua.
-Ahora mismo el cuello de botella no es arquitectura, sino estas 3 reglas:
-qué documentos se deben volver a procesar
-cómo distinguir certificado / guía / factura
-qué mandar a clasificados y qué mandar a revisión
-Regla final que te recomiendo
-1. inbox
-Solo debe contener archivos recién descargados y no procesados.
-2. pendientes_clasificados
-Solo documentos resueltos correctamente:
-factura principal
-orden de compra asociada
-adjunto_factura
-guía asociada si corresponde
-3. pendientes_revision
-Documentos válidos que requieren intervención humana:
-certificado de calidad
-guía sin factura asociada
-factura sin fecha
-OCR dudoso
-documento que no pudo asociarse bien
-4. ocr_tmp
-Solo temporal técnico.
-Cambio más urgente
-SQL_SELECT_PENDING
-Debe dejar de traer documentos ya clasificados.
-Déjalo así:
-Python
-SQL_SELECT_PENDING = """
-SELECT
-    d.id AS documento_id,
-    d.correo_id,
-    d.proveedor_id,
-    d.tipo_documental,
-    d.serie,
-    d.numero,
-    d.ruc,
-    d.razon_social,
-    d.fecha_emision,
-    d.estado_documento,
-    a.id AS archivo_id,
-    a.ruta_temporal,
-    a.nombre_archivo_actual,
-    a.nombre_archivo_original
-FROM documentos d
-JOIN archivos a ON a.documento_id = d.id
-WHERE d.estado_documento IN ('pendiente', 'error')
-ORDER BY d.id ASC;
-"""
-Con eso ya no volverás a tocar:
-clasificado
-revision_manual
-pendiente_asociacion
-Regla de clasificación pulida
-Orden correcto de detección
-Siempre así:
+
+ Perfecto. Aquí tienes el classifier.py final pulido, con la prioridad correcta:
 certificado_calidad
 guia_remision
 orden_compra
 factura
 otro
-Porque si factura va antes:
-roba guías
-roba certificados
-Lógica documental recomendada
-Si el correo trae:
-Factura legible + factura escaneada + OC
-Resultado:
-FACTURA
-ADJUNTO_FACTURA
-ORDEN_COMPRA
-Certificado de calidad solo
-Resultado:
-CERTIFICADO_CALIDAD
-estado_documento = pendiente_asociacion
-carpeta: pendientes_revision
-Guía sola
-Resultado:
-GUIA_REMISION
-estado_documento = pendiente_asociacion
-carpeta: pendientes_revision
-Factura sin fecha
-Resultado:
-FACTURA
-estado_documento = revision_manual
-carpeta: pendientes_revision
-Qué quedó bien en tu última prueba
-Correctos
-Grupo 04-0001
-factura principal
-OC
-adjunto_factura
-Grupo 04-0002
-factura principal
-OC
-adjunto_factura
-Grupo 04-0003
-factura FE65 correctamente detectada
-Incorrectos
-Correo 13
-Es certificado, no factura.
-Correo 15
-Es guía, no adjunto_factura.
-Correos 1 y 4
-No debieron reprocesarse.
-Qué debes hacer ahora
-Paso 1
-Corregir SQL_SELECT_PENDING.
-Paso 2
-Corregir classifier.py con el orden:
-certificado
-guía
-OC
-factura
-Paso 3
-Mantener mark_documents_as_review() para mandar observados a:
-pendientes_revision
-Paso 4
-No volver a procesar documentos fuera de inbox.
-Estructura final recomendada
+Y además:
+reconoce FE65-0812829
+reconoce F231-0101493
+reconoce T073-0665284
+soporta fecha larga 21 DE ABRIL DEL 2026
+extrae OC
+evita que una guía o certificado sean robados por “factura”
+app/core/classifier.py
+Python
+from __future__ import annotations
+
+import re
+from typing import Any
+from core.text_utils import normalize_text
+
+
+def _search(pattern: str, text: str, flags: int = re.IGNORECASE) -> str | None:
+    match = re.search(pattern, text, flags)
+    return match.group(1).strip() if match else None
+
+
+def detect_tipo_documental(text: str, file_name: str) -> str:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
+
+    # 1. CERTIFICADO DE CALIDAD
+    if (
+        "CERTIFICADO DE CALIDAD" in text_u
+        or "CERT. DE CALIDAD" in text_u
+        or "CERTIFICADO" in name_u
+    ):
+        return "certificado_calidad"
+
+    # 2. GUIA DE REMISION
+    if (
+        "GUIA REMISION ELECTRONICA" in text_u
+        or "GUIA DE REMISION ELECTRONICA" in text_u
+        or "GUIA DE REMISION" in text_u
+        or "GUIA REMISION" in text_u
+        or re.search(r"\bT\d{3}[- ]\d+\b", text_u)
+        or re.search(r"\bT\d{3}[- ]\d+\b", name_u)
+        or re.search(r"\bGR\d{3}[- ]\d+\b", text_u)
+        or re.search(r"\bGR\d{3}[- ]\d+\b", name_u)
+    ):
+        return "guia_remision"
+
+    # 3. ORDEN DE COMPRA
+    if (
+        "ORDEN DE COMPRA" in text_u
+        or "ORDEN DE COMRA" in text_u
+        or re.search(r"\bOC[- ]?\d{4,}\b", text_u)
+        or re.search(r"\bOC[- ]?\d{4,}\b", name_u)
+    ):
+        return "orden_compra"
+
+    # 4. FACTURA
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or "FACTURA" in text_u
+        or re.search(r"\bF\d{3,4}-\d+\b", text_u)
+        or re.search(r"\bF\d{3,4}-\d+\b", name_u)
+        or re.search(r"\bFE\d{2,4}-\d+\b", text_u)
+        or re.search(r"\bFE\d{2,4}-\d+\b", name_u)
+        or re.search(r"\bNRO\.?\s*F[A-Z0-9]{2,4}-\d+\b", text_u)
+    ):
+        return "factura"
+
+    return "otro"
+
+
+def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
+    text_u = normalize_text(text)
+    doc_type = detect_tipo_documental(text, file_name)
+
+    ruc = None
+    serie = None
+    numero = None
+    fecha_emision = None
+    importe = None
+    oc = None
+
+    # RUC
+    ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
+    if not ruc:
+        ruc = _search(r"\bR\.U\.C\.?\s*(?:N[°º.]?)?\s*([0-9]{11})\b", text_u)
+    if not ruc:
+        ruc = _search(r"\bREG\.?\s*UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b", text_u)
+
+    # Serie / número por tipo
+    if doc_type == "factura":
+        patrones = [
+            r"\b(F\d{3,4})[- ](\d{3,})\b",
+            r"\b(FE\d{2,4})[- ](\d{3,})\b",
+            r"\bN[°º]\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+            r"\bNRO\.?\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+        ]
+        for patron in patrones:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                serie = m.group(1).strip()
+                numero = m.group(2).strip()
+                break
+
+    elif doc_type == "guia_remision":
+        patrones = [
+            r"\b(T\d{3})[- ](\d{3,})\b",
+            r"\b(GR\d{3})[- ](\d{3,})\b",
+            r"\bNRO\.?\s*(T\d{3})[- ](\d{3,})\b",
+        ]
+        for patron in patrones:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                serie = m.group(1).strip()
+                numero = m.group(2).strip()
+                break
+
+    elif doc_type == "orden_compra":
+        patrones = [
+            r"\bOC[- ]?(\d{4,})\b",
+            r"\bORDEN DE COMPRA\s*N[^0-9]{0,5}([0-9]{4,})\b",
+        ]
+        for patron in patrones:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                serie = "OC"
+                numero = m.group(1).strip()
+                break
+
+    # Fecha de emisión
+    fecha_emision = _search(
+        r"\bFECHA(?: DE EMISION| DE EMISION:| DE EMISION\s*:)?\s*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
+        text_u,
+    )
+
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
+
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}-[0-9]{2}-[0-9]{4})\b", text_u)
+
+    if not fecha_emision:
+        fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
+
+    if not fecha_emision:
+        fecha_emision = _search(
+            r"\b([0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
+            text_u,
+        )
+
+    # OC dentro de factura o guía
+    oc = _search(r"\bOC[:\s]*([0-9]{4,})\b", text_u)
+    if not oc:
+        oc = _search(r"\bN[°º]?\s*OC[:\s]*([0-9]{4,})\b", text_u)
+
+    # Importe
+    # Se priorizan textos más cercanos al total final
+    patrones_importe = [
+        r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bIMPORTE TOTAL\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bTOTAL[:\sA-Z$/.]*([0-9][0-9.,]*)\b",
+    ]
+
+    for patron in patrones_importe:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            importe = m.group(1).strip()
+            break
+
+    return {
+        "tipo_documental": doc_type,
+        "serie": serie,
+        "numero": numero,
+        "ruc": ruc,
+        "fecha_emision": fecha_emision,
+        "importe": importe,
+        "oc": oc,
+    }
+Qué mejora esta versión
+Certificado de calidad
+Un documento como:
 Plain text
-storage/files/
-  inbox/
-  pendientes_clasificados/
-  pendientes_revision/
-  no_identificados/
-  ocr_tmp/
-Estado final ideal de BD
-correos_ingresados.estado_correo
-Valores recomendados:
-procesado
-procesado_con_observaciones
-sin_factura_principal
-factura_sin_fecha
-documentos.estado_documento
-Valores recomendados:
-clasificado
-adjunto_factura
-pendiente_asociacion
-revision_manual
-no_identificado
-archivos.estado_archivo
-Valores recomendados:
-descargado
-renombrado
-observado
-Mi conclusión final
-Tu sistema sí está bien encaminado.
-Ya superaste la parte más difícil.
-Ahora estás en la etapa de pulido fino:
-evitar reprocesos
-clasificar mejor
-separar revisión manual de clasificados
-Eso ya es una fase normal de maduración del flujo.
-Prioridad exacta
-no reprocesar clasificados
-detectar certificado y guía antes que factura
-mandar observados a pendientes_revision
-Si quieres, ahora te dejo el classifier.py final completo, ya pulido con esas prioridades.
+CERTIFICADO DE CALIDAD
+N° Factura: OFE65-0812829
+ya no se irá como factura.
+Se clasificará como:
+Python
+certificado_calidad
+Guía electrónica
+Un documento como:
+Plain text
+GUIA REMISION ELECTRONICA
+Nro. T073-0665284
+ya no se convertirá en adjunto_factura.
+Se clasificará como:
+Python
+guia_remision
+Factura FE65
+Un documento como:
+Plain text
+FACTURA ELECTRONICA
+Nro. FE65-0812829
+CALLAO, 21 DE ABRIL DEL 2026
+se extraerá como:
+serie = FE65
+número = 0812829
+fecha = 21 DE ABRIL DEL 2026
+Recomendación final
+Después de pegar este classifier.py, haz esto:
+Bash
+python -m py_compile core/classifier.py
+python -m py_compile procesar_pendientes.py
+python procesar_pendientes.py
+Y revisa especialmente que:
+correo 13 pase a certificado_calidad
+correo 15 pase a guia_remision
+correos 1 y 4 ya no vuelvan a procesarse si corriges SQL_SELECT_PENDING
+Si quieres, el siguiente paso te dejo una versión final pulida de procesar_pendientes.py consistente con este classifier.py.
