@@ -1,18 +1,102 @@
-Ocurre que existen dos facturas escaneadas que se puso check con lapicero, y esas ya fueron enviadas en un formato bien legible, ahora eso me da como idea que si, adjunto facturas scaneadas no va salir la serie y numero correlativo en el renombre del archivo hablo de lo
-$ ls -l storage/files/pendientes_clasificados/2026/04/
-total 720
--rw-r--r-- 1 BBTI 01 197121 239444 Apr 20 17:54 '04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
--rw-r--r-- 1 BBTI 01 197121  60786 Apr 20 17:54 '04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
--rw-r--r-- 1 BBTI 01 197121  76340 Apr 20 17:54 '04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf'
--rw-r--r-- 1 BBTI 01 197121 219646 Apr 20 17:54 '04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
--rw-r--r-- 1 BBTI 01 197121  60453 Apr 20 17:54 '04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
--rw-r--r-- 1 BBTI 01 197121  72746 Apr 20 17:54 '04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf'
+Sí, ahora quedó clarísimo.
+Lo que tienes no es un error de agrupación: son dos versiones del mismo comprobante dentro del mismo grupo:
+una factura legible con serie y número
+una factura escaneada del mismo documento, marcada con lapicero
+Entonces no conviene dejar ambas como FACTURA, porque visualmente parecen dos facturas distintas, cuando en realidad es una factura principal + una copia escaneada.
+Regla que te recomiendo
+Dentro de un mismo grupo:
+la factura que sí tiene serie y numero será la FACTURA principal
+la factura escaneada que no logra extraer serie/numero, pero comparte el mismo ruc y pertenece al mismo correo/grupo, debe renombrarse como:
+Plain text
+ADJUNTO_FACTURA
+Así quedarían tus ejemplos
+Grupo 04-0001
+Plain text
+04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf
+Grupo 04-0002
+Plain text
+04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf
+Eso refleja mucho mejor la realidad documental.
+Qué significa esta regla
+Si en el correo llega:
+PDF legible de factura
+PDF escaneado de esa misma factura
+entonces:
+el legible manda como documento principal
+el escaneado se conserva, pero como respaldo visual/anexo
+Eso me parece muy bien para tu operación, porque además puede servir como evidencia de validación manual o revisión interna.
+Mejora a implementar
+Hay que ajustar process_correo() con esta regla:
+Si un documento del grupo:
+es factura
+pero no tiene serie o número
+y ya existe otra factura principal en ese mismo grupo con el mismo ruc
+entonces cambiar su tipo a:
+Plain text
+adjunto_factura
+Cambios concretos
+1. En file_manager.py
+Agrega el nuevo tipo en tipo_map:
+Python
+tipo_map = {
+    "factura": "FACTURA",
+    "adjunto_factura": "ADJUNTO_FACTURA",
+    "guia": "GUIA",
+    "orden_compra": "ORDEN_COMPRA",
+    "requerimiento_compra": "REQUERIMIENTO_COMPRA",
+    "nota_credito": "NOTA_CREDITO",
+    "otro": "OTRO",
+}
+Y en la lógica de nombre, trata adjunto_factura como un documento sin serie/número obligatoria:
+Python
+if tipo_documental in ["factura", "guia"]:
+    if serie_txt:
+        parts.append(serie_txt)
+    if numero_txt:
+        parts.append(numero_txt)
 
+elif tipo_documental in ["orden_compra", "requerimiento_compra", "nota_credito"]:
+    if numero_txt:
+        parts.append(numero_txt)
 
-$ ls -l storage/files/ocr_tmp/2026/04/
-total 540
--rw-r--r-- 1 BBTI 01 197121 287936 Apr 20 17:57 ocr_posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf
--rw-r--r-- 1 BBTI 01 197121 258674 Apr 20 17:57 ocr_posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf
-
-storage/files/pendientes_clasificados/2026/04/04-0001 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf = storage/files/pendientes_clasificados/2026/04/04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf = storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260420225402733_69e69d97.050a0220.1b82a7.1b03_mx.google._3.pdf esto es escaneado y el legible es: 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-storage/files/pendientes_clasificados/2026/04/04-0002 FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf = storage/files/pendientes_clasificados/2026/04/04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf = storage/files/ocr_tmp/2026/04/ocr_posible_documento_20260420225402734_69e69d4e.050a0220.20184c.69bb_mx.google._3.pdf esto es escaneado y el legible es: FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+elif tipo_documental == "adjunto_factura":
+    # no agrega serie/numero si no existen
+    pass
+2. En process_correo()
+Dentro del for doc in enriched:, antes de construir nombre_final, agrega:
+Python
+# si ya hay una factura principal con serie/numero y este doc no los tiene,
+# reclasificar como adjunto_factura
+if (
+    tipo_documental == "factura"
+    and not fields["serie"]
+    and not fields["numero"]
+    and ruc_emisor
+    and factura_principal["fields"]["ruc"] == ruc_emisor
+):
+    tipo_documental = "adjunto_factura"
+Resultado esperado
+Con eso, esos archivos escaneados dejarán de verse como una segunda factura “incompleta” y pasarán a verse como lo que realmente son:
+anexo
+respaldo
+copia escaneada
+Mi opinión
+Esta regla de negocio está muy bien pensada porque:
+no pierdes el archivo escaneado
+no confundes al usuario con dos facturas
+mantienes trazabilidad
+el grupo sigue limpio
+Es una mejora correcta.
+Siguiente paso
+Aplica ese cambio y luego te recomiendo que también guardes en BD ese nuevo tipo documental:
+Plain text
+adjunto_factura
+para que el dashboard luego pueda mostrar algo como:
+Factura principal
+Adjunto factura
+Orden de compra
+Si quieres, te devuelvo el bloque exacto de process_correo() ya modificado con esta lógica lista para pegar.
