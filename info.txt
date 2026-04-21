@@ -118,27 +118,176 @@ total 21492
 ...
 
  
-salio este error: en el archivo: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py
-$ python procesar_pendientes.py
-Correos pendientes encontrados: 3
-[INFO] procesando correo_id=13 documentos=1
-[DEBUG] correo_id=13 enriquecidos:
-{'documento_id': 7, 'archivo': 'posible_documento_20260421193059969_ADR510000015602343000AB56143BB971FD18FA6_1.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-[DEBUG] factura_principal = None
-[WARN] correo_id=13 sin factura principal
-[INFO] procesando correo_id=14 documentos=1
-[DEBUG] correo_id=14 enriquecidos:
-{'documento_id': 8, 'archivo': 'posible_documento_20260421193059970_ADR5100000156043530002FBAC343AD91FD18FA7_1.pdf', 'tipo': 'factura', 'serie': None, 'numero': None, 'ruc': '20370146994', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None}
-[DEBUG] factura_principal = {'documento_id': 8, 'correo_id': 14, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 8, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260421193059970_ADR5100000156043530002FBAC343AD91FD18FA7_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260421193059970_ADR5100000156043530002FBAC343AD91FD18FA7_1.pdf', 'nombre_archivo_original': 'FE65-0812829.pdf', 'text': 'FACTURA ELECTRÓNICAN° INTERNO               :\nORDEN VENTA          :\nN° GUIA REMISIÓN    :\nSEDE CONDICIONES DE PAGOCLIENTE FLETE POR T.M.PEDIDO U O/CZ-OFO C G\n5112719657\n5172524590\n1000 20 100000-8002 823 CALLAO 007926 1100028455 F/ 60 Dias\nCARRETERA PANAMERICANA SUR NRO 241, ICA Pisco Paracas\n01-FE65-0812829\n(+51) 54.23.2430, 54.21.5341 Fax: 54.21.9796.Teléfonos:\nBBTI S.A.C.\nREG. UNICO DE CONTRIBUYENTES: 20565747356\nITEM CODIGO DETALLE UNIDAD CANTIDAD VALOR TOTAL VALOR VENTA TOTAL PRECIO PRECIO UNITARIODESCUENTO\n% IMPORTE\nRUC: 20370146994\nCALLAO,  21 DE ABRIL DEL 2026\nNro. FE65-0812829T073-0665284\n402681 PZL JISG3302 1.9MM X 1200MM X 2400MM ST 100.0 44.30 20.00 3,544.00 4,181.92 41.821 886.00\nResumen:\nDE OSAMBELA VENTURO CLAUDIO ALBERTO\nSI EL PAGO SE EFECTUA EN S/. REGIRÁ EL TIPO DE CAMBIO VENTA US$ DE LA FECHA DE CANCELACIÓN\nUSD 637.92\nUSD 4,181.92\nUSD 3,544.00\nUSD 0.00\nUSD 0.00\nUSD 0.00\nUSD 0.00\nUSD 3,544.00\nUSD 0.00\nUSD 0.00\nUSD 0.00\nCUATRO MIL CIENTO OCHENTA Y UN CON 92/100 DOLARES AMERICANOSSON:\nDESP.: APRO\nTotal valor venta operaciones gratuitas\nTotal valor venta\nTotal valor venta gravada\nTotal valor venta inafecta\nTotal valor venta exonerada\nImporte Total\nTotal descuentos globales\nIntereses\nComisiones\nFletes y seguros\nIGV (18.00%)\nEmitido a través deRepresentación impresa de la factura electrónica, consulte en www.acerosarequipa.com\n Autorizado mediante la Resolución de intendencia N° N 0520050000009/SUNAT\n++zy7aeF7eyRXqj8Y9AhcRibQoA=\nAceros Arequipa cuenta con una Línea Ética que permite reportar conductas anti éticas, como fraude y corrupción. Puedes reportarlas en https://www.lineaeticaacerosarequipa.com/ o al +51-1-219-7134\n \n1) En caso de mora, el presente documento generará las tasas de interés compensatorio y moratorio, más altas que la ley permita a su último tenedor.\n2) Los intervinientes se someten a la competencia de los Jueces del Distrito Judicial de Lima.\nSi hubiera algún reclamo será aceptado para revisión, dentro de las 48 horas de efectuada la entrega de mercadería. Pasado este periodo no se aceptarán reclamos.\nEl receptor declara conocer que CAASA tiene una política COVID19 que declaro conocer y cumplir durante la compraventa de bienes o prestación de servicios', 'fields': {'tipo_documental': 'factura', 'ruc': '20370146994', 'serie': None, 'numero': None, 'fecha_emision': None, 'importe': None, 'oc': None}, 'cliente_raw': None, 'cliente_match': None, 'ocr_output_path': None}
-Traceback (most recent call last):
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 703, in <module>
-    main()
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 651, in main
-    process_correo(items)
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 480, in process_correo
-    fecha_principal = factura_principal["fecha_emision_date"]
-                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+Ya encontré el error exacto.
+Error principal
+Tu process_correo() hace esto:
+Python
+fecha_principal = factura_principal["fecha_emision_date"]
+pero el objeto factura_principal que devolvió select_factura_principal(enriched) no tiene esa clave.
+En tu propio debug se ve clarísimo: el diccionario de factura_principal trae:
+documento_id
+correo_id
+archivo_id
+ruta_temporal
+text
+fields
+cliente_raw
+cliente_match
+ocr_output_path
+pero no trae:
+fecha_emision_norm
+fecha_emision_date
+Por eso explota con:
+Plain text
 KeyError: 'fecha_emision_date'
-(venv) 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ 
+Solución inmediata
+Cambia esto:
+Python
+fecha_principal = factura_principal["fecha_emision_date"]
+por esto:
+Python
+fecha_principal = factura_principal.get("fecha_emision_date")
+Así no revienta.
+Pero eso solo evita el crash.
+El problema de fondo es que enrich_document() no está garantizando esas claves en todos los casos.
+Qué debes corregir en enrich_document()
+Asegúrate de que siempre retorne estas claves:
+fecha_emision_norm
+fecha_emision_date
+cliente_raw
+cliente_match
+razon_social_emisor_detectada
+Te recomiendo dejar enrich_document() así en la parte final del return:
+Python
+return {
+    **item,
+    "text": text,
+    "fields": fields,
+    "cliente_raw": cliente_raw,
+    "cliente_match": cliente_match,
+    "fecha_emision_norm": fecha_norm,
+    "fecha_emision_date": fecha_date,
+    "razon_social_emisor_detectada": razon_social_emisor,
+    "ocr_output_path": str(ocr_output) if 'ocr_output' in locals() and ocr_output.exists() else None,
+}
+Y antes del return, define siempre:
+Python
+ocr_output = None
+al inicio de la función, para evitar inconsistencias.
+Cambio exacto en process_correo()
+Haz este reemplazo:
+Antes
+Python
+fecha_principal = factura_principal["fecha_emision_date"]
+if not fecha_principal:
+    print(f"[WARN] correo_id={correo_id} factura sin fecha")
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=False,
+        estado_correo="factura_sin_fecha",
+        observacion="La factura principal no tiene fecha de emisión reconocible.",
+    )
+    return
+Después
+Python
+fecha_principal = factura_principal.get("fecha_emision_date")
+if not fecha_principal:
+    print(f"[WARN] correo_id={correo_id} factura sin fecha")
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=False,
+        estado_correo="factura_sin_fecha",
+        observacion="La factura principal no tiene fecha de emisión reconocible.",
+    )
+    return
+Pero hay otro problema importante
+Ese PDF de Aceros Arequipa sí es factura, pero tu clasificador no está extrayendo bien:
+serie/número
+fecha
+Del texto que pegaste se ve:
+FACTURA ELECTRÓNICA
+Nro. FE65-0812829
+RUC: 20370146994
+CALLAO, 21 DE ABRIL DEL 2026
+Entonces tu classifier.py también necesita mejorar para aceptar:
+Serie/número tipo factura
+No solo F231-0101439, sino también:
+FE65-0812829
+Fecha larga en español
+No solo:
+15/04/2026
+2026-04-15
+sino también:
+21 DE ABRIL DEL 2026
+Mejora para facturas tipo FE65-0812829
+En classifier.py, en is_factura() y en extracción de serie/número, amplía los patrones.
+En is_factura()
+Reemplaza patrones_factura por:
+Python
+patrones_factura = [
+    r"\bF\d{3,4}[- ]\d{3,}\b",
+    r"\bFE\d{2,4}[- ]\d{3,}\b",
+    r"\bN[°º]\s*F[A-Z0-9]{2,4}[- ]\d{3,}\b",
+    r"\bNRO\.?\s*F[A-Z0-9]{2,4}[- ]\d{3,}\b",
+    r"\bNRO\.?\s*FE\d{2,4}[- ]\d{3,}\b",
+]
+En extracción de factura
+Reemplaza el bloque de patrones de factura por:
+Python
+if doc_type == "factura":
+    patrones = [
+        r"\b(F\d{3,4})[- ](\d{3,})\b",
+        r"\b(FE\d{2,4})[- ](\d{3,})\b",
+        r"\bN[°º]\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+        r"\bNRO\.?\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+    ]
+Mejora para fecha tipo 21 DE ABRIL DEL 2026
+En tu normalize_date() agrega este caso:
+Python
+m = re.match(r"^(\d{1,2}) DE ([A-ZÁÉÍÓÚ]+) DEL (\d{4})$", raw)
+if m:
+    day, mon_txt, year = m.groups()
+    meses_largos = {
+        "ENERO": "01",
+        "FEBRERO": "02",
+        "MARZO": "03",
+        "ABRIL": "04",
+        "MAYO": "05",
+        "JUNIO": "06",
+        "JULIO": "07",
+        "AGOSTO": "08",
+        "SEPTIEMBRE": "09",
+        "OCTUBRE": "10",
+        "NOVIEMBRE": "11",
+        "DICIEMBRE": "12",
+    }
+    mon_txt = mon_txt.replace("Á", "A").replace("É", "E").replace("Í", "I").replace("Ó", "O").replace("Ú", "U")
+    mon = meses_largos.get(mon_txt)
+    if mon:
+        return f"{year}-{mon}-{str(day).zfill(2)}"
+Y en extract_basic_fields() agrega búsqueda para fecha larga:
+Python
+if not fecha_emision:
+    fecha_emision = _search(
+        r"\b([0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
+        text_u
+    )
+Resumen de cambios que faltan
+1. Evitar el crash
+En process_correo():
+Python
+fecha_principal = factura_principal.get("fecha_emision_date")
+2. Asegurar claves en enrich_document()
+Que siempre devuelva:
+fecha_emision_norm
+fecha_emision_date
+3. Mejorar classifier.py
+Para facturas tipo:
+FE65-0812829
+4. Mejorar normalize_date()
+Para fechas tipo:
+21 DE ABRIL DEL 2026
+Mi recomendación
+Haz primero estos 4 cambios.
+Con eso ese correo 14 ya no debería romperse y probablemente quedará como factura bien identificada.
+Si quieres, te dejo en el siguiente mensaje el bloque exacto de normalize_date() completo ya corregido y el fragmento exacto de extract_basic_fields() listo para pegar.
