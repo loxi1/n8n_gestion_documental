@@ -117,44 +117,99 @@ total 21492
 -rw-r--r-- 1 BBTI 01 197121  75299 Mar 17 10:01 13.pdf
 ...
 
-Sí, ahora el flujo ya está mucho mejor encaminado.
-Lo que veo en tu ejecución es esto:
-Se detectaron correctamente los 2 correos pendientes y cada correo terminó con su propio grupo documental: 04-0001 y 04-0002. Eso coincide con la lógica de correlativo mensual que usa get_next_correlativo_mes(...). �
-GitHub +1
-La factura principal fue elegida bien en ambos casos. La función select_factura_principal(...) prioriza la factura que tenga OC, luego cliente destino, luego serie, así que en tus ejemplos escogió correctamente el PDF _1 y dejó el PDF _3 como secundario. �
-GitHub +1
-La reclasificación del tercer archivo a ADJUNTO_FACTURA también está alineada con tu código: en process_correo(...), si el documento viene como factura pero no tiene serie ni número, y además comparte el mismo RUC del emisor que la factura principal, se convierte en adjunto_factura. Eso calza exactamente con tus doc=3 y doc=6. �
-GitHub
-El nombre final de archivos también está saliendo conforme a build_final_name(...): para factura agrega serie+número; para orden_compra agrega número; para adjunto_factura no agrega serie/número y sí añade RUC + razón social. Tus nombres generados coinciden con esa regla. �
-GitHub
-La detección de cliente destino también se ve bien: extract_cliente_destino_raw(...) obtiene algo como 4000019957 - BBTI S.A.C. y luego find_cliente_destino_by_alias(...) lo cruza por alias normalizado, por eso te resolvió BBTI S.A.C. incluso cuando vino como BBTIS.A.C. sin espacio. �
-GitHub
-El OCR está funcionando solo cuando hace falta: en enrich_document(...) primero intenta extraer texto normal y, si queda vacío, genera un PDF OCR en ocr_tmp. Por eso solo aparecieron los OCR del tercer archivo de cada correo. �
-GitHub
-En resumen: para este caso, el resultado es correcto.
-Tus 6 archivos finales quedaron bien clasificados:
-factura
-orden_compra
-adjunto_factura
-y además quedaron agrupados por correo/operación como esperabas.
-Lo que sí te recomiendo corregir ahora, antes de seguir, es esto:
-Tu consulta base SQL_SELECT_PENDING no solo trae pendientes, también trae documentos con estado no_identificado, clasificado y error. Eso significa que si vuelves a ejecutar el proceso, podrías reprocesar documentos ya clasificados y terminar generando movimientos o renombrados innecesarios. Esa condición está literal en el script. �
-GitHub
-Yo la dejaría así si quieres procesar solo lo nuevo:
-SQL
-WHERE d.estado_documento IN ('pendiente', 'error')
-o incluso solo:
-SQL
-WHERE d.estado_documento = 'pendiente'
-según tu estrategia.
-También te sugiero una mejora pequeña pero importante:
-después de usar OCR para adjunto_factura, podrías eliminar el archivo temporal OCR o moverlo a una carpeta de auditoría, porque ahora storage/files/ocr_tmp/... seguirá creciendo con el tiempo. La lógica actual sí lo genera, pero no veo limpieza posterior en el flujo que compartiste. �
-GitHub
-Mi conclusión:
-Sí, esta versión ya está validando bien para esos ejemplos reales.
-El núcleo de clasificación, selección de factura principal, match de cliente, OCR y nombrado final ya está respondiendo de forma consistente.
-El siguiente paso más importante sería: blindar el reprocesamiento y definir qué hacer con ocr_tmp.
-Si quieres, en el siguiente mensaje te preparo directamente el ajuste exacto de procesar_pendientes.py para que:
-no reprocese clasificados,
-limpie OCR temporales,
-deje logs más claros para producción.
+Estoy deacuerdo contigo si el documento ya se copio a pendientes_clasificados por favor elimnar de ocr_tmp porque y con respecto a los estados en la tabla me ayudas a definir para que no vuelva a generar otra vez esta es los datos de la tabla formada.
+select * from archivos;
+ id | documento_id | correo_id |     nombre_archivo_original     |                         nombre_archivo_actual                          | extensio
+n |    mime_type    | tamano_bytes | hash_sha256 |                                             ruta_temporal
+      | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
+----+--------------+-----------+---------------------------------+------------------------------------------------------------------------+---------
+--+-----------------+--------------+-------------+--------------------------------------------------------------------------------------------------
+------+------------+--------------+----------------+----------------------------+----------------------------
+  1 |            1 |         1 | 20100084172-01-F231-0101493.pdf | 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | .pdf
+  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_
+A.pdf |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.385236
+  2 |            2 |         1 | 007886.pdf                      | 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf                 | .pdf
+  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf
+      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.436025
+  3 |            3 |         1 | F231-00101493.pdf               | 04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | .pdf
+  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:23.484127
+  4 |            4 |         4 | 20100084172-01-F231-0101492.pdf | 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | .pdf
+  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_
+A.pdf |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.000641
+  5 |            5 |         4 | 007898.pdf                      | 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf                 | .pdf
+  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf
+      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.047584
+  6 |            6 |         4 | F231-00101492.pdf               | 04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | .pdf
+  | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.094866
+(6 rows)
+
+
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero  |     ruc     |       razon_social        | fecha_emision | fecha_venc
+imiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |         creado_en
+          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_id |
+                nombre_final                              |            ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+---------+-------------+---------------------------+---------------+-----------
+--------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+-------------           |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.047584
+  6 |            6 |         4 | F231-00101492.pdf               | 04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | .pd
+f      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRIC
+OS_S_A.pdf      |            | t            | renombrado     | 2026-04-21 12:02:58.138198 | 2026-04-21 12:04:28.094866
+(6 rows)
+
+
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero  |     ruc     |       razon_social        | fecha_emision | fecha
+_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |
+ creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_id
+|                              nombre_final                              |            ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+---------+-------------+---------------------------+---------------+------
+-------------+--------+---------+-----+----------------+-------+------------------+------------------+--------------------------------+--------
+--------------------+----------------------------+--------------------+--------------+-----------------+--------------+------------------------
++------------------------------------------------------------------------+------------------------------------------
+  1 |         1 |          754 | factura         |          | F231  | 0101493 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
+             |        |  555.70 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:23.385236 |                  2 | 04-0001      |               1 | t            |
+| 04-0001 FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  2 |         1 |         1655 | orden_compra    |          | OC    | 007886  | 20565747356 | BBTI S.A.C.               |               |
+             |        |  470.98 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:23.436025 |                  2 | 04-0001      |               1 | f            |                      1
+| 04-0001 ORDEN_COMPRA 007886 20565747356 BBTI_S_A_C.pdf                 | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  3 |         1 |          754 | adjunto_factura |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-05-30    |
+             |        |         |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:23.484127 |                  2 | 04-0001      |               1 | f            |                      1
+| 04-0001 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  4 |         4 |          754 | factura         |          | F231  | 0101492 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
+             |        |   77.36 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:28.000641 |                  2 | 04-0002      |               2 | t            |
+| 04-0002 FACTURA F231 0101492 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  5 |         4 |         1655 | orden_compra    |          | OC    | 007898  | 20565747356 | BBTI S.A.C.               |               |
+             |        |   65.56 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:28.047584 |                  2 | 04-0002      |               2 | f            |                      4
+| 04-0002 ORDEN_COMPRA 007898 20565747356 BBTI_S_A_C.pdf                 | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  6 |         4 |          754 | adjunto_factura |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-15    |
+             |        |   77.36 |     |                |       |                  | clasificado      | Documento descargado desde n8n | 2026-04
+-21 12:02:50.079706 | 2026-04-21 12:04:28.094866 |                  2 | 04-0002      |               2 | f            |                      4
+| 04-0002 ADJUNTO_FACTURA 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf      | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+(6 rows)
+
+
+gestiondocumental=# SELECT * FROM correos_ingresados ORDER BY id DESC;
+ id | origen | proveedor_correo |                  message_id                   | thread_id | remitente_nombre |           remitente_email
+      | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                     asunto                      | cuerpo_texto | cu
+erpo_html |    fecha_correo     |     fecha_recepcion      | leido | procesado | estado_correo | cantidad_adjuntos | observacion |        cread
+o_en         |       actualizado_en
+----+--------+------------------+-----------------------------------------------+-----------+------------------+-------------------------------
+------+----------+-------------------+-----------------+------------------+-------------------------------------------------+--------------+---
+----------+---------------------+--------------------------+-------+-----------+---------------+-------------------+-------------+-------------
+-------------+----------------------------
+  4 | correo | imap             | <69e69d4e.050a0220.20184c.69bb@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101492 - BBTI S.A.C. |              |
+          | 2026-04-20 21:40:30 | 2026-04-21 12:02:39.1794 | f     | f         | descargado    |                 1 |             | 2026-04-21 1
+2:02:39.1794 | 2026-04-21 12:02:47.355033
+  1 | correo | imap             | <69e69d97.050a0220.1b82a7.1b03@mx.google.com> |           |                  | notificaciones01.promelsa@gmai
+l.com |          |                   |                 |                  | REGISTRO DE FACTURA F231-00101493 - BBTI S.A.C. |              |
+          | 2026-04-20 21:41:43 | 2026-04-21 12:02:39.1794 | f     | f         | descargado    |                 1 |             | 2026-04-21 1
+2:02:39.1794 | 2026-04-21 12:02:47.355033
+(2 rows)
