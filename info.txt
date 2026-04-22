@@ -1,3 +1,12 @@
+
+pero el codigo anterior decia:
+# 2. Factura por nombre fuerte
+    if (
+        re.search(r"\bF[A-Z0-9]{3}-\d{1,8}\b", name_u)
+        or re.search(r"\b\d{11}-\d{2}-F[A-Z0-9]{3}-\d{1,8}\b", name_u)
+    ):
+        return "factura"
+porque no lo reconocia como factura?
 Sí, tu lectura tiene sentido y el ajuste debe ser pequeño y preciso.
 Lo importante
 Si una factura electrónica siempre lleva:
