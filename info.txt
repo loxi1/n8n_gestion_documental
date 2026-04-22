@@ -1,6 +1,129 @@
-$ python -m core.classifier
-20111740438-01-FF12-7700.PDF
-True
-True
-(venv)
-obtuve esto como podemos seguir haciendo el debug
+Perfecto. Eso confirma algo importante:
+Confirmado
+El nombre:
+Plain text
+20111740438-01-FF12-7700.pdf
+sí hace match como factura.
+Entonces el problema no está en este bloque:
+Python
+re.search(r"\bF[A-Z0-9]{3}-\d{1,8}\b", name_u)
+ni en:
+Python
+re.search(r"\b\d{11}-\d{2}-F[A-Z0-9]{3}-\d{1,8}\b", name_u)
+Entonces, ¿dónde hacer debug?
+Ahora hay que probar la siguiente capa:
+1. detect_tipo_documental()
+2. extract_basic_fields()
+3. enrich_document()
+4. process_correo()
+Mejor forma de seguir
+Haz una prueba aislada con un solo archivo PDF real, sin tocar BD ni mover archivos.
+Paso 1: crea un script de prueba
+Crea este archivo en la raíz de app:
+debug_pdf.py
+Python
+from pathlib import Path
+
+from core.extractor_pdf import extract_text_from_pdf
+from core.classifier import detect_tipo_documental, extract_basic_fields
+from core.text_utils import normalize_text
+from procesar_pendientes import normalize_date, parse_iso_date
+
+pdf_path = Path(
+    r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_revision\2026\04\posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf"
+)
+
+file_name = pdf_path.name
+
+print("=" * 80)
+print("ARCHIVO:", file_name)
+print("=" * 80)
+
+text = extract_text_from_pdf(pdf_path)
+
+print("\n--- PRIMEROS 2500 CARACTERES DEL TEXTO ---\n")
+print(text[:2500])
+
+print("\n--- NOMBRE NORMALIZADO ---\n")
+print(normalize_text(file_name))
+
+tipo = detect_tipo_documental(text, file_name)
+fields = extract_basic_fields(text, file_name)
+
+print("\n--- TIPO DETECTADO ---\n")
+print(tipo)
+
+print("\n--- CAMPOS EXTRAIDOS ---\n")
+for k, v in fields.items():
+    print(f"{k}: {v}")
+
+fecha_norm = normalize_date(fields.get("fecha_emision"))
+fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
+
+print("\n--- FECHA NORMALIZADA ---\n")
+print("fecha_norm:", fecha_norm)
+print("fecha_date:", fecha_date)
+Paso 2: ejecútalo
+Desde app:
+Bash
+python debug_pdf.py
+Qué queremos ver
+Para ese PDF de FF12-7700, el resultado correcto debería ser algo como:
+Plain text
+tipo_documental: factura
+serie: FF12
+numero: 7700
+ruc: 20111740438
+fecha_emision: 21/04/2026
+fecha_norm: 2026-04-21
+Cómo interpretar el resultado
+Caso A: sale bien
+Si sale:
+Plain text
+tipo_documental = factura
+serie = FF12
+numero = 7700
+fecha_norm = 2026-04-21
+entonces el problema ya no está en classifier.py.
+En ese caso el fallo está en:
+select_factura_principal()
+o process_correo()
+o el archivo venía de una corrida anterior
+Caso B: sale mal el tipo
+Si sale:
+Plain text
+tipo_documental = orden_compra
+entonces el problema sí está en detect_tipo_documental().
+Caso C: sale factura pero sin serie/número
+Si sale:
+Plain text
+tipo_documental = factura
+serie = None
+numero = None
+entonces el problema está en extract_basic_fields().
+Caso D: sale factura y serie bien, pero fecha no
+Si sale:
+Plain text
+fecha_emision = None
+entonces el problema está en la regex de fecha.
+Paso 3 opcional: debug de una sola función
+Si quieres ir más fino todavía, agrega temporalmente en classifier.py dentro de extract_basic_fields() esto:
+Python
+print("DEBUG FILE:", file_name)
+print("DEBUG DOC TYPE:", doc_type)
+print("DEBUG TEXT HEAD:", text_u[:1000])
+Pero yo prefiero el script debug_pdf.py, porque no ensucias el flujo principal.
+Mi hipótesis actual
+Con lo que ya probaste, yo creo que el regex de nombre sí funciona, así que probablemente está pasando una de estas:
+el texto OCR/PDF tiene algo que hace que otra regla gane antes
+el documento observado fue procesado con una versión anterior
+extract_basic_fields() no está sacando bien FF12-7700 desde el texto o nombre en la corrida real
+Recomendación exacta
+Haz ahora esto:
+crea debug_pdf.py
+ejecútalo con ese PDF de FF12-7700
+pégame la salida completa de:
+tipo detectado
+campos extraídos
+fecha normalizada
+Con eso ya te digo exactamente en qué capa se rompe.
