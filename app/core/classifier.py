@@ -186,18 +186,51 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
             numero = m.group(1)
 
     # 4. Fecha de emisión
+    # Prioridad:
+    # 1) etiquetas explícitas
+    # 2) búsqueda cercana a "F. EMISION"
+    # 3) fallback contextual en factura
+
+    # 4.1 Fecha explícita en misma línea
     for patron in [
         r"\bFECHA DE EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
         r"\bF\.?\s*EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
         r"\bFECHA DE EMISION[:\s]*([0-9]{2}-[0-9]{2}-[0-9]{4})\b",
         r"\bF\.?\s*EMISION[:\s]*([0-9]{2}-[0-9]{2}-[0-9]{4})\b",
         r"\bFECHA\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
-        r"\b([0-9]{1,2}\s+DE\s+[A-Z]+\s+DEL\s+[0-9]{4})\b",
     ]:
         m = re.search(patron, text_u, re.IGNORECASE)
         if m:
             fecha_emision = m.group(1)
             break
+
+    # 4.2 Fecha cerca de "F. EMISION" aunque esté en otra línea o separada
+    if not fecha_emision:
+        m = re.search(
+            r"F\.?\s*EMISION[:\s]*.{0,80}?([0-9]{2}/[0-9]{2}/[0-9]{4})",
+            text_u,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            fecha_emision = m.group(1)
+
+    # 4.3 Fallback especial para factura:
+    # buscar una fecha cercana al bloque donde aparece FACTURA + serie/número
+    if not fecha_emision and doc_type == "factura":
+        m_fact = re.search(
+            rf"FACTURA ELECTRONICA.*?({FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE})",
+            text_u,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m_fact:
+            start = max(0, m_fact.start() - 250)
+            end = min(len(text_u), m_fact.end() + 250)
+            window = text_u[start:end]
+
+            fechas = re.findall(r"\b([0-9]{2}/[0-9]{2}/[0-9]{4})\b", window)
+            if fechas:
+                # tomar la primera fecha del bloque, normalmente emisión
+                fecha_emision = fechas[0]
 
     # 5. OC referencial
     for patron in [

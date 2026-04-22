@@ -1,123 +1,44 @@
-Sí, ya quedó identificado: es caso C.
-Qué está pasando
-El documento ya se detecta bien como factura:
-tipo_documental = factura
-serie = FF12
-numero = 7700
-ruc = 20111740438
-Pero falla en esto:
-fecha_emision = None
-Y como tu regla exige factura válida completa, termina en pendientes_revision.
-Por qué no encontró la fecha
-Porque en ese PDF la fecha viene así:
-Plain text
-F. Emisión: 21/04/2026
-pero el OCR la deja partida:
-Plain text
-Señor(es): F. Emisión:
-...
-21/04/2026
-o sea, la regex actual espera la fecha en la misma línea y aquí no está pegada.
-Además, más abajo aparece:
-Plain text
-21/05/2026
-que es vencimiento, así que no conviene agarrar la primera fecha suelta sin contexto.
-Solución correcta
-Hay que hacer dos mejoras en extract_basic_fields():
-1. Buscar fecha cerca de “F. Emisión” aunque esté en otra línea
-2. Si no encuentra eso, usar una regla de respaldo para factura:
-después de FACTURA ELECTRÓNICA y FF12-7700, tomar la fecha válida más cercana anterior o posterior razonable
-Reemplazo recomendado para la parte de fecha
-Dentro de extract_basic_fields(), reemplaza el bloque de fecha por este:
-Python
-# 4. Fecha de emisión
-    # Prioridad:
-    # 1) etiquetas explícitas
-    # 2) búsqueda cercana a "F. EMISION"
-    # 3) fallback contextual en factura
+para el caso en particular sale:
+--- RESUMEN MINIMO ---
 
-    # 4.1 Fecha explícita en misma línea
-    for patron in [
-        r"\bFECHA DE EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
-        r"\bF\.?\s*EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
-        r"\bFECHA DE EMISION[:\s]*([0-9]{2}-[0-9]{2}-[0-9]{4})\b",
-        r"\bF\.?\s*EMISION[:\s]*([0-9]{2}-[0-9]{2}-[0-9]{4})\b",
-        r"\bFECHA\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
-    ]:
-        m = re.search(patron, text_u, re.IGNORECASE)
-        if m:
-            fecha_emision = m.group(1)
-            break
+{'es_factura_valida': True,
+ 'fecha_emision': '21/04/2026',
+ 'fecha_norm': '2026-04-21',
+ 'numero': '7700',
+ 'ruc': '20111740438',
+ 'serie': 'FF12',
+ 'tipo_documental': 'factura'}
 
-    # 4.2 Fecha cerca de "F. EMISION" aunque esté en otra línea o separada
-    if not fecha_emision:
-        m = re.search(
-            r"F\.?\s*EMISION[:\s]*.{0,80}?([0-9]{2}/[0-9]{2}/[0-9]{4})",
-            text_u,
-            re.IGNORECASE | re.DOTALL,
-        )
-        if m:
-            fecha_emision = m.group(1)
+RUC: 20538549071 
+Factura Electronica 
+F002-00000254
+python debug_pdf.pdf
+...
+--- CANDIDATOS QR ---
 
-    # 4.3 Fallback especial para factura:
-    # buscar una fecha cercana al bloque donde aparece FACTURA + serie/número
-    if not fecha_emision and doc_type == "factura":
-        m_fact = re.search(
-            rf"FACTURA ELECTRONICA.*?({FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE})",
-            text_u,
-            re.IGNORECASE | re.DOTALL,
-        )
-        if m_fact:
-            start = max(0, m_fact.start() - 250)
-            end = min(len(text_u), m_fact.end() + 250)
-            window = text_u[start:end]
+No se encontraron candidatos QR en el texto.
 
-            fechas = re.findall(r"\b([0-9]{2}/[0-9]{2}/[0-9]{4})\b", window)
-            if fechas:
-                # tomar la primera fecha del bloque, normalmente emisión
-                fecha_emision = fechas[0]
-Por qué esto sí te sirve
-En tu texto debug aparece:
-Plain text
-Señor(es): F. Emisión:
-...
-21/04/2026
-...
-FACTURA ELECTRÓNICA
-R.U.C. 20111740438
-FF12-7700
-21/05/2026
-Entonces con esta mejora:
-primero intentará encontrar fecha cerca de F. EMISION
-capturará 21/04/2026
-no se quedará con 21/05/2026 que es vencimiento
-Qué debería salir después en debug_pdf.py
-Plain text
-tipo_documental: factura
-serie: FF12
-numero: 7700
-ruc: 20111740438
-fecha_emision: 21/04/2026
-fecha_norm: 2026-04-21
-es_factura_valida: True
-Se deberia mover a: pendientes_clasificados/2026/04/
-Recomendación adicional
-Como ese formato trae:
-Plain text
-IMPORTE DE CUOTA ... 942.48
-...
-143.77
-puede que luego el importe también quede corto o ambiguo. Pero primero arregla la fecha, porque ese es el bloqueo que lo manda a revisión.
-Siguiente paso
-Haz ese cambio en classifier.py, vuelve a correr:
-Bash
-python debug_pdf.py
-y pégame solo estas líneas:
-tipo_documental
-serie
-numero
-ruc
-fecha_emision
-fecha_norm
-RESULTADO
-Ahí ya confirmamos si queda listo para pendientes_clasificados.
+--- FECHA ---
+
+fecha_raw : None
+fecha_norm: None
+fecha_date: None
+
+--- REGLA DE NEGOCIO (SIMULACION) ---
+
+[RESULTADO] NO ES FACTURA VALIDA COMPLETA
+Se deberia mover a: pendientes_revision/YYYY/MM/
+
+--- RESUMEN MINIMO ---
+
+{'es_factura_valida': False,
+ 'fecha_emision': None,
+ 'fecha_norm': None,
+ 'numero': '00000254',
+ 'ruc': '20565747356',
+ 'serie': 'F002',
+ 'tipo_documental': 'factura'
+}
+tiene pero el dato esta debajo es decir salto de linea
+Fecha de Emisión 
+2026-04-16
