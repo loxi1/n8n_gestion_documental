@@ -98,6 +98,39 @@ def to_wsl_path(path: Path) -> str:
     return raw
 
 
+def normalize_amount(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    raw = str(value).strip()
+
+    # quitar espacios
+    raw = raw.replace(" ", "")
+
+    # caso 1: formato US -> 1,530.70
+    if "," in raw and "." in raw:
+        if raw.rfind(".") > raw.rfind(","):
+            raw = raw.replace(",", "")
+        else:
+            # caso europeo -> 1.530,70
+            raw = raw.replace(".", "").replace(",", ".")
+
+    # caso 2: solo comas
+    elif "," in raw:
+        parts = raw.split(",")
+        if len(parts) == 2 and len(parts[1]) in (2, 3):
+            # probablemente decimal
+            raw = raw.replace(",", ".")
+        else:
+            # probablemente miles
+            raw = raw.replace(",", "")
+
+    # dejar solo números, punto y signo
+    raw = re.sub(r"[^0-9.\-]", "", raw)
+
+    return raw or None
+
+
 def normalize_date(value: str | None) -> str | None:
     if not value:
         return None
@@ -376,7 +409,7 @@ def mark_documents_as_review(
                     "ruc": ruc_emisor,
                     "razon_social": razon_social_emisor,
                     "fecha_emision": item.get("fecha_emision_norm"),
-                    "importe": fields.get("importe"),
+                    "importe": normalize_amount(fields.get("importe")),
                     "estado_documento": estado_documento,
                     "documento_id": item["documento_id"],
                 },
@@ -544,7 +577,7 @@ def process_correo(items: list[dict]) -> None:
                     "ruc": ruc_emisor,
                     "razon_social": razon_social_emisor,
                     "fecha_emision": doc["fecha_emision_norm"],
-                    "importe": fields["importe"],
+                    "importe": normalize_amount(fields["importe"]),
                     "estado_documento": estado_documento,
                     "grupo_codigo": grupo_codigo,
                     "correlativo_mes": correlativo_mes,
