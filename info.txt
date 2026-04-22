@@ -1,141 +1,90 @@
-esto esta en pendientes_revision pero e legible
-Tengo esto: RUC: 20370146994
-GUIA REMISIÓN ELECTRÓNICA
-Nro. T073-0665284
-
-RUC: 20370146994
-FACTURA ELECTRÓNICA
-Nro. FE65-0812829
-la factura esta en pendientes clasificados pero no veo la fecha de emision
-
-se repite ocr_posible_documento_20260421231903800_ADR510000015602343000AB56143BB971FD18FA6_1.pdf
-esta en pendientes_revision
-
-gestiondocumental=# select * from documentos;
- id | correo_id | proveedor_id |   tipo_documental   | tipo_doc | serie | numero  |     ruc     |          razon_social          | fecha_emisio
-n | fecha_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental |   estado_documento   |          observacion
-    |         creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_
-principal_id |                                nombre_final                                | ruta_windows_final
-----+-----------+--------------+---------------------+----------+-------+---------+-------------+--------------------------------+-------------
---+-------------------+--------+---------+-----+----------------+-------+------------------+----------------------+----------------------------
-----+----------------------------+----------------------------+--------------------+--------------+-----------------+--------------+-----------
--------------+----------------------------------------------------------------------------+--------------------
-  1 |         1 |              | certificado_calidad |          |       |         |             | SIN_RAZON_SOCIAL               | 2026-04-21
-  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
-n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.104565 |                    |              |                 | f            |
-             |                                                                            |
-  2 |         2 |          956 | factura             |          | FE65  | 0812829 | 20370146994 | CORPORACION ACEROS AREQUIPA S. | 2026-04-21
-  |                   |        |   18.00 |     |                |       |                  | clasificado          | Documento descargado desde
-n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.432264 |                    | 04-0001      |               1 | t            |
-             | 04-0001 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf |
-  3 |         3 |         1655 | guia_remision       |          | T073  | 0665284 | 20565747356 | BBTI S.A.C.                    | 2026-04-21
-  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
-n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.825177 |                    |              |                 | f            |
-             |                                                                            |
-(3 rows)
-creo que aca deberia buscar la fecha de emision si no existe deberia ponerlo en revision o tu que opinas,
-volvi a ejecutar el n8n y quedo asi: revisar los archivos:
-python procesar_pendientes.py
-Correos pendientes encontrados: 3
-[INFO] procesando correo_id=10 documentos=1
-[DEBUG] correo_id=10 enriquecidos:
-{'documento_id': 4, 'archivo': 'posible_documento_20260421233118813_499dd1f672b896e2880ca914260fd910_localho_1.pdf', 'tipo': 'guia_remision', 'serie': None, 'numero': None, 'ruc': '20100084172', 'oc': '7924', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-05-21'}
-[DEBUG] factura_principal = None
-[WARN] correo_id=10 sin factura principal
-[INFO] procesando correo_id=11 documentos=1
-[DEBUG] correo_id=11 enriquecidos:
-{'documento_id': 5, 'archivo': 'posible_documento_20260421233118813_f0d4c16297e8bffdc7757a449bcedf31_localho_1.pdf', 'tipo': 'guia_remision', 'serie': None, 'numero': None, 'ruc': '20100084172', 'oc': '7930', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-06-05'}
-[DEBUG] factura_principal = None
-[WARN] correo_id=11 sin factura principal
-[INFO] procesando correo_id=12 documentos=1
-[DEBUG] correo_id=12 enriquecidos:
-{'documento_id': 6, 'archivo': 'posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf', 'tipo': 'orden_compra', 'serie': None, 'numero': None, 'ruc': '20111740438', 'oc': None, 'cliente_raw': '. I.G.V. 18 PERCEPCION PRECIO DE VENTA DESCUENTO S S S S S S S SON NOVECIENTOS CUARENTA Y DOS CON 48 100 SOLES 942.48 0.00 942.48 798.71 0 798.71 ICBPER S 0.00 TOTAL BRUTO VALOR VENTA TOTAL A PAGAR F8BBB8F0B7F4D1B486EFF93D820C20F8BBB8F E2AAA2E0A07CB43C3874E9F5B164F0E2AAA2E EF9A65A092FAEE06E61342CE0D2EB8508F82E E23319A59F47C2DD95B42CAB414907A7AF5E1 7B13A6A2631183F898D43C1928552BA176640 4A6418A626E119BAB27B5ABA58AC905A50BD6 96EA35A7E23C352314C0996D9B4D06876FD0B 32A22AB0438A7406E156EF91EFE0F8A8F3139 F0EEE0F07CFAEE466B03DC4D1D9E9AE9F5C34 8888888088008088800808808080800808008 143.77 EN CASO SONEPAR TENGA ACCESO A SUS DATOS PERSONALES COMO CLIENTES PERSONA NATURAL SE LE INFORMA QUE SONEPAR TRATARA SUS DATOS PERSONALES BAJO EL DETALLE SENALADO EN HTTPS SONEPAR.PE WP-CONTENT UPLOADS 2022 11 CLAUSULA-TRATAMIENTO-DATOS-PERSONALES-CLIENTES.PDF ESTIMADO CLIENTE QUEREMOS RECORDARLE QUE LOS PAGOS DE SUS FACTURAS A CREDITO SOLO PODRAN SER REALIZADOS MEDIANTE TRANSFERENCIA BANCARIA Y O ABONO EN NUESTROS NUMEROS DE CUENTA CORRIENTE SEGUN LA PLAZA A LA QUE PERTENECE . TERMINOS Y CONDICIONES GENERALES DE VENTA SONEPAR 1.REGULACION ESTOS T ERMINOS Y CONDICIONES GENERALES DE VENTA EN LO SUCESIVO TYC EN CONCORDANCIA CON LAS CONDICIONES FIJADAS DENTRO DE LA RESPECTIVA COTIZACI ON U OFERTA COMERCIAL PRESENTADA POR PARTE DE SONEPAR PER U S .A.C EN LO SUCESIVO SONEPAR REGULARAN DE MANERA EXCLUSIVA LA RELACION COMERCIAL ENTRE SONEPAR Y EL COMPRADOR Y O EL SOLICITANTE DE LA OFERTA COMERCIAL EN ADELANTE COMPRADOR LA VENTA SUMINISTRO DE LOS PRODUCTOS Y LA PRESTACI ON DE NUESTROS SERVICIOS EN LO QUE LES APLIQUE EN LO SUCESIVO LOS PRODUCTOS INDEPENDIENTEMENTE DEL MEDIO O TRANSACCI ON A TRAVES DE LA CUAL SE EFECT UE LA VENTA CONSTITUYEN EL ACUERDO TOTAL ENTRE EL COMPRADOR Y SONEPAR. LA SOLICITUD DE PEDIDO U ORDEN DE COMPRA EN LO SUCESIVO OC REALIZADA POR PARTE DEL COMPRADOR A TRAV ES DE LA CUAL SE CONFIRME LA TRANSACCI ON CONSTITUIRA LA ACEPTACI ON EXPRESA DE LOS PRESENTES TYC GENERALES DE VENTA. AL EMITIR UNA ORDEN DE COMPRA OC EL COMPRADOR ACEPTA EXPRESAMENTE ESTOS TYC QUE PARA MAYOR DETALLE PUEDE INGRESAR A CONDICIONES DE VENTA EN WWW.SONEPAR.PE 2.VIGENCIA OFERTA SALVO ESTIPULACI ON CONTRARIA EN LA OFERTA COMERCIAL LA OFERTA TIENE UNA VIGENCIA DE SIETE 07 DIAS H ABILES. TRANSCURRIDO EL TERMINO ESTABLECIDO DEBERA SOLICITARSE ACTUALIZACION DE PRECIOS Y CONDICIONES ACEPTACIONES EXTEMPORANEAS PODRAN NO SER PROCESADAS. 3. ANTICORRUPCION LAS PARTES SE OBLIGAN A RESPETAR CUMPLIR Y HACER CUMPLIR EL CONJUNTO DE LEYES DE PER U CONVENCIONES Y TRATADOS INTERNACIONALES QUE PER U HAYA SUSCRITO EN MATERIA ANTICORRUPCI ON ASI COMO AQUELLOS INSTRUMENTOS INTERNACIONALES ANTICORRUPCI ON DE OBLIGATORIA OBSERVACION POR ALGUNA DE LAS PARTES DE ESTE ACUERDO. LAS PARTES SE OBLIGAN A NO OFRECER O PAGAR NING UN TIPO DE SOBORNO O CUALQUIER OTRA FORMA DE PAGO ILEGAL O FAVOR A NING UN TIPO DE SERVIDOR O FUNCIONARIO P UBLICO O EMPLEADO PRIVADO DE CUALQUIER NACI ON PARA INICIAR OBTENER O RETENER NING UN TIPO DE NEGOCIO O ACTIVIDAD RELACIONADA CON LA VENTA. EL OFRECIMIENTO O PAGO DE SOBORNOS O DE CUALQUIER OTRA FORMA DE PAGO ILEGAL O FAVOR A SERVIDORES O FUNCIONARIOS P UBLICOS O A CUALQUIER EMPLEADO ES CAUSAL PARA DAR POR TERMINADO EL NEGOCIO ENTRE LAS PARTES. LAS PARTES IMPLEMENTAR AN LAS MEDIDAS TENDIENTES A EVITAR QUE SUS OPERACIONES PUEDAN SER UTILIZADAS SIN SU CONOCIMIENTO Y CONSENTIMIENTO COMO INSTRUMENTOS PARA EL OCULTAMIENTO MANEJO INVERSION O APROVECHAMIENTO EN CUALQUIER FORMA DE DINERO U OTROS BIENES PROVENIENTES DE ACTIVIDADES DELICTIVAS O PARA DAR APARIENCIA DE LEGALIDAD A ESTAS ACTIVIDADES. SONEPAR PODR A DAR POR TERMINADO EL NEGOCIO ABSTENERSE DE EJECUTAR LA ORDEN DE COMPRA O SOLICITUD DE PEDIDO SIN QUE HAYA LUGAR AL PAGO DE INDEMNIZACI ON ALGUNA A FAVOR DEL COMPRADOR CUANDO ESTE SEA I CONDENADO POR PARTE DE LAS AUTORIDADES COMPETENTES POR DELITOS DE NARCOTR AFICO TERRORISMO SECUESTRO LAVADO DE ACTIVOS FINANCIACION DEL TERRORISMO CORRUPCION TRAFICO DE INFLUENCIAS PROLIFERACION DE ARMAS DE DESTRUCCI ON MASIVA ADMINISTRACION DE RECURSOS RELACIONADOS CON DICHAS ACTIVIDADES O EN CUALQUIER TIPO DE PROCESO JUDICIAL RELACIONADO CON LA COMISI ON DE LOS ANTERIORES DELITO. LO ANTERIOR INCLUYE TODO PROCESO SANCIONATORIO QUE IMPLIQUE RESTRICCIONES LEGALES A PROCESOS DE CONTRATACION O PARTICIPACI ON LO ANTERIOR CONFORME LOS RIESGOS TRABAJADOS POR SONEPAR EN SUS PROGRAMAS DE SPLAFT Y LINEAMIENTOS CORPORATIVOS II INCLUIDO EN LISTAS RESTRICTIVAS INHIBITORIAS O VINCULANTES TALES COMO LA LISTA DE LA OFICINA DE CONTROL DE ACTIVOS EN EL EXTERIOR -OFAC EMITIDA POR LA OFICINA DEL TESORO DE LOS ESTADOS UNIDOS DE AM ERICA LA LISTA DE LA ORGANIZACI ON DE LAS NACIONES UNIDAS Y OTRAS LISTAS P UBLICAS RELACIONADAS ASI COMO DE CUALQUIER OTRO DELITO RELACIONADO O CONEXO. EL C ODIGO DE ETICA DE SONEPAR DISPONIBLE EN HTTPS WWW.SONEPAR.PE PE-ES COMPROMISOS CUMPLIMIENTO-E-INTEGRIDAD ES DE OBLIGATORIO CUMPLIMIENTO Y HACE PARTE DEL PRESENTE CONTRATO Y CUALQUIER VULNERACION DEL MISMO PUEDE SER COMUNICADA EN NUESTRO CANAL DE DENUNCIAS HTTPS SONEPAR.INTEGRITYLINE.COM . LA ACEPTACI ON DE LA OC EST A SUJETA AL CUMPLIMIENTO DE LOS LINEAMIENTOS ESTABLECIDOS EN LOS PROCESOS DE DEBIDA DILIGENCIA QUE SE DESARROLLAN EN SONEPAR Y EL GRUPO SONEPAR SPLAFT Y DEMAS NORMAS. 4. DECLARACION AL MOMENTO DE EMITIR LA OC EL COMPRADOR GARANTIZA QUE CUMPLE LA REGULACI ON APLICABLE EN COMERCIO EXTERIOR RESTRICCIONES ECONOMICAS COMERCIALES FINANCIERAS EMBARGOS Y DEM AS IMPUESTOS POR ORGANISMOS INTERNACIONALES Y ESTADOS COMO INCLUSIONES EN LISTAS RESTRICTIVAS O INHIBITORIAS COMPROMETI ENDOSE A MANTENER INDEMNE AL GRUPO SONEPAR SONEPAR ANTE CUALQUIER ACCI ON O RECLAMACI ON DERIVADA DEL INCUMPLIMIENTO DE ESTA DISPOSICI ON O DEL OCULTAMIENTO DE INFORMACI ON SOBRE EL DESTINO FINAL DE LA MERCANC IA SU ESTATUS INTERNACIONAL DE CUMPLIMIENTO O EL DEL COMPRADOR FINAL. 5. DECLARACION DE CUMPLIMIENTO EL COMPRADOR CERTIFICA QUE NO UTILIZAR A TRANSFERIRA EXPORTARA REEXPORTARA REVENDERA NI DISPONDR A DE NING UN PRODUCTO SOFTWARE O TECNOLOG IA ADQUIRIDA U OBTENIDA DE SONEPAR O DE CUALQUIERA DE SUS FILIALES A NING UN DESTINO USUARIO FINAL O PARA CUALQUIER USO FINAL PROHIBIDO POR EL REGLAMENTO DE ADMINISTRACI ON DE EXPORTACIONES DE LOS ESTADOS UNIDOS EAR ADMINISTRADO POR EL DEPARTAMENTO DE COMERCIO DE LOS ESTADOS UNIDOS POR EL REGLAMENTO DE CONTROL DE ACTIVOS EXTRANJEROS DE LOS ESTADOS UNIDOS OFAC ADMINISTRADO POR EL DEPARTAMENTO DEL TESORO DE LOS ESTADOS UNIDOS O POR EL REGLAMENTO DE TR AFICO INTERNACIONAL DE ARMAS ITAR ADMINISTRADO POR EL DEPARTAMENTO DE ESTADO DE LOS ESTADOS UNIDOS O POR CUALQUIER OTRA LEY APLICABLE DONDE DICHA LEY NO ENTRE EN CONFLICTO CON LAS LEYES DE LOS ESTADOS UNIDOS. ADEMAS ASEGURA QUE DICHOS PRODUCTOS NO SE DESTINAR AN A ACTIVIDADES RELACIONADAS CON ARMAS DE DESTRUCCI ON MASIVA NI SE ENVIAR AN A PERSONAS O DESTINOS RESTRINGIDOS SALVO AUTORIZACI ON EXPRESA DE LAS AUTORIDADES COMPETENTES. PARA MAYOR DETALLE SOBRE ESTE PUNTO PUEDE INGRESAR A CONDICIONES DE VENTA EN WWW.SONEPAR.PE 6. CESION LOS PRESENTES TYC NO PODR AN SER CEDIDOS POR NINGUNA DE LAS PARTES SIN EL PREVIO CONSENTIMIENTO EXPRESO POR ESCRITO DE LA OTRA EL CUAL NO SER A NEGADO SIN RAZ ON FUNDADA . SONEPAR PODR A CEDER SIN AUTORIZACI ON ALGUNA PREVIA A SU EMPRESA MATRIZ SUS SUBSIDIARIAS O FILIALES EL PRESENTE NEGOCIO EN CUALQUIER MOMENTO. 7. INDEMNIDAD POR PROPIEDAD INTELECTUAL SONEPAR REMITIR A AL FABRICANTE CUALQUIER DEMANDA O PROCEDIMIENTO CONTRA DEL COMPRADOR COMO RESULTADO DE ALGUNA RECLAMACI ON EN RELACI ON AL DISE NO O CONSTRUCCI ON DE LOS PRODUCTOS VENDIDOS O SOBRE LOS QUE EL FABRICANTE HAYA OTORGADO LICENCIA QUE VIOLEN ALGUNA PATENTE DERECHOS DE AUTOR PROPIEDAD INTELECTUAL O MARCAS REGISTRADAS CONFORME A LAS NORMAS NACIONALES E INTERNACIONALES SIEMPRE QUE EL COMPRADOR NOTIFIQUE POR ESCRITO A SONEPAR DE DICHA RECLAMACI ON DEMANDA O PROCEDIMIENTO. LA DEFENSA Y RESPONSABILIDAD SE ASUMIR A POR CADA FABRICANTE CONFORME A SUS ESTIPULACIONES. SONEPAR NO ASUMIR A RESPONSABILIDAD ECON OMICA ALGUNA NI TOMAR A PARTE DENTRO DEL PROCESO SALVO QUE LAS CIRCUNSTANCIAS O LAS AUTORIDADES COMPETENTES ASI LO EXIJAN. 8.TERMINACION ANTICIPADA SONEPAR PODR A DAR POR TERMINADA ANTICIPADAMENTE LA EJECUCI ON DE LAS ACTIVIDADES O SUSPENDER LA ENTREGA DE PRODUCTOS POR INCAPACIDAD FINANCIERA PARA CUMPLIR LOS PAGOS QUE ENTRE OTROS SE PRESUME CUANDO SE DECLARA EN ESTADO DE INSOLVENCIA EL COMPRADOR Y O POR INCUMPLIMIENTO DE LAS OBLIGACIONES DE LAVADO DE ACTIVOS FINANCIACION DEL TERRORISMO FRAUDE SOBORNO O CORRUPCION. 9. PRECIO Y CANTIDADES SALVO CONDICI ON EXPRESA EN CONTRARIO EN LA OFERTA LOS PRECIOS INCLUIDOS EN LA OFERTA COMERCIAL TENDR AN UNA VIGENCIA DE SIETE 07 DIAS H ABILES Y EST AN SUJETOS A LAS CANTIDADES ESTABLECIDAS EN ELLA. CAMBIOS O MODIFICACIONES REQUERIR AN DE UNA ACTUALIZACI ON O NUEVA OFERTA. SONEPAR NO SE HACE RESPONSABLE POR MODIFICACIONES QUE NO HAYAN SIDO PREVIAMENTE ACORDADAS. LO ANTERIOR EN OBSERVANCIA AL PRINCIPIO DE BUENA FE CONTRACTUAL DE LAS PARTES. 10. MODIFICACIONES PEDIDO UNA VEZ ACEPTADA LA PRESENTE OFERTA COMERCIAL POR CUALQUIER MEDIO EL T ERMINO PARA SOLICITAR MODIFICACIONES Y O CANCELACIONES SER A DE CUARENTA Y OCHO 48 HORAS CONTINUAS DESDE LA ACEPTACI ON DE LA OFERTA COMERCIAL O ENV IO DE LA OC SIEMPRE Y CUANDO HAYA UNA PREVIA EVALUACI ON DE SONEPAR Y ACUERDO ENTRE LAS PARTES. SONEPAR SE RESERVA EL DERECHO DE RECHAZAR CUALQUIER CAMBIO CUANDO EL FABRICANTE NO ADMITA MODIFICACIONES EN LA OC PUESTA POR SONEPAR EN LOS CASOS EN LOS CUALES SE GENEREN CONDICIONES INSEGURAS SEA T ECNICAMENTE NO RECOMENDABLE INCONSISTENTE CON LOS EST ANDARES Y ESPECIFICACIONES DE LA INGENIER IA O CALIDAD O INCOMPATIBLE CON LA CAPACIDAD DE DISE NO O MANUFACTURA DEL FABRICANTE. UNA VEZ ACEPTADA LA OFERTA COMERCIAL Y PAGADO EL ANTICIPO CUANDO APLIQUE SONEPAR DESPLIEGA UNA SERIE DE PROCESOS QUE IMPLICAN OC S ADICIONALES IMPORTACIONES FABRICACIONES ENTRE OTROS QUE DERIVAN EN CONSECUENCIAS CONTRACTUALES Y PECUNIARIAS PARA SONEPAR DE SER MODIFICADAS Y O CANCELADAS. EN CASO DE CAMBIOS AJUSTES O MODIFICACIONES INDEPENDIENTEMENTE DE LA ACEPTACI ON DE ESTAS SE INFORMAR AN PREVIAMENTE SI ES POSIBLE ANTICIPARLO LOS ALCANCES DEL CAMBIO U OPORTUNAMENTE CUANDO NO SEA POSIBLE CONOCERLOS CON ANTERIORIDAD. NO SER AN ACEPTADAS ANULACIONES DE PEDIDOS DE PRODUCTOS DE IMPORTACI ON O FABRICACI ON EXCLUSIVA CUYO PROCESO DE IMPORTACI ON O FABRICACI ON HAYAN SIDO INICIADOS. EL COMPRADOR ASUMIR A LOS PERJUICIOS DERIVADOS DE DICHAS AFECTACIONES AL PEDIDO INICIAL LOS SOBRECOSTOS CAMBIOS EN TIEMPOS DE ENTREGA COMPENSACION Y DEMAS NOVEDADES QUE SURJAN. 11. MODIFICACIONES TYC CUALQUIER MODIFICACI ON A LOS PRESENTES TYC NO SER A OBLIGATORIA PARA SONEPAR SALVO ACUERDO FIRMADO POR LAS PARTES EN EL QUE SE SENALE LA RENUNCIA A ESTOS TYC O A ALGUNA DE SUS DISPOSICIONES. SONEPAR DESCONOCE Y RECHAZA CUALESQUIER OTROS TYC QUE PUEDAN SER PROPUESTOS POR EL COMPRADOR SE ADJUNTEN O A LOS QUE SE HAGA REFERENCIA EN LA OC O SOLICITUD DE COMPRA. EL COMPRADOR ACEPTA AL ORDENAR SU COMPRA QUE SALVO LO INDICADO PREVIAMENTE ESTOS TYC GENERALES DE VENTA PREVALECERAN SOBRE CUALQUIER OTRO DOCUMENTO ADICIONAL INCONSISTENTE O QUE ENTRE EN CONFLICTO CON ESTE DOCUMENTO. LAS CONDICIONES Y T ERMINOS DE ENTREGA DE LAS OFERTAS COMERCIALES AL IGUAL QUE CUALQUIER MODIFICACI ON A LO QUE ALL I SE INDIQUE SIEMPRE SER A COMUNICADO DENTRO DEL CUERPO DE LA OFERTA COMERCIAL O EN NUEVAS VERSIONES DE ESTA. LAS CONDICIONES CONTENIDAS EN CANALES O DOCUMENTOS ALTERNOS NO SON V ALIDAS DE CARA A SONEPAR . LOS ASESORES COMERCIALES PODRAN SER CONSULTADOS PARA CONOCER EL ESTADO DEL PEDIDO EN FABRICA Y O EN SONEPAR. 12. PLAZO DE PAGO EL PLAZO M AXIMO PARA EL PAGO DE UNA FACTURA SER A EL QUE DETERMINE POR SISTEMA EL DEPARTAMENTO DE COBRANZAS. EN CASO DE CONTADO EL PAGO DEBE SER REALIZADO POR EL COMPRADOR EN SU TOTALIDAD DE MANERA ANTICIPADA AL DESPACHO DE LA MERCANC IA Y DEBIDAMENTE CONFIRMADO POR EL AREA ENCARGADA DE SONEPAR. EN CASO DE CR EDITO SONEPAR SE RESERVA EL DERECHO DE PROCESAR O DETENER LA EJECUCI ON DE LA OC CUANDO EL COMPRADOR EST E EN MORA Y O NO CUENTE CON LAS CONDICIONES CREDITICIAS QUE RESPALDE DICHO PROCESO. SONEPAR PODR A EXPEDIR FACTURAS PARCIALES Y SOLICITAR PAGOS SUCESIVOS. SONEPAR SE RESERVA EL DERECHO DE 1 ENTREGAR FACTURAS DE MANERA ELECTR ONICA Y 2 SUSPENDER EL CUMPLIMIENTO DE CUALQUIER OBLIGACI ON EN EL CASO DE QUE EL PAGO NO SE EFECT UE EN LA FECHA CORRESPONDIENTE. NO EST A PERMITIDO EL PAGO POR COMPENSACI ON. SE AGREGARAN CARGOS POR CONCEPTO DE INTERESES A LAS FACTURAS VENCIDAS A LA TASA M AXIMA LEGAL PERMITIDA MENSUAL. SONEPAR PARA EFECTOS DE LA PRESENTACION DE LA RESPECTIVA FACTURA PROCEDER A DE CONFORMIDAD CON LA LEY RADICANDO EN LA DIRECCI ON DE CORREO ELECTR ONICO ASIGNADA POR PARTE DEL COMPRADOR ANTE SUNAT PARA REMISI ON DE LA FACTURA ELECTR ONICA. LOS DOCUMENTOS INTERNOS QUE SEAN REQUERIDOS POR TR AMITES Y CONTROLES DEL COMPRADOR NO PODR AN SER OBST ACULO PARA EL PAGO DE LAS FACTURAS CUANDO EL PRODUCTO HAYA SIDO ENTREGADO O EL SERVICIO PRESTADO. EL COMPRADOR RENUNCIA A LA CONSTITUCION EN MORA EN LOS TERMINOS DE LEY. 13. TERMINOS DE LA ENTREGA LA ENTREGA SE REALIZAR A DE CONFORMIDAD CON LO ESTABLECIDO EN LA OFERTA COMERCIAL PRESENTADA U OC LUGAR QUE ESTARA SUJETO A VERIFICACI ON DE COBERTURA Y ACEPTACI ON DE SONEPAR. LA ENTREGA DEL MATERIAL SE ENTIENDE ACEPTADA CON LA GU IA O NOTA DE ENTREGA EN LA', 'cliente_match': None, 'fecha': None}
-[DEBUG] factura_principal = None
-[WARN] correo_id=12 sin factura principal
-(venv) 
-se puso estas facturas en pendientes_revision
-RUC: 20100084172
-FACTURA ELECTRÓNICA
-N° F231-0101575
+Correcto. Esa debe ser la regla principal.
+Regla de negocio correcta
+La fecha de emisión de la factura principal manda
+Si un correo trae varios PDFs relacionados, entonces:
+la factura principal define:
+el mes
+el grupo
+la ruta final
+el cliente destino
+todos los adjuntos del mismo grupo heredan eso
+Entonces:
+Si llega un correo con:
+factura
+OC
+guía
+certificado
+adjunto escaneado
+y la factura tiene:
+Plain text
+fecha_emision = 2026-04-21
+entonces todos esos documentos deben ir al mes:
+Plain text
+ABRIL
+aunque:
+la guía tenga otra fecha interna
+el certificado tenga otra fecha
+la OC no tenga fecha
+el correo haya llegado otro día
+Regla práctica final
+Si hay factura principal válida
+Usa siempre:
+Python
+mes_grupo = factura_principal["fecha_emision_date"]
+Y con eso defines:
+grupo_codigo
+carpeta local
+futura carpeta de red
+ruta_windows_final
+Para los demás documentos del mismo correo
+No uses su fecha individual para carpeta.
+Solo guarda su fecha en BD si la encuentras, pero el mes del grupo viene de la factura principal.
+Qué sí guardar igual en BD
+Aunque la carpeta del grupo la mande la factura principal, sí conviene guardar en cada documento:
+fecha_emision propia si existe
+serie
+numero
+ruc
+tipo_documental
+Porque eso sirve para:
+consulta
+auditoría
+trazabilidad
+Pero la carpeta del grupo se rige por la factura principal.
+Ejemplo real
+Factura
+Plain text
+FACTURA F231-0101575
 FECHA DE EMISIÓN: 21/04/2026
-
-R.U.C. 20111740438
-FACTURA ELECTRÓNICA
-FF12-7700
-F. Emisión: 21/04/2026
-
-RUC: 20100084172
-FACTURA ELECTRÓNICA
-N° F231-0101576
-FECHA DE EMISIÓN: 21/04/2026
-
-gestiondocumental=# select * from documentos;
- id | correo_id | proveedor_id |   tipo_documental   | tipo_doc | serie | numero  |     ruc     |          razon_social          | fecha_emisio
-n | fecha_vencimiento | moneda | importe | igv | base_imponible | saldo | clave_documental |   estado_documento   |          observacion
-    |         creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_
-principal_id |                                nombre_final                                | ruta_windows_final
-----+-----------+--------------+---------------------+----------+-------+---------+-------------+--------------------------------+-------------
---+-------------------+--------+---------+-----+----------------+-------+------------------+----------------------+----------------------------
-----+----------------------------+----------------------------+--------------------+--------------+-----------------+--------------+-----------
--------------+----------------------------------------------------------------------------+--------------------
-  1 |         1 |              | certificado_calidad |          |       |         |             | SIN_RAZON_SOCIAL               | 2026-04-21
-  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
-n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.104565 |                    |              |                 | f            |
-             |                                                                            |
-  2 |         2 |          956 | factura             |          | FE65  | 0812829 | 20370146994 | CORPORACION ACEROS AREQUIPA S. | 2026-04-21
-  |                   |        |   18.00 |     |                |       |                  | clasificado          | Documento descargado desde
-n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.432264 |                    | 04-0001      |               1 | t            |
-             | 04-0001 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf |
-  3 |         3 |         1655 | guia_remision       |          | T073  | 0665284 | 20565747356 | BBTI S.A.C.                    | 2026-04-21
-  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
-n8n | 2026-04-21 18:21:16.575549 | 2026-04-21 18:22:12.825177 |                    |              |                 | f            |
-             |                                                                            |
-  4 |        10 |          754 | guia_remision       |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-05-21
-  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
-n8n | 2026-04-21 18:31:18.97216  | 2026-04-21 18:31:37.496883 |                    |              |                 | f            |
-             |                                                                            |
-  5 |        11 |          754 | guia_remision       |          |       |         | 20100084172 | PROMOTORES ELECTRICOS S A      | 2026-06-05
-  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
-n8n | 2026-04-21 18:31:18.97216  | 2026-04-21 18:31:37.758191 |                    |              |                 | f            |
-             |                                                                            |
-  6 |        12 |          828 | orden_compra        |          |       |         | 20111740438 | SONEPAR PERU S.A.C.            |
-  |                   |        |         |     |                |       |                  | pendiente_asociacion | Documento descargado desde
-n8n | 2026-04-21 18:31:18.97216  | 2026-04-21 18:31:38.108866 |                    |              |                 | f            |
-             |                                                                            |
-(6 rows)
-gestiondocumental=# select * from archivos;
- id | documento_id | correo_id |         nombre_archivo_original          |                               nombre_archivo_actual
-                | extension |    mime_type    | tamano_bytes | hash_sha256 |                                                 ruta_temporal
-                                             | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
-
-----+--------------+-----------+------------------------------------------+--------------------------------------------------------------------
-----------------+-----------+-----------------+--------------+-------------+-------------------------------------------------------------------
----------------------------------------------+------------+--------------+----------------+----------------------------+-----------------------
------
-  1 |            1 |         1 | G-0FE65-0812829-5172524590-90026-1_1.PDF | posible_documento_20260421231903800_ADR510000015602343000AB56143BB9
-71FD18FA6_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421231903800_AD
-R510000015602343000AB56143BB971FD18FA6_1.pdf |            | t            | observado      | 2026-04-21 18:21:21.472939 | 2026-04-21 18:22:12.10
-4565
-  2 |            2 |         2 | FE65-0812829.pdf                         | 04-0001 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIP
-A_S.pdf         | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA FE65 0812829 20370
-146994 CORPORACION_ACEROS_AREQUIPA_S.pdf     |            | t            | renombrado     | 2026-04-21 18:21:21.472939 | 2026-04-21 18:22:12.43
-2264
-  3 |            3 |         3 | 20370146994-09-T073-0665284.pdf.pdf      | posible_documento_20260421231903800_ADR5100000156094930002FBAC343AD
-91FD18FA7_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421231903800_AD
-R5100000156094930002FBAC343AD91FD18FA7_1.pdf |            | t            | observado      | 2026-04-21 18:21:21.472939 | 2026-04-21 18:22:12.82
-5177
-  4 |            4 |        10 | 20100084172-01-F231-0101575.pdf          | posible_documento_20260421233118813_499dd1f672b896e2880ca914260fd91
-0_localho_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421233118813_49
-9dd1f672b896e2880ca914260fd910_localho_1.pdf |            | t            | observado      | 2026-04-21 18:31:19.007301 | 2026-04-21 18:31:37.49
-6883
-  5 |            5 |        11 | 20100084172-01-F231-0101576.pdf          | posible_documento_20260421233118813_f0d4c16297e8bffdc7757a449bcedf3
-1_localho_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421233118813_f0
-d4c16297e8bffdc7757a449bcedf31_localho_1.pdf |            | t            | observado      | 2026-04-21 18:31:19.007301 | 2026-04-21 18:31:37.75
-8191
-  6 |            6 |        12 | 20111740438-01-FF12-7700.pdf             | posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E
-8A5BA2C2__1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_20260421233118813_DB
-9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf |            | t            | observado      | 2026-04-21 18:31:19.007301 | 2026-04-21 18:31:38.10
-8866
-(6 rows)
-
-tambien analizar o validar los archivos
+Guía
+Plain text
+GUIA T073-0665284
+FECHA: 22/04/2026
+OC
+sin fecha clara
+Resultado correcto
+Los 3 deben quedar en:
+Plain text
+ABRIL
+porque manda la factura.
+Excepción
+Si no hay factura principal
+Ahí sí no debes forzar grupo automático.
+Entonces:
+guía sola → pendiente_asociacion
+OC sola → pendiente_asociacion
+certificado → pendiente_asociacion
+Y en ese caso puedes:
+guardar su fecha en BD
+pero no generar grupo definitivo
+Resumen corto
+Con factura principal
+La fecha de emisión de la factura define el mes para todos los adjuntos.
+Sin factura principal
+No hay mes de grupo definitivo; solo revisión.
+Fórmula mental simple
+Si hay factura:
+factura manda
+Si no hay factura:
+revisión manda
+Eso ya te deja la lógica totalmente coherente.
