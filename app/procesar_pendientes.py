@@ -103,26 +103,13 @@ def normalize_date(value: str | None) -> str | None:
         return None
 
     raw = value.strip().upper()
-
     meses = {
         "ENE": "01", "FEB": "02", "MAR": "03", "ABR": "04",
         "MAY": "05", "JUN": "06", "JUL": "07", "AGO": "08",
         "SEP": "09", "OCT": "10", "NOV": "11", "DIC": "12",
-    }
-
-    meses_largos = {
-        "ENERO": "01",
-        "FEBRERO": "02",
-        "MARZO": "03",
-        "ABRIL": "04",
-        "MAYO": "05",
-        "JUNIO": "06",
-        "JULIO": "07",
-        "AGOSTO": "08",
-        "SEPTIEMBRE": "09",
-        "OCTUBRE": "10",
-        "NOVIEMBRE": "11",
-        "DICIEMBRE": "12",
+        "ENERO": "01", "FEBRERO": "02", "MARZO": "03", "ABRIL": "04",
+        "MAYO": "05", "JUNIO": "06", "JULIO": "07", "AGOSTO": "08",
+        "SEPTIEMBRE": "09", "OCTUBRE": "10", "NOVIEMBRE": "11", "DICIEMBRE": "12",
     }
 
     m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
@@ -156,7 +143,7 @@ def normalize_date(value: str | None) -> str | None:
             .replace("Ó", "O")
             .replace("Ú", "U")
         )
-        mon = meses_largos.get(mon_txt)
+        mon = meses.get(mon_txt)
         if mon:
             return f"{year}-{mon}-{str(day).zfill(2)}"
 
@@ -244,7 +231,6 @@ def get_or_create_proveedor(
             return dict(row)
 
     api_data = fetch_proveedor_from_api(ruc)
-
     nombre_final = api_data.get("nombre") if api_data else (razon_social or "SIN_RAZON_SOCIAL")
     direccion_final = api_data.get("direccion") if api_data else direccion
 
@@ -261,12 +247,7 @@ def get_or_create_proveedor(
         return dict(row) if row else None
 
 
-def update_correo_estado(
-    correo_id: int,
-    procesado: bool,
-    estado_correo: str,
-    observacion: str | None = None,
-) -> None:
+def update_correo_estado(correo_id: int, procesado: bool, estado_correo: str, observacion: str | None = None) -> None:
     with get_cursor(commit=True) as (_, cur):
         cur.execute(
             SQL_UPDATE_CORREO,
@@ -466,6 +447,7 @@ def process_correo(items: list[dict]) -> None:
         )
         return
 
+    # La fecha de la factura principal define el mes del grupo para todos los adjuntos
     correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
 
     cliente_match = factura_principal.get("cliente_match")
@@ -531,8 +513,10 @@ def process_correo(items: list[dict]) -> None:
         )
 
         pdf_path = resolve_absolute_path(doc["ruta_temporal"])
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
+
+        # Todos los adjuntos del grupo heredan el año/mes de la factura principal
+        year = f"{fecha_principal.year}"
+        month = f"{fecha_principal.month:02d}"
 
         estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
         bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"

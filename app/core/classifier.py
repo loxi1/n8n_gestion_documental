@@ -14,7 +14,7 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
     text_u = normalize_text(text)
     name_u = normalize_text(file_name)
 
-    # 1. CERTIFICADO DE CALIDAD
+    # 1. Certificado
     if (
         "CERTIFICADO DE CALIDAD" in text_u
         or "CERT. DE CALIDAD" in text_u
@@ -22,18 +22,31 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
     ):
         return "certificado_calidad"
 
-    # 2. GUIA DE REMISION
+    # 2. Factura por nombre fuerte
+    if (
+        re.search(r"\bF[A-Z0-9]{3}-\d{1,8}\b", name_u)
+        or re.search(r"\b\d{11}-\d{2}-F[A-Z0-9]{3}-\d{1,8}\b", name_u)
+    ):
+        return "factura"
+
+    # 3. Guía por nombre fuerte
+    if (
+        re.search(r"\bT[A-Z0-9]{3}-\d{1,8}\b", name_u)
+        or re.search(r"\bGR[A-Z0-9]{2,3}-\d{1,8}\b", name_u)
+        or re.search(r"\b\d{11}-\d{2}-T[A-Z0-9]{3}-\d{1,8}\b", name_u)
+    ):
+        return "guia_remision"
+
+    # 4. Guía por título real
     if (
         "GUIA REMISION ELECTRONICA" in text_u
         or "GUIA DE REMISION ELECTRONICA" in text_u
         or "GUIA DE REMISION" in text_u
-        or re.search(r"\bNRO\.?\s*T\d{3}[- ]\d+\b", text_u)
-        or re.search(r"\bT\d{3}[- ]\d+\b", name_u)
-        or re.search(r"\bGR\d{3}[- ]\d+\b", name_u)
+        or re.search(r"\bNRO\s*T[A-Z0-9]{3}-\d{1,8}\b", text_u)
     ):
         return "guia_remision"
 
-    # 3. ORDEN DE COMPRA
+    # 5. Orden de compra
     if (
         "ORDEN DE COMPRA" in text_u
         or "ORDEN DE COMRA" in text_u
@@ -42,7 +55,7 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
     ):
         return "orden_compra"
 
-    # 4. REQUERIMIENTO
+    # 6. Requerimiento
     if (
         "REQUERIMIENTO DE COMPRA" in text_u
         or "REQUERIMIENTO" in text_u
@@ -51,26 +64,21 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
     ):
         return "requerimiento_compra"
 
-    # 5. COTIZACION
+    # 7. Cotización
     if (
         "COTIZACION" in text_u
-        or "COTIZACIÓN" in text_u
         or "PROFORMA" in text_u
         or "COTIZACION" in name_u
-        or "COTIZACIÓN" in name_u
         or "PROFORMA" in name_u
     ):
         return "cotizacion"
 
-    # 6. FACTURA
+    # 8. Factura por texto
     if (
         "FACTURA ELECTRONICA" in text_u
         or "FACTURA" in text_u
-        or re.search(r"\bF\d{3,4}-\d+\b", text_u)
-        or re.search(r"\bF\d{3,4}-\d+\b", name_u)
-        or re.search(r"\bFE\d{2,4}-\d+\b", text_u)
-        or re.search(r"\bFE\d{2,4}-\d+\b", name_u)
-        or re.search(r"\bNRO\.?\s*F[A-Z0-9]{2,4}-\d+\b", text_u)
+        or re.search(r"\bNRO\s*F[A-Z0-9]{3}-\d{1,8}\b", text_u)
+        or re.search(r"\bF[A-Z0-9]{3}-\d{1,8}\b", text_u)
     ):
         return "factura"
 
@@ -79,6 +87,7 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
 
 def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
     doc_type = detect_tipo_documental(text, file_name)
 
     ruc = None
@@ -89,102 +98,105 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     oc = None
 
     # RUC
-    ruc = _search(r"\bRUC[:\s]*([0-9]{11})\b", text_u)
-    if not ruc:
-        ruc = _search(r"\bR\.U\.C\.?\s*(?:N[°º.]?)?\s*([0-9]{11})\b", text_u)
-    if not ruc:
-        ruc = _search(r"\bREG\.?\s*UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b", text_u)
+    for patron in [
+        r"\bRUC[:\s]*([0-9]{11})\b",
+        r"\bR U C[:\s]*([0-9]{11})\b",
+        r"\bREG UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b",
+    ]:
+        m = re.search(patron, text_u)
+        if m:
+            ruc = m.group(1)
+            break
 
-    # Serie / número por tipo
+    # Serie / número
     if doc_type == "factura":
         patrones = [
-            r"\b(F\d{3,4})[- ](\d{3,})\b",
-            r"\b(FE\d{2,4})[- ](\d{3,})\b",
-            r"\bN[°º]\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
-            r"\bNRO\.?\s*(F[A-Z0-9]{2,4})[- ](\d{3,})\b",
+            r"\b(F[A-Z0-9]{3})-(\d{1,8})\b",   # F231-0101575 / FE65-0812829 / FF12-7700
+            r"\bNRO\s*(F[A-Z0-9]{3})-(\d{1,8})\b",
         ]
-        for patron in patrones:
-            m = re.search(patron, text_u, re.IGNORECASE)
-            if m:
-                serie = m.group(1).strip()
-                numero = m.group(2).strip()
+        for fuente in (text_u, name_u):
+            for patron in patrones:
+                m = re.search(patron, fuente)
+                if m:
+                    serie = m.group(1)
+                    numero = m.group(2)
+                    break
+            if serie and numero:
                 break
 
     elif doc_type == "guia_remision":
         patrones = [
-            r"\b(T\d{3})[- ](\d{3,})\b",
-            r"\b(GR\d{3})[- ](\d{3,})\b",
-            r"\bNRO\.?\s*(T\d{3})[- ](\d{3,})\b",
+            r"\b(T[A-Z0-9]{3})-(\d{1,8})\b",
+            r"\b(GR[A-Z0-9]{2,3})-(\d{1,8})\b",
+            r"\bNRO\s*(T[A-Z0-9]{3})-(\d{1,8})\b",
         ]
-        for patron in patrones:
-            m = re.search(patron, text_u, re.IGNORECASE)
-            if m:
-                serie = m.group(1).strip()
-                numero = m.group(2).strip()
+        for fuente in (text_u, name_u):
+            for patron in patrones:
+                m = re.search(patron, fuente)
+                if m:
+                    serie = m.group(1)
+                    numero = m.group(2)
+                    break
+            if serie and numero:
                 break
 
     elif doc_type == "orden_compra":
-        patrones = [
+        for patron in [
             r"\bOC[- ]?(\d{4,})\b",
-            r"\bORDEN DE COMPRA\s*N[^0-9]{0,5}([0-9]{4,})\b",
-        ]
-        for patron in patrones:
-            m = re.search(patron, text_u, re.IGNORECASE)
+            r"\bORDEN DE COMPRA\s*NRO?\s*[:\-]?\s*([0-9]{4,})\b",
+            r"\bORDEN DE COMPRA\s*([0-9]{4,})\b",
+        ]:
+            m = re.search(patron, text_u)
             if m:
                 serie = "OC"
-                numero = m.group(1).strip()
+                numero = m.group(1)
                 break
 
     elif doc_type == "requerimiento_compra":
-        patrones = [
+        for patron in [
             r"\bREQ[- ]?(\d{3,})\b",
-            r"\bREQUERIMIENTO(?: DE COMPRA)?\s*N[^0-9]{0,5}([0-9]{3,})\b",
-        ]
-        for patron in patrones:
-            m = re.search(patron, text_u, re.IGNORECASE)
+            r"\bREQUERIMIENTO(?: DE COMPRA)?\s*NRO?\s*[:\-]?\s*([0-9]{3,})\b",
+        ]:
+            m = re.search(patron, text_u)
             if m:
                 serie = "REQ"
-                numero = m.group(1).strip()
+                numero = m.group(1)
                 break
 
-    # Fecha
-    fecha_emision = _search(
-        r"\bFECHA(?: DE EMISION| DE EMISION:| DE EMISION\s*:)?\s*([0-9]{2}[/-][0-9]{2}[/-][0-9]{4})\b",
-        text_u,
-    )
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{2}-[0-9]{2}-[0-9]{4})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{2}-[A-Z]{3}-[0-9]{4})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(
-            r"\b([0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
-            text_u,
-        )
-    if not fecha_emision:
-        fecha_emision = _search(r"\bFECHA\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
-    if not fecha_emision:
-        fecha_emision = _search(r"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b", text_u)
-
-    # OC
-    oc = _search(r"\bOC[:\s]*([0-9]{4,})\b", text_u)
-    if not oc:
-        oc = _search(r"\bN[°º]?\s*OC[:\s]*([0-9]{4,})\b", text_u)
-
-    # Importe
-    patrones_importe = [
-        r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9.,]*)\b",
-        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
-        r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
-        r"\bTOTAL\s*\(\$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
-        r"\bTOTAL\s*[:.]?\s*([0-9][0-9.,]*)\b",
-    ]
-    for patron in patrones_importe:
-        m = re.search(patron, text_u, re.IGNORECASE)
+    # Fecha de emisión: priorizar emisión, no vencimiento
+    for patron in [
+        r"\bFECHA DE EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bF EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bF\. EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bFECHA DE EMISION[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2})\b",
+        r"\bCALLAO,\s*([0-9]{1,2}\s+DE\s+[A-Z]+\s+DEL\s+[0-9]{4})\b",
+        r"\b([0-9]{1,2}\s+DE\s+[A-Z]+\s+DEL\s+[0-9]{4})\b",
+    ]:
+        m = re.search(patron, text_u)
         if m:
-            importe = m.group(1).strip()
+            fecha_emision = m.group(1)
+            break
+
+    # OC relacionada
+    for patron in [
+        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bOC[:\s]*([0-9]{4,})\b",
+    ]:
+        m = re.search(patron, text_u)
+        if m:
+            oc = m.group(1)
+            break
+
+    # Importe total
+    for patron in [
+        r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9.,]*)\b",
+        r"\bIMPORTE TOTAL\s*[:.]?\s*([0-9][0-9.,]*)\b",
+    ]:
+        m = re.search(patron, text_u)
+        if m:
+            importe = m.group(1)
             break
 
     return {
