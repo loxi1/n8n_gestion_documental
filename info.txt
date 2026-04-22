@@ -99,3 +99,8 @@ Se deberia mover a: pendientes_revision/YYYY/MM/
  'serie': 'FF12',
  'tipo_documental': 'factura'}
 (venv) 
+la factura muestra:
+R.U.C. 20111740438
+FACTURA ELECTRÓNICA
+FF12-7700
+F. Emisión: 21/04/2026
