@@ -1,34 +1,161 @@
-Veamos no entiendo porque fallo:
-$ python procesar_pendientes.py
-Correos pendientes encontrados: 3
-[INFO] procesando correo_id=1 documentos=1
-[DEBUG] correo_id=1 enriquecidos:
-{'documento_id': 1, 'archivo': 'posible_documento_20260421233118813_499dd1f672b896e2880ca914260fd910_localho_1.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101575', 'ruc': '20100084172', 'oc': '7924', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-21'}
-[DEBUG] factura_principal = {'documento_id': 1, 'correo_id': 1, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 1, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260421233118813_499dd1f672b896e2880ca914260fd910_localho_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260421233118813_499dd1f672b896e2880ca914260fd910_localho_1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101575.pdf', 'text': 'Página 1 de 1\nFECHA DE EMISIÓN: 21/04/2026\nEMISOR: Promotores Electricos S A\nDIRECCIÓN: AV. NICOLAS ARRIOLA NRO. 899 URB. STA CATALINA - LA\nVICTORIA - LIMA - LIMA - PERÚ\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nRUC: 20100084172\nFACTURA ELECTRÓNICA\nN° F231-0101575\n \nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA: Callao norte\nMONEDA: DOLAR AMERICANO GUÍA DE\nREMISIÓN: N° OC: 7924\nPEDIDO FACTURA CONDICIÓN PAGO FORMA DE PAGO VENCIMIENTO\n1100336401 9100355199 FACTURA 30 DIAS CREDITO 21/05/2026\nITEM CÓDIGO CANTIDAD UM DESCRIPCIÓN   VALOR\nUNITARIO\nDESCUENTO VALOR DE\nVENTA\nIGV PRECIO VTA\nUNI INCL IGV\n010 1011769 1.00 UND VARILLA D/COBRE ELECTROLITICO 3/4X3.0MT\nMARCA: TECNOFIL\nMODELO: VCE\n176.17 43.69 132.48 23.85 156.33\n020 1042542 100.00 M CABLE PUES.TIERR.CPT 2.5MM2 LSZH.AM/VER\nMARCA: INDECO\nMODELO: FREETOX-PC NH-90\n0.73 21.54 51.46 9.26 0.61\n030 1042810 24.00 UND LUBRICANTE MULTIUSOS XT-10 400ML\nMARCA: AMBRO-SOL\nMODELO: XT-10\n8.60 51.19 155.21 27.94 7.63\n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n:\nSON: CUATROCIENTOS Y 20/100 DOLARES AMERICANOS TOTAL DSCTO: 116.42 OP.GRAVADAS: 339.15\nOP.INAFECTAS: 0.00\nOP. EXONERADAS: 0.00\nOP.GRATUITAS: 0.00\n OTROS CARGOS: 0.00\nIGV (18.00%): 61.05\n TOTAL (USD $): 400.20\nCuota001:USD $ 400.20- Fecha Venc : 2026-05-21\nVALOR RESUMEN : 9ernTpPi0S/eZv8Utqbyj/4E/wo=\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http://efact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N° 0180050001886 /SUNAT', 'fields': {'tipo_documental': 'factura', 'serie': 'F231', 'numero': '0101575', 'ruc': '20100084172', 'fecha_emision': '21/04/2026', 'importe': '400.20', 'oc': '7924'}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': '2026-04-21', 'fecha_emision_date': datetime.date(2026, 4, 21), 'razon_social_emisor_detectada': 'PROMOTORES ELECTRICOS S A', 'ocr_output_path': None}
-[OK] correo=1 doc=1 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F231 0101575 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-[INFO] procesando correo_id=2 documentos=1
-[DEBUG] correo_id=2 enriquecidos:
-{'documento_id': 2, 'archivo': 'posible_documento_20260421233118813_f0d4c16297e8bffdc7757a449bcedf31_localho_1.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101576', 'ruc': '20100084172', 'oc': '7930', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-21'}
-[DEBUG] factura_principal = {'documento_id': 2, 'correo_id': 2, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 2, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260421233118813_f0d4c16297e8bffdc7757a449bcedf31_localho_1.pdf', 'nombre_archivo_actual': 'posible_documento_20260421233118813_f0d4c16297e8bffdc7757a449bcedf31_localho_1.pdf', 'nombre_archivo_original': '20100084172-01-F231-0101576.pdf', 'text': 'Página 1 de 1\nFECHA DE EMISIÓN: 21/04/2026\nEMISOR: Promotores Electricos S A\nDIRECCIÓN: AV. NICOLAS ARRIOLA NRO. 899 URB. STA CATALINA - LA\nVICTORIA - LIMA - LIMA - PERÚ\nTELÉFONO: (+51)(1) 712-5500\nWEB: https://www.promelsa.com.pe\nTIPO OPERACIÓN: 0101 - VENTA INTERNA\nRUC: 20100084172\nFACTURA ELECTRÓNICA\nN° F231-0101576\n \nCLIENTE: 4000019957 - BBTI S.A.C.\nRUC/DOC. IDENTIDAD: 20565747356\nDIRECCIÓN: CALLE 6 MZ D LT 13 URB INDUSTRIAL GRIMAN CALLAO CALLAO CALLAO.\nVENDEDOR: YAMOCA ERICK - ZONA: Callao norte\nMONEDA: DOLAR AMERICANO GUÍA DE\nREMISIÓN: N° OC: 7930\nPEDIDO FACTURA CONDICIÓN PAGO FORMA DE PAGO VENCIMIENTO\n1100336445 9100355200 FACTURA 45 DIAS CREDITO 05/06/2026\nITEM CÓDIGO CANTIDAD UM DESCRIPCIÓN   VALOR\nUNITARIO\nDESCUENTO VALOR DE\nVENTA\nIGV PRECIO VTA\nUNI INCL IGV\n010 1042548 700.00 M CABLE NH-90 6MM2 750V LSZH.NEGRO PRACT\nMARCA: INDECO\nMODELO: FREETOX-PC NH-90\n1.66 342.79 819.21 147.46 1.38\n020 1042543 400.00 M CABLE NH-90 4MM2 750V LSZH.NEGRO PRACT\nMARCA: INDECO\nMODELO: FREETOX-PC NH-90\n1.13 133.34 318.66 57.36 0.94\n030 1042547 200.00 M CABLE PUES.TIERR.CPT 4MM2 LSZH.AM/VER\nMARCA: INDECO\nMODELO: FREETOX-PC NH-90\n1.13 66.67 159.33 28.68 0.94\n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n            \n:\nSON: MIL QUINIENTOS TREINTA Y 70/100 DOLARES AMERICANOS TOTAL DSCTO: 542.80 OP.GRAVADAS: 1,297.20\nOP.INAFECTAS: 0.00\nOP. EXONERADAS: 0.00\nOP.GRATUITAS: 0.00\n OTROS CARGOS: 0.00\nIGV (18.00%): 233.50\n TOTAL (USD $): 1,530.70\nCuota001:USD $ 1530.70- Fecha Venc : 2026-06-05\nVALOR RESUMEN : VqADxhZMc3XnTfltaVyUUJOxumc=\nRepresentación impresa de la Factura Electrónica\nPodrá ser consultada en: http://efact.promelsa.com.pe:9080/electronicinvoiceprd\nAutorizado mediante resolución de intendencia N° 0180050001886 /SUNAT', 'fields': {'tipo_documental': 'factura', 'serie': 'F231', 'numero': '0101576', 'ruc': '20100084172', 'fecha_emision': '21/04/2026', 'importe': '1,530.70', 'oc': '7930'}, 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha_emision_norm': '2026-04-21', 'fecha_emision_date': datetime.date(2026, 4, 21), 'razon_social_emisor_detectada': 'PROMOTORES ELECTRICOS S A', 'ocr_output_path': None}
-Traceback (most recent call last):
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 613, in <module>
-    main()
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 609, in main
-    process_correo(items)
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 536, in process_correo
-    cur.execute(
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\venv\Lib\site-packages\psycopg2\extras.py", line 236, in execute
-    return super().execute(query, vars)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-psycopg2.errors.InvalidTextRepresentation: invalid input syntax for type numeric: "1,530.70"
-LINE 12:     importe = '1,530.70',
-                       ^
+Sí, ya vi el fallo exacto.
+Qué pasó
+El clasificador sí detectó bien la factura 2:
+tipo: factura
+serie: F231
+número: 0101576
+fecha: 2026-04-21
+Pero el campo importe salió como texto:
+Plain text
+1,530.70
+y PostgreSQL numeric no acepta ese formato con coma de miles, por eso explotó aquí:
+Plain text
+invalid input syntax for type numeric: "1,530.70"
+Conclusión
+La lógica documental sí está funcionando.
+El problema ahora es solo de normalización del importe antes de guardar.
+Solución correcta
+Debes convertir:
+1,530.70 → 1530.70
+400.20 → 400.20
+1.530,70 → 1530.70 si algún día aparece así
+Qué hacer
+Agrega una función para limpiar montos antes de guardar en BD.
+En procesar_pendientes.py, agrega esto
+Ponla cerca de normalize_date():
+Python
+def normalize_amount(value: str | None) -> str | None:
+    if not value:
+        return None
 
-(venv) 
-el error esta en el documento:
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -ld storage/files/pendientes_clasificados/2026/04/04-0002\ FACTURA\ F231\ 0101576\ 20100084172\ PROMOTORES_ELECTRICOS_S_A.pdf
--rw-r--r-- 1 BBTI 01 197121 60679 Apr 22 08:19 'storage/files/pendientes_clasificados/2026/04/04-0002 FACTURA F231 0101576 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+    raw = str(value).strip()
 
-BBTI 01
-la linea de error es el: TOTAL (USD $) 1,530.70 por eso no ejecuta la siguente validación para mover al siguiente documento.
+    # quitar espacios
+    raw = raw.replace(" ", "")
+
+    # caso 1: formato US -> 1,530.70
+    if "," in raw and "." in raw:
+        if raw.rfind(".") > raw.rfind(","):
+            raw = raw.replace(",", "")
+        else:
+            # caso europeo -> 1.530,70
+            raw = raw.replace(".", "").replace(",", ".")
+
+    # caso 2: solo comas
+    elif "," in raw:
+        parts = raw.split(",")
+        if len(parts) == 2 and len(parts[1]) in (2, 3):
+            # probablemente decimal
+            raw = raw.replace(",", ".")
+        else:
+            # probablemente miles
+            raw = raw.replace(",", "")
+
+    # dejar solo números, punto y signo
+    raw = re.sub(r"[^0-9.\-]", "", raw)
+
+    return raw or None
+Luego úsala al guardar
+En process_correo() cambia esto:
+Python
+"importe": fields["importe"],
+por esto:
+Python
+"importe": normalize_amount(fields["importe"]),
+También en mark_documents_as_review()
+Cambia esto:
+Python
+"importe": fields.get("importe"),
+por:
+Python
+"importe": normalize_amount(fields.get("importe")),
+Te muestro exactamente dónde
+1. En process_correo()
+Busca este bloque:
+Python
+cur.execute(
+    SQL_UPDATE_DOCUMENTO,
+    {
+        "proveedor_id": proveedor_id,
+        "cliente_destino_id": cliente_id_final,
+        "tipo_documental": tipo_documental,
+        "serie": fields["serie"],
+        "numero": fields["numero"],
+        "ruc": ruc_emisor,
+        "razon_social": razon_social_emisor,
+        "fecha_emision": doc["fecha_emision_norm"],
+        "importe": fields["importe"],
+y déjalo así:
+Python
+cur.execute(
+    SQL_UPDATE_DOCUMENTO,
+    {
+        "proveedor_id": proveedor_id,
+        "cliente_destino_id": cliente_id_final,
+        "tipo_documental": tipo_documental,
+        "serie": fields["serie"],
+        "numero": fields["numero"],
+        "ruc": ruc_emisor,
+        "razon_social": razon_social_emisor,
+        "fecha_emision": doc["fecha_emision_norm"],
+        "importe": normalize_amount(fields["importe"]),
+2. En mark_documents_as_review()
+Busca:
+Python
+"importe": fields.get("importe"),
+y cambia por:
+Python
+"importe": normalize_amount(fields.get("importe")),
+Además: por qué viste el archivo ya movido
+Porque el flujo hizo esto:
+detectó bien
+generó nombre
+movió el archivo
+intentó actualizar BD
+falló al guardar importe
+Entonces te quedó una inconsistencia parcial:
+archivo ya movido
+BD no terminada para ese documento
+Qué hacer ahora con ese documento
+Como el archivo ya quedó en:
+Plain text
+storage/files/pendientes_clasificados/2026/04/04-0002 FACTURA F231 0101576 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+yo haría esto después del fix:
+Opción práctica
+Limpia de nuevo BD y carpetas y vuelve a correr.
+Como todavía estás en pruebas, esa es la mejor opción.
+Extra recomendado
+Para que un error en un documento no detenga todos los demás, más adelante conviene envolver cada correo o cada documento en try/except, pero por ahora primero corrige el monto.
+Resumen
+El error no fue de clasificación, fue de formato numérico.
+Falló por:
+Plain text
+1,530.70
+Debe guardarse como:
+Plain text
+1530.70
+Pega esta función y esos dos cambios:
+Python
+def normalize_amount(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    raw = str(value).strip()
+    raw = raw.replace(" ", "")
+
+    if "," in raw and "." in raw:
+        if raw.rfind(".") > raw.rfind(","):
+            raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(".", "").replace(",", ".")
+    elif "," in raw:
+        parts = raw.split(",")
+        if len(parts) == 2 and len(parts[1]) in (2, 3):
+            raw = raw.replace(",", ".")
+        else:
+            raw = raw.replace(",", "")
+
+    raw = re.sub(r"[^0-9.\-]", "", raw)
+    return raw or None
+y vuelve a probar.
+Con eso ese caso debería pasar bien.
