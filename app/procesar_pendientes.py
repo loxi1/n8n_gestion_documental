@@ -53,6 +53,7 @@ SET
     razon_social = %(razon_social)s,
     fecha_emision = %(fecha_emision)s,
     importe = %(importe)s,
+    igv = %(igv)s,
     estado_documento = %(estado_documento)s,
     grupo_codigo = %(grupo_codigo)s,
     correlativo_mes = %(correlativo_mes)s,
@@ -98,39 +99,6 @@ def to_wsl_path(path: Path) -> str:
     return raw
 
 
-def normalize_amount(value: str | None) -> str | None:
-    if not value:
-        return None
-
-    raw = str(value).strip()
-
-    # quitar espacios
-    raw = raw.replace(" ", "")
-
-    # caso 1: formato US -> 1,530.70
-    if "," in raw and "." in raw:
-        if raw.rfind(".") > raw.rfind(","):
-            raw = raw.replace(",", "")
-        else:
-            # caso europeo -> 1.530,70
-            raw = raw.replace(".", "").replace(",", ".")
-
-    # caso 2: solo comas
-    elif "," in raw:
-        parts = raw.split(",")
-        if len(parts) == 2 and len(parts[1]) in (2, 3):
-            # probablemente decimal
-            raw = raw.replace(",", ".")
-        else:
-            # probablemente miles
-            raw = raw.replace(",", "")
-
-    # dejar solo números, punto y signo
-    raw = re.sub(r"[^0-9.\-]", "", raw)
-
-    return raw or None
-
-
 def normalize_date(value: str | None) -> str | None:
     if not value:
         return None
@@ -145,13 +113,6 @@ def normalize_date(value: str | None) -> str | None:
         "SEPTIEMBRE": "09", "OCTUBRE": "10", "NOVIEMBRE": "11", "DICIEMBRE": "12",
     }
 
-    m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
-    if m:
-        day, mon_txt, year = m.groups()
-        mon = meses.get(mon_txt)
-        if mon:
-            return f"{year}-{mon}-{day}"
-
     m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
     if m:
         day, mon, year = m.groups()
@@ -165,6 +126,13 @@ def normalize_date(value: str | None) -> str | None:
     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
     if m:
         return raw
+
+    m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
+    if m:
+        day, mon_txt, year = m.groups()
+        mon = meses.get(mon_txt)
+        if mon:
+            return f"{year}-{mon}-{day}"
 
     m = re.match(r"^(\d{1,2}) DE ([A-ZÁÉÍÓÚ]+) DEL (\d{4})$", raw)
     if m:
@@ -187,6 +155,28 @@ def parse_iso_date(value: str | None) -> date | None:
     if not value:
         return None
     return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def normalize_amount(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    raw = str(value).strip().replace(" ", "")
+
+    if "," in raw and "." in raw:
+        if raw.rfind(".") > raw.rfind(","):
+            raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(".", "").replace(",", ".")
+    elif "," in raw:
+        parts = raw.split(",")
+        if len(parts) == 2 and len(parts[1]) in (2, 3):
+            raw = raw.replace(",", ".")
+        else:
+            raw = raw.replace(",", "")
+
+    raw = re.sub(r"[^0-9.\-]", "", raw)
+    return raw or None
 
 
 def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
@@ -328,9 +318,13 @@ def enrich_document(item: dict) -> dict:
                 text = ""
 
     fields = extract_basic_fields(text, item["nombre_archivo_original"])
+    qr_data = fields.get("qr_data") or {}
+
     cliente_raw = extract_cliente_destino_raw(text)
     cliente_match = find_cliente_destino_by_alias(cliente_raw)
-    fecha_norm = normalize_date(fields["fecha_emision"])
+
+    fecha_raw = qr_data.get("fecha_emision") or fields["fecha_emision"]
+    fecha_norm = normalize_date(fecha_raw)
     fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
 
     razon_social_emisor = item.get("razon_social") or None
@@ -343,16 +337,35 @@ def enrich_document(item: dict) -> dict:
         if m:
             razon_social_emisor = m.group(1).strip()
 
+    ruc_emisor_final = qr_data.get("ruc_emisor") or fields.get("ruc")
+    serie_final = qr_data.get("serie") or fields.get("serie")
+    numero_final = qr_data.get("numero") or fields.get("numero")
+    importe_final = qr_data.get("importe") or fields.get("importe")
+    igv_final = qr_data.get("igv") or fields.get("igv")
+    tipo_final = qr_data.get("tipo_documental") or fields.get("tipo_documental")
+
+    merged_fields = {
+        **fields,
+        "tipo_documental": tipo_final,
+        "serie": serie_final,
+        "numero": numero_final,
+        "ruc": ruc_emisor_final,
+        "fecha_emision": fecha_raw,
+        "importe": importe_final,
+        "igv": igv_final,
+    }
+
     return {
         **item,
         "text": text,
-        "fields": fields,
+        "fields": merged_fields,
         "cliente_raw": cliente_raw,
         "cliente_match": cliente_match,
         "fecha_emision_norm": fecha_norm,
         "fecha_emision_date": fecha_date,
         "razon_social_emisor_detectada": razon_social_emisor,
         "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
+        "qr_data": qr_data,
     }
 
 
@@ -397,6 +410,7 @@ def mark_documents_as_review(
                     razon_social = %(razon_social)s,
                     fecha_emision = %(fecha_emision)s,
                     importe = %(importe)s,
+                    igv = %(igv)s,
                     estado_documento = %(estado_documento)s,
                     actualizado_en = NOW()
                 WHERE id = %(documento_id)s
@@ -410,6 +424,7 @@ def mark_documents_as_review(
                     "razon_social": razon_social_emisor,
                     "fecha_emision": item.get("fecha_emision_norm"),
                     "importe": normalize_amount(fields.get("importe")),
+                    "igv": normalize_amount(fields.get("igv")),
                     "estado_documento": estado_documento,
                     "documento_id": item["documento_id"],
                 },
@@ -442,6 +457,7 @@ def process_correo(items: list[dict]) -> None:
             "cliente_raw": d.get("cliente_raw"),
             "cliente_match": d.get("cliente_match"),
             "fecha": d.get("fecha_emision_norm"),
+            "qr": bool(d.get("qr_data")),
         })
 
     factura_principal = select_factura_principal(enriched)
@@ -480,7 +496,6 @@ def process_correo(items: list[dict]) -> None:
         )
         return
 
-    # La fecha de la factura principal define el mes del grupo para todos los adjuntos
     correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
 
     cliente_match = factura_principal.get("cliente_match")
@@ -547,7 +562,7 @@ def process_correo(items: list[dict]) -> None:
 
         pdf_path = resolve_absolute_path(doc["ruta_temporal"])
 
-        # Todos los adjuntos del grupo heredan el año/mes de la factura principal
+        # La factura principal define el año/mes para todo el grupo
         year = f"{fecha_principal.year}"
         month = f"{fecha_principal.month:02d}"
 
@@ -578,6 +593,7 @@ def process_correo(items: list[dict]) -> None:
                     "razon_social": razon_social_emisor,
                     "fecha_emision": doc["fecha_emision_norm"],
                     "importe": normalize_amount(fields["importe"]),
+                    "igv": normalize_amount(fields.get("igv")),
                     "estado_documento": estado_documento,
                     "grupo_codigo": grupo_codigo,
                     "correlativo_mes": correlativo_mes,

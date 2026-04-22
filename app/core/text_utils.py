@@ -21,9 +21,11 @@ def normalize_text(value: str | None) -> str:
     text = strip_accents(value)
     text = text.upper()
     text = text.replace("\r", " ").replace("\n", " ").replace("\t", " ")
+
     text = re.sub(r"\bN[°º]\b", "NRO", text)
     text = re.sub(r"\bNRO\.\b", "NRO", text)
     text = re.sub(r"\bNO\.\b", "NRO", text)
+
     text = collapse_spaces(text)
     return text
 
