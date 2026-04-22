@@ -1,129 +1,92 @@
-Perfecto. Eso confirma algo importante:
-Confirmado
-El nombre:
-Plain text
-20111740438-01-FF12-7700.pdf
-sí hace match como factura.
-Entonces el problema no está en este bloque:
-Python
-re.search(r"\bF[A-Z0-9]{3}-\d{1,8}\b", name_u)
-ni en:
-Python
-re.search(r"\b\d{11}-\d{2}-F[A-Z0-9]{3}-\d{1,8}\b", name_u)
-Entonces, ¿dónde hacer debug?
-Ahora hay que probar la siguiente capa:
-1. detect_tipo_documental()
-2. extract_basic_fields()
-3. enrich_document()
-4. process_correo()
-Mejor forma de seguir
-Haz una prueba aislada con un solo archivo PDF real, sin tocar BD ni mover archivos.
-Paso 1: crea un script de prueba
-Crea este archivo en la raíz de app:
-debug_pdf.py
-Python
-from pathlib import Path
+esto es el reporte:
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+$ python debug_pdf.py
+================================================================================
+ARCHIVO: posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf
+================================================================================
 
-from core.extractor_pdf import extract_text_from_pdf
-from core.classifier import detect_tipo_documental, extract_basic_fields
-from core.text_utils import normalize_text
-from procesar_pendientes import normalize_date, parse_iso_date
+--- PRIMEROS 2500 CARACTERES DEL TEXTO ---
 
-pdf_path = Path(
-    r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_revision\2026\04\posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf"
-)
+SONEPAR PERU S.A.C
+Dirección:
+R.U.C. N°:
+Señor(es): F. Emisión: 
+F. Vencimiento:
+Referencia de pago:
+Moneda:
+Central telefónica: 01-602-8000
+Centro Distribucion: Jr. Yungay N°1870 Urb. Chacrarios
+AGENTE DE RETENCIÓN RS-219-2006/SUNAT 
+(NO RETENER)
+Orden Compra:
+Lima - Lima - Lima
+Encuéntranos también en Piura - Chiclayo - Trujillo - 
+Lima - Arequipa
+Para mas información ingresa a www.sonepar.pe
+21/04/2026
+Guía Remisión:
+007912
+CAL.6 MZA. D LOTE. 13 URB. INDUSTRIAL GRIMANEZA - CALLAO - PROV. 
+DEL CALLAO - CALLAO - CALLAO
+20565747356
+BBTI S.A.C.
+Factura 30 dias
+SOLES
+LIMA - LIMA - Lima
+Of. Principal: AV. REPUBLICA DE PANAMÁ NRO. 3517 
+INT. 602 FACTURA ELECTRÓNICA
+R.U.C. 20111740438
+FF12-7700
+21/05/2026
+...
+SON: NOVECIENTOS CUARENTA Y DOS CON 48/100 SOLES  942.48
+0.00
+ 942.48
+ 798.71
+ 0
+ 798.71
+ICBPER S/  0.00
+TOTAL BRUTO
+VALOR VENTA
+TOTAL A PAGAR
+F8BBB8F0B7F4D1B486EFF93D820C20F8BBB8F
+E2AAA2E0A07CB43C3874E9F5B164F0E2AAA2E
+EF9A65A092FAEE06E61342CE0D2EB8508F82E
+E23319A59F47C2DD95B42CAB414907A7AF5E1
+7B13A6A2631183F898D43C1928552BA176640
+4A6418A626E119BAB27B5ABA58AC905A50BD6
+96EA35A7E23C352314C0996D9B4D06876FD0B
+32A22AB0438A7406E156EF91EFE0F8A8F3139
+F0EEE0F07CFAEE466B03DC4D1D9E9AE9F5C34
+8888888088008088800808808080800808008
+ 143.77
+En caso SONEPAR tenga acceso a sus datos personales como clientes persona natural, se le informa que SONEPAR tratará sus datos 
+personales bajo el detalle señalado en: https://sonepar.pe/wp-content/uploads/2022/ 11/Clausula-Tratamiento-Datos-Personales-CLIENTES.pdf
+Estimado cliente: Queremos recordarle que los pagos de sus facturas a crédito solo 
+podrán ser realizados mediante transferencia ba
 
-file_name = pdf_path.name
+--- NOMBRE NORMALIZADO ---
 
-print("=" * 80)
-print("ARCHIVO:", file_name)
-print("=" * 80)
+POSIBLE_DOCUMENTO_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.PDF
 
-text = extract_text_from_pdf(pdf_path)
+--- TIPO DETECTADO ---
 
-print("\n--- PRIMEROS 2500 CARACTERES DEL TEXTO ---\n")
-print(text[:2500])
+orden_compra
 
-print("\n--- NOMBRE NORMALIZADO ---\n")
-print(normalize_text(file_name))
+--- CAMPOS EXTRAIDOS ---
 
-tipo = detect_tipo_documental(text, file_name)
-fields = extract_basic_fields(text, file_name)
+tipo_documental: orden_compra
+serie: None
+numero: None
+ruc: None
+fecha_emision: None
+importe: None
+oc: None
 
-print("\n--- TIPO DETECTADO ---\n")
-print(tipo)
+--- FECHA NORMALIZADA ---
 
-print("\n--- CAMPOS EXTRAIDOS ---\n")
-for k, v in fields.items():
-    print(f"{k}: {v}")
-
-fecha_norm = normalize_date(fields.get("fecha_emision"))
-fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
-
-print("\n--- FECHA NORMALIZADA ---\n")
-print("fecha_norm:", fecha_norm)
-print("fecha_date:", fecha_date)
-Paso 2: ejecútalo
-Desde app:
-Bash
-python debug_pdf.py
-Qué queremos ver
-Para ese PDF de FF12-7700, el resultado correcto debería ser algo como:
-Plain text
-tipo_documental: factura
-serie: FF12
-numero: 7700
-ruc: 20111740438
-fecha_emision: 21/04/2026
-fecha_norm: 2026-04-21
-Cómo interpretar el resultado
-Caso A: sale bien
-Si sale:
-Plain text
-tipo_documental = factura
-serie = FF12
-numero = 7700
-fecha_norm = 2026-04-21
-entonces el problema ya no está en classifier.py.
-En ese caso el fallo está en:
-select_factura_principal()
-o process_correo()
-o el archivo venía de una corrida anterior
-Caso B: sale mal el tipo
-Si sale:
-Plain text
-tipo_documental = orden_compra
-entonces el problema sí está en detect_tipo_documental().
-Caso C: sale factura pero sin serie/número
-Si sale:
-Plain text
-tipo_documental = factura
-serie = None
-numero = None
-entonces el problema está en extract_basic_fields().
-Caso D: sale factura y serie bien, pero fecha no
-Si sale:
-Plain text
-fecha_emision = None
-entonces el problema está en la regex de fecha.
-Paso 3 opcional: debug de una sola función
-Si quieres ir más fino todavía, agrega temporalmente en classifier.py dentro de extract_basic_fields() esto:
-Python
-print("DEBUG FILE:", file_name)
-print("DEBUG DOC TYPE:", doc_type)
-print("DEBUG TEXT HEAD:", text_u[:1000])
-Pero yo prefiero el script debug_pdf.py, porque no ensucias el flujo principal.
-Mi hipótesis actual
-Con lo que ya probaste, yo creo que el regex de nombre sí funciona, así que probablemente está pasando una de estas:
-el texto OCR/PDF tiene algo que hace que otra regla gane antes
-el documento observado fue procesado con una versión anterior
-extract_basic_fields() no está sacando bien FF12-7700 desde el texto o nombre en la corrida real
-Recomendación exacta
-Haz ahora esto:
-crea debug_pdf.py
-ejecútalo con ese PDF de FF12-7700
-pégame la salida completa de:
-tipo detectado
-campos extraídos
-fecha normalizada
-Con eso ya te digo exactamente en qué capa se rompe.
+fecha_norm: None
+fecha_date: None
+(venv) 
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+$ 
