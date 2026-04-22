@@ -1,157 +1,101 @@
-Sí. Vamos a depurarlo bien.
-Como ya cambiaste classifier.py, ahora el debug_pdf.py también debe mostrar:
-tipo detectado
-campos extraídos
-QR detectado si existe
-fecha normalizada
-ruta sugerida
-si sería clasificado o enviado a revisión
-Te dejo una versión más completa.
-app/debug_pdf.py
-Python
-from pathlib import Path
-import pprint
+El escenario creo que es el tipo C
+python debug_pdf.py
+==========================================================================================
+ARCHIVO: posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf
+RUTA: C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_revision\2026\04\posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf
+==========================================================================================
 
-from core.extractor_pdf import extract_text_from_pdf
-from core.classifier import detect_tipo_documental, extract_basic_fields
-from core.text_utils import normalize_text
-from core.qr_parser import extract_qr_candidates, parse_qr_payload
-from procesar_pendientes import normalize_date, parse_iso_date
+--- PRIMEROS 3000 CARACTERES DEL TEXTO ---
 
+SONEPAR PERU S.A.C
+Dirección:
+R.U.C. N°:
+Señor(es): F. Emisión: 
+F. Vencimiento:
+Referencia de pago:
+Moneda:
+Central telefónica: 01-602-8000
+Centro Distribucion: Jr. Yungay N°1870 Urb. Chacrarios
+AGENTE DE RETENCIÓN RS-219-2006/SUNAT 
+(NO RETENER)
+Orden Compra:
+Lima - Lima - Lima
+Encuéntranos también en Piura - Chiclayo - Trujillo - 
+Lima - Arequipa
+Para mas información ingresa a www.sonepar.pe
+21/04/2026
+Guía Remisión:
+007912
+CAL.6 MZA. D LOTE. 13 URB. INDUSTRIAL GRIMANEZA - CALLAO - PROV. 
+DEL CALLAO - CALLAO - CALLAO
+20565747356
+BBTI S.A.C.
+Factura 30 dias
+SOLES
+LIMA - LIMA - Lima
+Of. Principal: AV. REPUBLICA DE PANAMÁ NRO. 3517 
+INT. 602 FACTURA ELECTRÓNICA
+R.U.C. 20111740438
+FF12-7700
+21/05/2026
+Forma de Pago: Crédito
+Origen: Jr. Yungay 1870 Urb. Chacrarios-LIMA-LIMA-LIMA
+IMPORTE DE CUOTAF. VENCIMIENTOCUOTA
+1 21/05/2026  942.48
+...
+143.77
+En caso SONEPAR tenga acceso a sus datos personales como clientes persona natural, se le informa que SONEPAR tratará sus datos 
+personales bajo el detalle señalado en: https://sonepar.pe/wp-content/uploads/2022/ 11/Clausula-Tratamiento-Datos-Personales-CLIENTES.pdf
+Estimado cliente: Queremos recordarle que los pagos de sus facturas a crédito solo 
+podrán ser realizados mediante transferencia bancaria y/o abono en nuestros números de 
+cuenta corriente (según la plaza a la que pertenece).
+TÉRMINOS Y CONDICIONES GENERALES DE VENTA SONEPAR
+1.REGULACIÓN: Estos t érminos y condiciones generales de venta (en lo sucesivo “TYC“) en concordancia con las condiciones fijadas dentro de la 
+respectiva cotizaci ón u oferta comercial presentada por parte de Sonepar Per ú S .A.C (en lo sucesivo “Sonepar”), regularán de manera exclusiva la 
+relación comercial entre Sonepar y el comprador y /o el solici
 
-def main() -> None:
-    pdf_path = Path(
-        r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_revision\2026\04\posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf"
-    )
+--- NOMBRE NORMALIZADO ---
 
-    if not pdf_path.exists():
-        print(f"[ERROR] No existe el archivo: {pdf_path}")
-        return
+POSIBLE_DOCUMENTO_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.PDF
 
-    file_name = pdf_path.name
+--- TIPO DETECTADO ---
 
-    print("=" * 90)
-    print("ARCHIVO:", file_name)
-    print("RUTA:", pdf_path)
-    print("=" * 90)
+factura
 
-    text = extract_text_from_pdf(pdf_path)
+--- CAMPOS EXTRAIDOS ---
 
-    print("\n--- PRIMEROS 3000 CARACTERES DEL TEXTO ---\n")
-    print(text[:3000])
-
-    print("\n--- NOMBRE NORMALIZADO ---\n")
-    print(normalize_text(file_name))
-
-    tipo = detect_tipo_documental(text, file_name)
-    fields = extract_basic_fields(text, file_name)
-
-    print("\n--- TIPO DETECTADO ---\n")
-    print(tipo)
-
-    print("\n--- CAMPOS EXTRAIDOS ---\n")
-    for k, v in fields.items():
-        print(f"{k}: {v}")
-
-    qr_candidates = extract_qr_candidates(text)
-
-    print("\n--- CANDIDATOS QR ---\n")
-    if not qr_candidates:
-        print("No se encontraron candidatos QR en el texto.")
-    else:
-        for i, candidate in enumerate(qr_candidates, start=1):
-            print(f"[QR {i}] {candidate[:500]}")
-            parsed = parse_qr_payload(candidate)
-            print("  -> parseado:")
-            pprint.pprint(parsed, width=120)
-
-    fecha_raw = fields.get("fecha_emision")
-    fecha_norm = normalize_date(fecha_raw)
-    fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
-
-    print("\n--- FECHA ---\n")
-    print("fecha_raw :", fecha_raw)
-    print("fecha_norm:", fecha_norm)
-    print("fecha_date:", fecha_date)
-
-    print("\n--- REGLA DE NEGOCIO (SIMULACION) ---\n")
-    tipo_documental = fields.get("tipo_documental")
-    serie = fields.get("serie")
-    numero = fields.get("numero")
-    ruc = fields.get("ruc")
-
-    es_factura_valida = (
-        tipo_documental == "factura"
-        and bool(serie)
-        and bool(numero)
-        and bool(ruc)
-        and bool(fecha_date)
-    )
-
-    if es_factura_valida:
-        year = f"{fecha_date.year}"
-        month = f"{fecha_date.month:02d}"
-        print("[RESULTADO] FACTURA VALIDA")
-        print(f"Se deberia mover a: pendientes_clasificados/{year}/{month}/")
-    else:
-        print("[RESULTADO] NO ES FACTURA VALIDA COMPLETA")
-        print("Se deberia mover a: pendientes_revision/YYYY/MM/")
-
-    print("\n--- RESUMEN MINIMO ---\n")
-    resumen = {
-        "tipo_documental": tipo_documental,
-        "serie": serie,
-        "numero": numero,
-        "ruc": ruc,
-        "fecha_emision": fecha_raw,
-        "fecha_norm": fecha_norm,
-        "es_factura_valida": es_factura_valida,
-    }
-    pprint.pprint(resumen, width=120)
-
-
-if __name__ == "__main__":
-    main()
-Qué debes revisar en la salida
-Para ese PDF de FF12-7700, lo correcto sería ver algo así:
-Plain text
 tipo_documental: factura
 serie: FF12
 numero: 7700
 ruc: 20111740438
-fecha_emision: 21/04/2026
-fecha_norm: 2026-04-21
-es_factura_valida: True
-Se deberia mover a: pendientes_clasificados/2026/04/
-Si sigue saliendo mal
-Entonces ya sabremos exactamente cuál de estas capas está fallando:
-Caso 1
-Plain text
-tipo_documental = orden_compra
-Problema en detect_tipo_documental().
-Caso 2
-Plain text
-tipo_documental = factura
-serie = None
-numero = None
-Problema en extract_basic_fields().
-Caso 3
-Plain text
-tipo_documental = factura
-serie = FF12
-numero = 7700
-fecha_emision = None
-Problema en regex de fecha.
-Caso 4
-Todo sale bien en debug, pero procesar_pendientes.py lo manda a revisión.
-Entonces el problema ya no está en classifier.py, sino en la lógica de process_correo() o select_factura_principal().
-Recomendación
-Ejecuta ahora:
-Bash
-python debug_pdf.py
-y pégame exactamente estas partes:
-TIPO DETECTADO
-CAMPOS EXTRAIDOS
-FECHA
-RESULTADO
-Con eso ya te digo por qué no se movió a pendientes_clasificados.
+fecha_emision: None
+importe: None
+igv: None
+oc: None
+qr_data: None
+
+--- CANDIDATOS QR ---
+
+No se encontraron candidatos QR en el texto.
+
+--- FECHA ---
+
+fecha_raw : None
+fecha_norm: None
+fecha_date: None
+
+--- REGLA DE NEGOCIO (SIMULACION) ---
+
+[RESULTADO] NO ES FACTURA VALIDA COMPLETA
+Se deberia mover a: pendientes_revision/YYYY/MM/
+
+--- RESUMEN MINIMO ---
+
+{'es_factura_valida': False,
+ 'fecha_emision': None,
+ 'fecha_norm': None,
+ 'numero': '7700',
+ 'ruc': '20111740438',
+ 'serie': 'FF12',
+ 'tipo_documental': 'factura'}
+(venv) 
