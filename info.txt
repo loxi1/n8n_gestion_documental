@@ -1,92 +1,115 @@
-esto es el reporte:
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ python debug_pdf.py
-================================================================================
-ARCHIVO: posible_documento_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.pdf
-================================================================================
+Sí, con este formato ya se puede dejar una regla mucho más confiable para orden_compra. En la plantilla que subiste se ve claramente el patrón base: encabezado “Orden de Compra N°: 007902”, proveedor en “SEÑOR(ES)”, RUC del proveedor, fecha, moneda, cotización, centro de costos, lugar de entrega, detalle, subtotales y total. �
+ORDEN DE COMRA 007902.pdf.pdf
+Lo que conviene extraer siempre de una OC
+De esa plantilla yo tomaría como campos principales:
+tipo_documental = orden_compra
+serie = OC
+numero = 007902
+fecha_emision = 15/04/2026
+ruc = 20538549071
+razon_social = OMEGA POWER S.A.C.
+importe = 444.95
+cliente_destino desde el encabezado de la empresa emisora del formato, que aquí es BBTI S.A.C. �
+ORDEN DE COMRA 007902.pdf.pdf
+Regla clave
+Para una OC de ese tipo, no uses una etiqueta suelta como “Orden Compra:” dentro de otro documento para clasificar.
+La OC real debe detectarse por algo fuerte como:
+ORDEN DE COMPRA N
+o ORDEN DE COMPRA NRO
+o ORDEN DE COMPRA N°
+y además un número correlativo
+Eso evita que una factura que solo menciona “Orden Compra:” se convierta por error en OC.
+Reglas recomendadas para el clasificador
+Detección de tipo
+Usa una detección fuerte así:
+Python
+if re.search(r"\bORDEN DE COMPRA\s*N(?:RO)?[°º:\s-]*\d{4,}\b", text_u):
+    return "orden_compra"
+Y por nombre de archivo:
+Python
+if re.search(r"\bORDEN DE COM(P|R)A\b", name_u) or re.search(r"\bOC[- ]?\d{4,}\b", name_u):
+    return "orden_compra"
+Extracción del número
+Para este formato:
+Python
+m = re.search(r"\bORDEN DE COMPRA\s*N(?:RO)?[°º:\s-]*([0-9]{4,})\b", text_u)
+if m:
+    serie = "OC"
+    numero = m.group(1)
+Extracción de fecha
+En tu plantilla aparece como FECHA : 15/04/2026, así que:
+Python
+m = re.search(r"\bFECHA\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
+Extracción de proveedor
+Aquí sale en SEÑOR(ES) : OMEGA POWER S.A.C. y R.U.C. : 20538549071. �
+Entonces:
+ORDEN DE COMRA 007902.pdf.pdf
+Python
+m = re.search(r"\bSEÑOR\(ES\)\s*[:\-]?\s*(.+?)\s+\bFECHA\b", text_original, re.IGNORECASE | re.DOTALL)
+o más simple, si el OCR queda limpio:
+Python
+m = re.search(r"\bSEÑOR\(ES\)\s*[:\-]?\s*(.+)", text_original)
+Y el RUC:
+Python
+m = re.search(r"\bR\.?U\.?C\.?\s*[:\-]?\s*([0-9]{11})\b", text_u)
+Extracción del total
+En la plantilla aparece Total S/ 444.95. �
+Regex sugerido:
+ORDEN DE COMRA 007902.pdf.pdf
+Python
+m = re.search(r"\bTOTAL\s*S/?\s*([0-9][0-9,\.]*)\b", text_u)
+Luego lo pasas por normalize_amount().
+Ajuste conceptual importante
+Como ya definiste bien tu negocio:
+la factura principal define el mes del grupo
+la OC solo aporta contexto
+la fecha de la OC no manda la carpeta final si viene junto a factura
+O sea, aunque a la OC le saques 15/04/2026, si viene con una factura principal de abril, igual hereda abril. Si llega sola, queda en pendiente_asociacion con su propia fecha guardada.
+Función de extracción específica para OC
+Te recomiendo incluso aislarla para que no mezcles demasiadas reglas genéricas:
+Python
+def extract_oc_fields(text_u: str, text_original: str) -> dict:
+    serie = None
+    numero = None
+    fecha_emision = None
+    ruc = None
+    razon_social = None
+    importe = None
 
---- PRIMEROS 2500 CARACTERES DEL TEXTO ---
+    m = re.search(r"\bORDEN DE COMPRA\s*N(?:RO)?[°º:\s-]*([0-9]{4,})\b", text_u)
+    if m:
+        serie = "OC"
+        numero = m.group(1)
 
-SONEPAR PERU S.A.C
-Dirección:
-R.U.C. N°:
-Señor(es): F. Emisión: 
-F. Vencimiento:
-Referencia de pago:
-Moneda:
-Central telefónica: 01-602-8000
-Centro Distribucion: Jr. Yungay N°1870 Urb. Chacrarios
-AGENTE DE RETENCIÓN RS-219-2006/SUNAT 
-(NO RETENER)
-Orden Compra:
-Lima - Lima - Lima
-Encuéntranos también en Piura - Chiclayo - Trujillo - 
-Lima - Arequipa
-Para mas información ingresa a www.sonepar.pe
-21/04/2026
-Guía Remisión:
-007912
-CAL.6 MZA. D LOTE. 13 URB. INDUSTRIAL GRIMANEZA - CALLAO - PROV. 
-DEL CALLAO - CALLAO - CALLAO
-20565747356
-BBTI S.A.C.
-Factura 30 dias
-SOLES
-LIMA - LIMA - Lima
-Of. Principal: AV. REPUBLICA DE PANAMÁ NRO. 3517 
-INT. 602 FACTURA ELECTRÓNICA
-R.U.C. 20111740438
-FF12-7700
-21/05/2026
-...
-SON: NOVECIENTOS CUARENTA Y DOS CON 48/100 SOLES  942.48
-0.00
- 942.48
- 798.71
- 0
- 798.71
-ICBPER S/  0.00
-TOTAL BRUTO
-VALOR VENTA
-TOTAL A PAGAR
-F8BBB8F0B7F4D1B486EFF93D820C20F8BBB8F
-E2AAA2E0A07CB43C3874E9F5B164F0E2AAA2E
-EF9A65A092FAEE06E61342CE0D2EB8508F82E
-E23319A59F47C2DD95B42CAB414907A7AF5E1
-7B13A6A2631183F898D43C1928552BA176640
-4A6418A626E119BAB27B5ABA58AC905A50BD6
-96EA35A7E23C352314C0996D9B4D06876FD0B
-32A22AB0438A7406E156EF91EFE0F8A8F3139
-F0EEE0F07CFAEE466B03DC4D1D9E9AE9F5C34
-8888888088008088800808808080800808008
- 143.77
-En caso SONEPAR tenga acceso a sus datos personales como clientes persona natural, se le informa que SONEPAR tratará sus datos 
-personales bajo el detalle señalado en: https://sonepar.pe/wp-content/uploads/2022/ 11/Clausula-Tratamiento-Datos-Personales-CLIENTES.pdf
-Estimado cliente: Queremos recordarle que los pagos de sus facturas a crédito solo 
-podrán ser realizados mediante transferencia ba
+    m = re.search(r"\bFECHA\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
+    if m:
+        fecha_emision = m.group(1)
 
---- NOMBRE NORMALIZADO ---
+    m = re.search(r"\bR\.?U\.?C\.?\s*[:\-]?\s*([0-9]{11})\b", text_u)
+    if m:
+        ruc = m.group(1)
 
-POSIBLE_DOCUMENTO_20260421233118813_DB9PR05MB10250CA7096BC22409239E8A5BA2C2__1.PDF
+    m = re.search(r"\bSEÑOR\(ES\)\s*[:\-]?\s*(.+)", text_original, re.IGNORECASE)
+    if m:
+        razon_social = m.group(1).strip()
 
---- TIPO DETECTADO ---
+    m = re.search(r"\bTOTAL\s*S/?\s*([0-9][0-9,\.]*)\b", text_u)
+    if m:
+        importe = m.group(1).strip()
 
-orden_compra
-
---- CAMPOS EXTRAIDOS ---
-
-tipo_documental: orden_compra
-serie: None
-numero: None
-ruc: None
-fecha_emision: None
-importe: None
-oc: None
-
---- FECHA NORMALIZADA ---
-
-fecha_norm: None
-fecha_date: None
-(venv) 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ 
+    return {
+        "tipo_documental": "orden_compra",
+        "serie": serie,
+        "numero": numero,
+        "ruc": ruc,
+        "fecha_emision": fecha_emision,
+        "importe": importe,
+        "razon_social": razon_social,
+    }
+Recomendación final
+Sí: para OC conviene usar esta plantilla como regla fuerte y específica, porque ya sabes que en tu operación real casi siempre va a venir con este formato.
+No intentes detectar OC solo por menciones internas en otros documentos.
+Si quieres, en el siguiente paso te dejo el classifier.py final completo integrando esta lógica fuerte para:
+factura
+guía
+orden de compra.
