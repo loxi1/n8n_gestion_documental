@@ -1,25 +1,8 @@
-20111740438|01|FF12|7700|143.77|942.48|21-04-2026|6|20565747356|Swq5pDxsG9qfA5aDML5tMbk7Mqk=|
 
-20100084172|01|F231|0101576|233.50|1530.70|21/04/2026|6|20565747356|VqADxhZMc3XnTfltaVyUUJOxumc=|rUtLX3KlHUNha1a8RqdKTlBs1obA9/YMGW0I5OnkegqqDWoMpBOsAxNXHs/32+JPU2aTKUM6Qesv
-r9lQh743HZNFC12JXXeyPgpoy81Fpv0uo9jvaWGCoMSY24HlRxau8Rf7c0hctpQiWb7fX51SoHYy
-uxddKkGNTgNTJsPNchGQw+xhja1UlBdDsMjRu/C+X/U+PW+Nab6i4awvYv7AwWy44vOL7KBKY06e
-E9V+fPFjM8MqCwCjmMm4BzIZvnuGKYCn961r8JR845heZwythrDVe8mBvghfzRp0ld54hitL4z/u
-Pd5jqOO/qrtovNvR//1wY25r+C48MFZoR/VgKA==
+CREDENCIALES
+SERVBBTI\sistemas	
+515t3mbbt1@dm
 
-20100084172|01|F231|0101575|61.05|400.20|21/04/2026|6|20565747356|9ernTpPi0S/eZv8Utqbyj/4E/wo=|oxlNoLz7uOZ7sWwCD9fuKQyPJR+YbzfFsRdwQYTsgos1nGgDCTNU38hYNeYye/RypnN4wog+2Pse
-zUuCPdW/drYx7gJzmnw0XexWq0GZK1PbfEaO9/lXvTrGYCdjzLUVR9dnnml2LHejtXUCHLJMF1Ip
-XtPbaD0nKIfS8hpN4KqWNyRPjVbeYhgPv8VXUs776+I8lVZljYa6cqdpXQc1I4jL+YsEQM+jgKNk
-48uytk6A99LqTK0WYIX43nOnC0H7n09odo3TicXRdBBWaS7bsMk1r30C0eS3Zf6eRXnA+c5QJRRv
-mC3HwwagNzxd4ud4tY2S6uaIvgbj/CN2jkCmew==
-
-
-20100084172|01|F231|0101439|41.23|270.31|10/04/2026|6|20565747356|MYFOtSGid2burX48ZVF+kYXTs9M=|PDvqJRb2iK0ArJp/JdVSiuGvwkOqQ+PsWYOcxcUMtmbEKcfzlfYveiTaOfT91UfSqli37wptBrVk
-ak5hXd8GB8XyfxjHSCjL90Om8c0pvtni8C9Y3nAVssJzBVAzOcAGHCXMMXQ2T4Kh13wE5JP80iIQ
-FXa85Y1DpYJjBLFmRbRxkA0l9rAWBeLGYu1IuL38vsl2PD3hKUyauXPXjj91TAFixcQ9vz14WY6h
-nNX9gA5tC4rId0UmMe9mjSXvIKAMBEZPbtVvoKhtALr0U3uK14TPNfwsOdRlt8EEhimn+7kJRGvi
-Ott8OMq/ToGWJHlgTKF+iEPXEXWvzaxLLAf7fw==
-
-20602599702|01|F001|00002322|5177.65|33942.35|2026-03-23|6|20565747356
 la orden de compra va tener esta frase en tu contenenido La pseentacion de las facturas deberá ralizarse únicamente a travéz del siguiente medio digital: facturas@bbti.com.pe y creo que para identificar que es el documento de compra debe decir facturas@bbti.com.pe
 Sí, con este formato ya se puede dejar una regla mucho más confiable para orden_compra. En la plantilla que subiste se ve claramente el patrón base: encabezado “Orden de Compra N°: 007902”, proveedor en “SEÑOR(ES)”, RUC del proveedor, fecha, moneda, cotización, centro de costos, lugar de entrega, detalle, subtotales y total. �
 ORDEN DE COMRA 007902.pdf.pdf
