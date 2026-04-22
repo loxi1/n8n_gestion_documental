@@ -1,46 +1,141 @@
-aun no sale la data correcta:
-...
---- NOMBRE NORMALIZADO ---
-
-F_F002-00000254.PDF
-
---- TIPO DETECTADO ---
-
-factura
-
---- CAMPOS EXTRAIDOS ---
-
+Sí, aquí ya se ve exactamente qué sigue fallando.
+Lo que sí está bien
+Tu clasificador ya saca bien:
 tipo_documental: factura
 serie: F002
 numero: 00000254
-ruc: 20565747356
-fecha_emision: None
 importe: 444.95
-igv: None
-oc: None
-qr_data: None
+Lo que sigue mal
+Sigue fallando en dos cosas:
+ruc te toma 20565747356, que es el cliente
+fecha_emision sigue en None
+Y hay una pista clave:
+Plain text
+NOMBRE NORMALIZADO:
+F_F002-00000254.PDF
+Eso significa que para este caso el nombre del archivo ya no trae el RUC emisor. Entonces la regla de “priorizar RUC desde nombre” no aplica aquí.
+Conclusión
+Para esta factura concreta necesitas:
+1. Mejorar extracción del RUC emisor desde el texto
+No basta con “primer RUC que aparezca”.
+Debes priorizar el RUC que esté cerca del bloque de FACTURA ELECTRONICA.
+2. Mejorar extracción de fecha
+No basta con buscar F. EMISION en la misma línea.
+Aquí claramente el OCR la está dejando separada.
+Parche mínimo recomendado
+No cambies todo el archivo.
+Solo cambia en extract_basic_fields():
+A. Bloque de RUC
+Reemplaza tu bloque actual de RUC por este:
+Python
+# 2. RUC
+    # 2.1 Para factura, intentar sacar el RUC emisor desde el bloque cercano a FACTURA
+    if doc_type == "factura":
+        m_fact_block = re.search(
+            r"FACTURA ELECTRONICA.{0,300}?R\.?U\.?C\.?(?:\s*NRO)?[:\s]*([0-9]{11})",
+            text_u,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m_fact_block:
+            ruc = m_fact_block.group(1)
 
---- CANDIDATOS QR ---
+    # 2.2 Si el nombre del archivo tiene el formato completo con RUC, usarlo
+    if not ruc and doc_type == "factura":
+        m = re.search(
+            r"\b(\d{11})-\d{2}-F[A-Z0-9]{3}-\d+\b",
+            name_u,
+            re.IGNORECASE,
+        )
+        if m:
+            ruc = m.group(1)
 
-No se encontraron candidatos QR en el texto.
+    # 2.3 Fallback general
+    if not ruc:
+        for patron in [
+            r"\bRUC[:\s]*([0-9]{11})\b",
+            r"\bR\.?U\.?C\.?\s*(?:NRO|N)?[:\s]*([0-9]{11})\b",
+            r"\bREG\.?\s*UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b",
+        ]:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                ruc = m.group(1)
+                break
+B. Bloque de fecha
+Reemplaza tu bloque de fecha por este:
+Python
+# 4. Fecha de emisión
 
---- FECHA ---
+    # 4.1 Mismo renglón
+    for patron in [
+        r"FECHA DE EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+        r"FECHA DE EMISION[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2})",
+        r"F\.?\s*EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+        r"F\.?\s*EMISION[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2})",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            fecha_emision = m.group(1)
+            break
 
-fecha_raw : None
-fecha_norm: None
-fecha_date: None
+    # 4.2 Etiqueta y fecha separadas por salto de línea o espacios
+    if not fecha_emision:
+        for patron in [
+            r"FECHA DE EMISION\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+            r"FECHA DE EMISION\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
+            r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+            r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
+        ]:
+            m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+            if m:
+                fecha_emision = m.group(1)
+                break
 
---- REGLA DE NEGOCIO (SIMULACION) ---
+    # 4.3 Fallback para factura: buscar fecha cerca del bloque FACTURA + serie
+    if not fecha_emision and doc_type == "factura" and serie and numero:
+        m_fact = re.search(
+            rf"FACTURA ELECTRONICA.*?{serie}-{numero}",
+            text_u,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m_fact:
+            start = max(0, m_fact.start() - 350)
+            end = min(len(text_u), m_fact.end() + 350)
+            window = text_u[start:end]
 
-[RESULTADO] NO ES FACTURA VALIDA COMPLETA
-Se deberia mover a: pendientes_revision/YYYY/MM/
-
---- RESUMEN MINIMO ---
-
-{'es_factura_valida': False,
- 'fecha_emision': None,
- 'fecha_norm': None,
- 'numero': '00000254',
- 'ruc': '20565747356',
- 'serie': 'F002',
- 'tipo_documental': 'factura'}
+            fechas = re.findall(
+                r"\b([0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2})\b",
+                window,
+            )
+            if fechas:
+                fecha_emision = fechas[0]
+Por qué este parche sí te ayuda
+RUC
+En este PDF el nombre no trae RUC, así que hay que sacarlo del bloque de factura, no del primer RUC suelto del texto.
+Fecha
+Si el OCR deja:
+Plain text
+Fecha de Emisión
+2026-04-16
+o
+Plain text
+F. Emisión:
+2026-04-16
+lo va a capturar.
+Qué deberías ver después en debug_pdf.py
+Plain text
+tipo_documental: factura
+serie: F002
+numero: 00000254
+ruc: 20538549071
+fecha_emision: 2026-04-16
+importe: 444.95
+y luego:
+Plain text
+es_factura_valida: True
+Importante
+Ese resultado actual:
+Plain text
+NOMBRE NORMALIZADO: F_F002-00000254.PDF
+me dice que para este documento no puedes depender del nombre para el RUC.
+Así que el ajuste correcto es justo este: mejorar el RUC contextual desde el bloque de factura.
+Si quieres, te preparo el extract_basic_fields() completo ya fusionado con este parche, listo para pegar sin tocar el resto.
