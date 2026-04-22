@@ -1,131 +1,1076 @@
-
-GUARDAR LOS CÃ“DIGOS DE SEGURIDAD
-Guarda estos cÃ³digos de seguridad en un lugar seguro, pero accesible.
-
-1. 4695 3367		 6. 7251 3283
-2. 7300 6570		 7. 2654 6606
-3. 5543 2189		 8. 0227 7556
-4. 7461 9907		 9. 6445 1628
-5. 2292 6909		10. 3316 9457
-
-(facturasbbti@gmail.com)
-
-* Solo se puede usar cada cÃ³digo de seguridad una vez.
-* Â¿Necesitas mÃ¡s? Visita https://g.co/2sv
-* Fecha de generaciÃ³n
-la orden de compra va tener esta frase en tu contenenido La pseentacion de las facturas deberá ralizarse únicamente a travéz del siguiente medio digital: facturas@bbti.com.pe y creo que para identificar que es el documento de compra debe decir facturas@bbti.com.pe
-Sí, con este formato ya se puede dejar una regla mucho más confiable para orden_compra. En la plantilla que subiste se ve claramente el patrón base: encabezado “Orden de Compra N°: 007902”, proveedor en “SEÑOR(ES)”, RUC del proveedor, fecha, moneda, cotización, centro de costos, lugar de entrega, detalle, subtotales y total. �
+Sí. Te dejo una versión final y práctica de los archivos clave para que pruebes la lógica local con:
+normalización fuerte
+factura con prioridad alta
+OC detectada por formato real
+QR como apoyo fuerte para facturas
+fecha de la factura principal como mes del grupo
+guía / OC / certificado sin factura → pendiente_asociacion
+La plantilla de OC que subiste confirma bien el patrón fuerte Orden de Compra N°:007902, además de fecha, proveedor, RUC y total. �
 ORDEN DE COMRA 007902.pdf.pdf
-Lo que conviene extraer siempre de una OC
-De esa plantilla yo tomaría como campos principales:
-tipo_documental = orden_compra
-serie = OC
-numero = 007902
-fecha_emision = 15/04/2026
-ruc = 20538549071
-razon_social = OMEGA POWER S.A.C.
-importe = 444.95
-cliente_destino desde el encabezado de la empresa emisora del formato, que aquí es BBTI S.A.C. �
-ORDEN DE COMRA 007902.pdf.pdf
-Regla clave
-Para una OC de ese tipo, no uses una etiqueta suelta como “Orden Compra:” dentro de otro documento para clasificar.
-La OC real debe detectarse por algo fuerte como:
-ORDEN DE COMPRA N
-o ORDEN DE COMPRA NRO
-o ORDEN DE COMPRA N°
-y además un número correlativo
-Eso evita que una factura que solo menciona “Orden Compra:” se convierta por error en OC.
-Reglas recomendadas para el clasificador
-Detección de tipo
-Usa una detección fuerte así:
+1) app/core/text_utils.py
 Python
-if re.search(r"\bORDEN DE COMPRA\s*N(?:RO)?[°º:\s-]*\d{4,}\b", text_u):
-    return "orden_compra"
-Y por nombre de archivo:
+from __future__ import annotations
+
+import re
+import unicodedata
+
+
+def strip_accents(value: str | None) -> str:
+    if not value:
+        return ""
+    text = unicodedata.normalize("NFD", str(value))
+    return "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+
+
+def collapse_spaces(value: str | None) -> str:
+    if not value:
+        return ""
+    return re.sub(r"\s+", " ", str(value)).strip()
+
+
+def normalize_text(value: str | None) -> str:
+    text = strip_accents(value)
+    text = text.upper()
+    text = text.replace("\r", " ").replace("\n", " ").replace("\t", " ")
+
+    text = re.sub(r"\bN[°º]\b", "NRO", text)
+    text = re.sub(r"\bNRO\.\b", "NRO", text)
+    text = re.sub(r"\bNO\.\b", "NRO", text)
+
+    text = collapse_spaces(text)
+    return text
+
+
+def normalize_filename_part(value: str | None, fallback: str = "SIN_DATO") -> str:
+    if not value:
+        return fallback
+
+    text = strip_accents(value)
+    text = text.upper()
+    text = re.sub(r"[^\w\s-]", " ", text, flags=re.UNICODE)
+    text = collapse_spaces(text)
+    text = text.replace(" ", "_")
+    text = text.strip("_-")
+    return text or fallback
+2) app/core/qr_parser.py
 Python
-if re.search(r"\bORDEN DE COM(P|R)A\b", name_u) or re.search(r"\bOC[- ]?\d{4,}\b", name_u):
-    return "orden_compra"
-Extracción del número
-Para este formato:
+from __future__ import annotations
+
+from typing import Any
+
+from core.text_utils import normalize_text
+
+
+TIPO_DOC_MAP = {
+    "01": "factura",
+    "03": "boleta",
+    "07": "nota_credito",
+    "08": "nota_debito",
+}
+
+
+def parse_qr_payload(qr_text: str | None) -> dict[str, Any] | None:
+    """
+    Formato SUNAT esperado, separado por "|":
+    RUC|TIPO_DOC|SERIE|NUMERO|IGV|TOTAL|FECHA|TIPO_DOC_ADQ|NUM_DOC_ADQ|VALOR_RESUMEN|VALOR_FIRMA
+    Puede venir con menos o más campos al final.
+    """
+    if not qr_text:
+        return None
+
+    raw = qr_text.strip()
+    parts = [p.strip() for p in raw.split("|")]
+
+    if len(parts) < 9:
+        return None
+
+    ruc_emisor = parts[0] or None
+    tipo_doc = parts[1] or None
+    serie = parts[2] or None
+    numero = parts[3] or None
+    igv = parts[4] or None
+    total = parts[5] or None
+    fecha = parts[6] or None
+    tipo_doc_adquirente = parts[7] or None
+    num_doc_adquirente = parts[8] or None
+    valor_resumen = parts[9] if len(parts) > 9 and parts[9] else None
+    valor_firma = parts[10] if len(parts) > 10 and parts[10] else None
+
+    tipo_documental = TIPO_DOC_MAP.get(tipo_doc)
+
+    if not ruc_emisor or not tipo_doc or not serie or not numero:
+        return None
+
+    return {
+        "ruc_emisor": ruc_emisor,
+        "tipo_doc_codigo": tipo_doc,
+        "tipo_documental": tipo_documental,
+        "serie": serie,
+        "numero": numero,
+        "igv": igv,
+        "importe": total,
+        "fecha_emision": fecha,
+        "tipo_doc_adquirente": tipo_doc_adquirente,
+        "num_doc_adquirente": num_doc_adquirente,
+        "valor_resumen": valor_resumen,
+        "valor_firma": valor_firma,
+    }
+
+
+def extract_qr_candidates(text: str | None) -> list[str]:
+    """
+    Busca líneas o bloques tipo QR SUNAT con separador '|'.
+    """
+    if not text:
+        return []
+
+    candidates: list[str] = []
+    for line in str(text).splitlines():
+        line = line.strip()
+        if "|" in line and len(line.split("|")) >= 9:
+            candidates.append(line)
+
+    # fallback: buscar en texto colapsado
+    text_u = normalize_text(text)
+    if "|" in text_u and not candidates:
+        chunks = text_u.split()
+        joined = " ".join(chunks)
+        if joined.count("|") >= 8:
+            candidates.append(joined)
+
+    return candidates
+3) app/core/classifier.py
 Python
-m = re.search(r"\bORDEN DE COMPRA\s*N(?:RO)?[°º:\s-]*([0-9]{4,})\b", text_u)
-if m:
-    serie = "OC"
-    numero = m.group(1)
-Extracción de fecha
-En tu plantilla aparece como FECHA : 15/04/2026, así que:
-Python
-m = re.search(r"\bFECHA\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
-Extracción de proveedor
-Aquí sale en SEÑOR(ES) : OMEGA POWER S.A.C. y R.U.C. : 20538549071. �
-Entonces:
-ORDEN DE COMRA 007902.pdf.pdf
-Python
-m = re.search(r"\bSEÑOR\(ES\)\s*[:\-]?\s*(.+?)\s+\bFECHA\b", text_original, re.IGNORECASE | re.DOTALL)
-o más simple, si el OCR queda limpio:
-Python
-m = re.search(r"\bSEÑOR\(ES\)\s*[:\-]?\s*(.+)", text_original)
-Y el RUC:
-Python
-m = re.search(r"\bR\.?U\.?C\.?\s*[:\-]?\s*([0-9]{11})\b", text_u)
-Extracción del total
-En la plantilla aparece Total S/ 444.95. �
-Regex sugerido:
-ORDEN DE COMRA 007902.pdf.pdf
-Python
-m = re.search(r"\bTOTAL\s*S/?\s*([0-9][0-9,\.]*)\b", text_u)
-Luego lo pasas por normalize_amount().
-Ajuste conceptual importante
-Como ya definiste bien tu negocio:
-la factura principal define el mes del grupo
-la OC solo aporta contexto
-la fecha de la OC no manda la carpeta final si viene junto a factura
-O sea, aunque a la OC le saques 15/04/2026, si viene con una factura principal de abril, igual hereda abril. Si llega sola, queda en pendiente_asociacion con su propia fecha guardada.
-Función de extracción específica para OC
-Te recomiendo incluso aislarla para que no mezcles demasiadas reglas genéricas:
-Python
-def extract_oc_fields(text_u: str, text_original: str) -> dict:
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from core.text_utils import normalize_text
+from core.qr_parser import extract_qr_candidates, parse_qr_payload
+
+
+FACTURA_SERIE_RE = r"F[A-Z0-9]{3}"
+FACTURA_NUMERO_RE = r"\d{1,8}"
+
+GUIA_SERIE_RE = r"(?:T[A-Z0-9]{3}|GR[A-Z0-9]{2,3})"
+GUIA_NUMERO_RE = r"\d{1,8}"
+
+
+def detect_tipo_documental(text: str, file_name: str) -> str:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
+
+    # 0. QR válido manda
+    for candidate in extract_qr_candidates(text):
+        qr = parse_qr_payload(candidate)
+        if qr and qr.get("tipo_documental") == "factura":
+            return "factura"
+
+    # 1. Certificado
+    if (
+        "CERTIFICADO DE CALIDAD" in text_u
+        or "CERT. DE CALIDAD" in text_u
+        or "CERTIFICADO" in name_u
+    ):
+        return "certificado_calidad"
+
+    # 2. Factura por nombre fuerte
+    if (
+        re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
+    ):
+        return "factura"
+
+    # 3. Guía por nombre fuerte
+    if (
+        re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
+    ):
+        return "guia_remision"
+
+    # 4. Factura por texto fuerte
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u)
+        or re.search(rf"\bNRO\s*{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u)
+    ):
+        return "factura"
+
+    # 5. Guía por texto fuerte
+    if (
+        "GUIA REMISION ELECTRONICA" in text_u
+        or "GUIA DE REMISION ELECTRONICA" in text_u
+        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u)
+        or re.search(rf"\bNRO\s*{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u)
+    ):
+        return "guia_remision"
+
+    # 6. Orden de compra real
+    if (
+        re.search(r"\bORDEN DE COMPRA\s*N(?:RO)?[°º:\s-]*\d{4,}\b", text_u)
+        or re.search(r"\bORDEN DE COMRA\s*N(?:RO)?[°º:\s-]*\d{4,}\b", text_u)
+        or re.search(r"\bORDEN DE COMPRA\b", name_u)
+        or re.search(r"\bOC[- ]?\d{4,}\b", name_u)
+    ):
+        return "orden_compra"
+
+    # 7. Requerimiento
+    if (
+        "REQUERIMIENTO DE COMPRA" in text_u
+        or "REQUERIMIENTO" in text_u
+        or re.search(r"\bREQ[- ]?\d{3,}\b", text_u)
+        or re.search(r"\bREQ[- ]?\d{3,}\b", name_u)
+    ):
+        return "requerimiento_compra"
+
+    # 8. Cotización
+    if (
+        "COTIZACION" in text_u
+        or "PROFORMA" in text_u
+        or "COTIZACION" in name_u
+        or "PROFORMA" in name_u
+    ):
+        return "cotizacion"
+
+    return "otro"
+
+
+def _extract_factura_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
+    patrones = [
+        rf"\b({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
+        rf"\bNRO\s*({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
+    ]
+    for fuente in (text_u, name_u):
+        for patron in patrones:
+            m = re.search(patron, fuente, re.IGNORECASE)
+            if m:
+                return m.group(1), m.group(2)
+    return None, None
+
+
+def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
+    patrones = [
+        rf"\b({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+        rf"\bNRO\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+    ]
+    for fuente in (text_u, name_u):
+        for patron in patrones:
+            m = re.search(patron, fuente, re.IGNORECASE)
+            if m:
+                return m.group(1), m.group(2)
+    return None, None
+
+
+def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
+    doc_type = detect_tipo_documental(text, file_name)
+
+    ruc = None
     serie = None
     numero = None
     fecha_emision = None
-    ruc = None
-    razon_social = None
     importe = None
+    oc = None
+    qr_data = None
 
-    m = re.search(r"\bORDEN DE COMPRA\s*N(?:RO)?[°º:\s-]*([0-9]{4,})\b", text_u)
-    if m:
-        serie = "OC"
-        numero = m.group(1)
+    # 1. QR primero
+    for candidate in extract_qr_candidates(text):
+        qr_data = parse_qr_payload(candidate)
+        if qr_data:
+            break
 
-    m = re.search(r"\bFECHA\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\b", text_u)
-    if m:
-        fecha_emision = m.group(1)
+    if qr_data and qr_data.get("tipo_documental") == "factura":
+        return {
+            "tipo_documental": "factura",
+            "serie": qr_data.get("serie"),
+            "numero": qr_data.get("numero"),
+            "ruc": qr_data.get("ruc_emisor"),
+            "fecha_emision": qr_data.get("fecha_emision"),
+            "importe": qr_data.get("importe"),
+            "igv": qr_data.get("igv"),
+            "oc": None,
+            "qr_data": qr_data,
+        }
 
-    m = re.search(r"\bR\.?U\.?C\.?\s*[:\-]?\s*([0-9]{11})\b", text_u)
-    if m:
-        ruc = m.group(1)
+    # 2. RUC
+    for patron in [
+        r"\bRUC[:\s]*([0-9]{11})\b",
+        r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
+        r"\bREG\.?\s*UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            ruc = m.group(1)
+            break
 
-    m = re.search(r"\bSEÑOR\(ES\)\s*[:\-]?\s*(.+)", text_original, re.IGNORECASE)
-    if m:
-        razon_social = m.group(1).strip()
+    # 3. Serie / número
+    if doc_type == "factura":
+        serie, numero = _extract_factura_fields(text_u, name_u)
 
-    m = re.search(r"\bTOTAL\s*S/?\s*([0-9][0-9,\.]*)\b", text_u)
-    if m:
-        importe = m.group(1).strip()
+    elif doc_type == "guia_remision":
+        serie, numero = _extract_guia_fields(text_u, name_u)
+
+    elif doc_type == "orden_compra":
+        m = re.search(r"\bORDEN DE COM(?:P|R)A\s*N(?:RO)?[°º:\s-]*([0-9]{4,})\b", text_u, re.IGNORECASE)
+        if not m:
+            m = re.search(r"\bOC[- ]?([0-9]{4,})\b", text_u, re.IGNORECASE)
+        if m:
+            serie = "OC"
+            numero = m.group(1)
+
+    elif doc_type == "requerimiento_compra":
+        m = re.search(r"\bREQ[- ]?(\d{3,})\b", text_u, re.IGNORECASE)
+        if not m:
+            m = re.search(r"\bREQUERIMIENTO(?: DE COMPRA)?\s*[:\-]?\s*([0-9]{3,})\b", text_u, re.IGNORECASE)
+        if m:
+            serie = "REQ"
+            numero = m.group(1)
+
+    # 4. Fecha de emisión
+    for patron in [
+        r"\bFECHA DE EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bF\.?\s*EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bFECHA DE EMISION[:\s]*([0-9]{2}-[0-9]{2}-[0-9]{4})\b",
+        r"\bF\.?\s*EMISION[:\s]*([0-9]{2}-[0-9]{2}-[0-9]{4})\b",
+        r"\bFECHA\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\b([0-9]{1,2}\s+DE\s+[A-Z]+\s+DEL\s+[0-9]{4})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            fecha_emision = m.group(1)
+            break
+
+    # 5. OC referencial
+    for patron in [
+        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bOC[:\s]*([0-9]{4,})\b",
+        r"\bORDEN COMPRA[:\s]*([0-9]{4,})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            oc = m.group(1)
+            break
+
+    # 6. Importe
+    for patron in [
+        r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
+        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
+        r"\bTOTAL A PAGAR[:\s]*([0-9][0-9,.\s]*)\b",
+        r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9,.\s]*)\b",
+        r"\bTOTAL\s*S/\s*([0-9][0-9,.\s]*)\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            importe = m.group(1).strip()
+            break
 
     return {
-        "tipo_documental": "orden_compra",
+        "tipo_documental": doc_type,
         "serie": serie,
         "numero": numero,
         "ruc": ruc,
         "fecha_emision": fecha_emision,
         "importe": importe,
-        "razon_social": razon_social,
+        "igv": None,
+        "oc": oc,
+        "qr_data": qr_data,
     }
-Recomendación final
-Sí: para OC conviene usar esta plantilla como regla fuerte y específica, porque ya sabes que en tu operación real casi siempre va a venir con este formato.
-No intentes detectar OC solo por menciones internas en otros documentos.
-Si quieres, en el siguiente paso te dejo el classifier.py final completo integrando esta lógica fuerte para:
-factura
-guía
-orden de compra.
+4) app/procesar_pendientes.py
+Python
+from __future__ import annotations
+
+import platform
+import re
+import subprocess
+from datetime import datetime, date
+from pathlib import Path
+
+import requests
+
+from core.config import STORAGE_DIR, OCR_TMP_DIR, APISPERU_TOKEN
+from core.db import get_cursor
+from core.extractor_pdf import extract_text_from_pdf
+from core.classifier import extract_basic_fields
+from core.file_manager import build_final_name, move_file
+from core.clientes_destino import extract_cliente_destino_raw, find_cliente_destino_by_alias
+from core.grupo_documental import get_next_correlativo_mes, select_factura_principal
+from core.text_utils import normalize_text
+from core.windows_path import build_windows_target_path
+
+
+SQL_SELECT_PENDING = """
+SELECT
+    d.id AS documento_id,
+    d.correo_id,
+    d.proveedor_id,
+    d.tipo_documental,
+    d.serie,
+    d.numero,
+    d.ruc,
+    d.razon_social,
+    d.fecha_emision,
+    d.estado_documento,
+    a.id AS archivo_id,
+    a.ruta_temporal,
+    a.nombre_archivo_actual,
+    a.nombre_archivo_original
+FROM documentos d
+JOIN archivos a ON a.documento_id = d.id
+WHERE d.estado_documento IN ('pendiente', 'error')
+ORDER BY d.id ASC;
+"""
+
+SQL_UPDATE_DOCUMENTO = """
+UPDATE documentos
+SET
+    proveedor_id = %(proveedor_id)s,
+    cliente_destino_id = %(cliente_destino_id)s,
+    tipo_documental = %(tipo_documental)s,
+    serie = %(serie)s,
+    numero = %(numero)s,
+    ruc = %(ruc)s,
+    razon_social = %(razon_social)s,
+    fecha_emision = %(fecha_emision)s,
+    importe = %(importe)s,
+    igv = %(igv)s,
+    estado_documento = %(estado_documento)s,
+    grupo_codigo = %(grupo_codigo)s,
+    correlativo_mes = %(correlativo_mes)s,
+    es_principal = %(es_principal)s,
+    documento_principal_id = %(documento_principal_id)s,
+    nombre_final = %(nombre_final)s,
+    ruta_windows_final = %(ruta_windows_final)s,
+    actualizado_en = NOW()
+WHERE id = %(documento_id)s;
+"""
+
+SQL_UPDATE_ARCHIVO = """
+UPDATE archivos
+SET
+    nombre_archivo_actual = %(nombre_archivo_actual)s,
+    ruta_temporal = %(ruta_temporal)s,
+    estado_archivo = %(estado_archivo)s,
+    actualizado_en = NOW()
+WHERE id = %(archivo_id)s;
+"""
+
+SQL_UPDATE_CORREO = """
+UPDATE correos_ingresados
+SET
+    procesado = %(procesado)s,
+    estado_correo = %(estado_correo)s,
+    observacion = %(observacion)s,
+    actualizado_en = NOW()
+WHERE id = %(correo_id)s;
+"""
+
+
+def resolve_absolute_path(relative_path: str) -> Path:
+    return STORAGE_DIR / relative_path
+
+
+def to_wsl_path(path: Path) -> str:
+    raw = str(path.resolve()).replace("\\", "/")
+    if len(raw) >= 2 and raw[1] == ":":
+        drive = raw[0].lower()
+        rest = raw[2:]
+        return f"/mnt/{drive}{rest}"
+    return raw
+
+
+def normalize_date(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    raw = value.strip().upper()
+    meses = {
+        "ENE": "01", "FEB": "02", "MAR": "03", "ABR": "04",
+        "MAY": "05", "JUN": "06", "JUL": "07", "AGO": "08",
+        "SEP": "09", "OCT": "10", "NOV": "11", "DIC": "12",
+        "ENERO": "01", "FEBRERO": "02", "MARZO": "03", "ABRIL": "04",
+        "MAYO": "05", "JUNIO": "06", "JULIO": "07", "AGOSTO": "08",
+        "SEPTIEMBRE": "09", "OCTUBRE": "10", "NOVIEMBRE": "11", "DICIEMBRE": "12",
+    }
+
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
+    if m:
+        day, mon, year = m.groups()
+        return f"{year}-{mon}-{day}"
+
+    m = re.match(r"^(\d{2})-(\d{2})-(\d{4})$", raw)
+    if m:
+        day, mon, year = m.groups()
+        return f"{year}-{mon}-{day}"
+
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
+    if m:
+        return raw
+
+    m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
+    if m:
+        day, mon_txt, year = m.groups()
+        mon = meses.get(mon_txt)
+        if mon:
+            return f"{year}-{mon}-{day}"
+
+    m = re.match(r"^(\d{1,2}) DE ([A-ZÁÉÍÓÚ]+) DEL (\d{4})$", raw)
+    if m:
+        day, mon_txt, year = m.groups()
+        mon_txt = (
+            mon_txt.replace("Á", "A")
+            .replace("É", "E")
+            .replace("Í", "I")
+            .replace("Ó", "O")
+            .replace("Ú", "U")
+        )
+        mon = meses.get(mon_txt)
+        if mon:
+            return f"{year}-{mon}-{str(day).zfill(2)}"
+
+    return None
+
+
+def parse_iso_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def normalize_amount(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    raw = str(value).strip().replace(" ", "")
+
+    if "," in raw and "." in raw:
+        if raw.rfind(".") > raw.rfind(","):
+            raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(".", "").replace(",", ".")
+    elif "," in raw:
+        parts = raw.split(",")
+        if len(parts) == 2 and len(parts[1]) in (2, 3):
+            raw = raw.replace(",", ".")
+        else:
+            raw = raw.replace(",", "")
+
+    raw = re.sub(r"[^0-9.\-]", "", raw)
+    return raw or None
+
+
+def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+    system_name = platform.system().lower()
+
+    if "windows" in system_name:
+        input_wsl = to_wsl_path(input_pdf)
+        output_wsl = to_wsl_path(output_pdf)
+        cmd = [
+            "C:\\Windows\\System32\\wsl.exe",
+            "bash",
+            "-lc",
+            f'/home/loxi1/venvs/ocrpdf/bin/ocrmypdf -l spa --force-ocr "{input_wsl}" "{output_wsl}"'
+        ]
+    else:
+        cmd = [
+            "ocrmypdf",
+            "-l", "spa",
+            "--force-ocr",
+            str(input_pdf),
+            str(output_pdf),
+        ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            print("[OCR ERROR STDOUT]")
+            print(result.stdout)
+            print("[OCR ERROR STDERR]")
+            print(result.stderr)
+            return False
+        return True
+    except Exception as exc:
+        print(f"[OCR EXCEPTION] {exc}")
+        return False
+
+
+def fetch_proveedor_from_api(ruc: str) -> dict | None:
+    if not ruc or not APISPERU_TOKEN:
+        return None
+
+    url = f"https://dniruc.apisperu.com/api/v1/ruc/{ruc}?token={APISPERU_TOKEN}"
+
+    try:
+        resp = requests.get(url, timeout=15)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return {
+            "ruc": data.get("ruc"),
+            "nombre": data.get("razonSocial"),
+            "direccion": data.get("direccion"),
+        }
+    except Exception as exc:
+        print(f"[API RUC ERROR] ruc={ruc} error={exc}")
+        return None
+
+
+def get_or_create_proveedor(
+    ruc: str | None,
+    razon_social: str | None = None,
+    direccion: str | None = None,
+) -> dict | None:
+    if not ruc:
+        return None
+
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            "SELECT id, ruc, nombre, direccion FROM proveedores WHERE ruc = %s",
+            (ruc,),
+        )
+        row = cur.fetchone()
+        if row:
+            return dict(row)
+
+    api_data = fetch_proveedor_from_api(ruc)
+    nombre_final = api_data.get("nombre") if api_data else (razon_social or "SIN_RAZON_SOCIAL")
+    direccion_final = api_data.get("direccion") if api_data else direccion
+
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            """
+            INSERT INTO proveedores (ruc, nombre, direccion, creado_en, actualizado_en)
+            VALUES (%s, %s, %s, NOW(), NOW())
+            RETURNING id, ruc, nombre, direccion
+            """,
+            (ruc, nombre_final, direccion_final),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def update_correo_estado(correo_id: int, procesado: bool, estado_correo: str, observacion: str | None = None) -> None:
+    with get_cursor(commit=True) as (_, cur):
+        cur.execute(
+            SQL_UPDATE_CORREO,
+            {
+                "correo_id": correo_id,
+                "procesado": procesado,
+                "estado_correo": estado_correo,
+                "observacion": observacion,
+            },
+        )
+
+
+def get_pending_rows():
+    with get_cursor() as (_, cur):
+        cur.execute(SQL_SELECT_PENDING)
+        return [dict(r) for r in cur.fetchall()]
+
+
+def group_by_correo(rows: list[dict]) -> dict[int, list[dict]]:
+    grouped: dict[int, list[dict]] = {}
+    for row in rows:
+        grouped.setdefault(row["correo_id"], []).append(row)
+    return grouped
+
+
+def enrich_document(item: dict) -> dict:
+    pdf_path = resolve_absolute_path(item["ruta_temporal"])
+    text = ""
+    ocr_output = None
+
+    try:
+        text = extract_text_from_pdf(pdf_path)
+    except Exception:
+        text = ""
+
+    if not text.strip():
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
+        ocr_ok = run_ocr(pdf_path, ocr_output)
+        if ocr_ok and ocr_output.exists():
+            try:
+                text = extract_text_from_pdf(ocr_output)
+            except Exception:
+                text = ""
+
+    fields = extract_basic_fields(text, item["nombre_archivo_original"])
+    qr_data = fields.get("qr_data") or {}
+
+    cliente_raw = extract_cliente_destino_raw(text)
+    cliente_match = find_cliente_destino_by_alias(cliente_raw)
+
+    fecha_raw = qr_data.get("fecha_emision") or fields["fecha_emision"]
+    fecha_norm = normalize_date(fecha_raw)
+    fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
+
+    razon_social_emisor = item.get("razon_social") or None
+    if not razon_social_emisor:
+        m = re.search(
+            r"\bEMISOR[:\s]+(.+?)(?:\bDIRECCION\b|\bRUC\b)",
+            normalize_text(text),
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            razon_social_emisor = m.group(1).strip()
+
+    ruc_emisor_final = qr_data.get("ruc_emisor") or fields.get("ruc")
+    serie_final = qr_data.get("serie") or fields.get("serie")
+    numero_final = qr_data.get("numero") or fields.get("numero")
+    importe_final = qr_data.get("importe") or fields.get("importe")
+    igv_final = qr_data.get("igv") or fields.get("igv")
+    tipo_final = qr_data.get("tipo_documental") or fields.get("tipo_documental")
+
+    merged_fields = {
+        **fields,
+        "tipo_documental": tipo_final,
+        "serie": serie_final,
+        "numero": numero_final,
+        "ruc": ruc_emisor_final,
+        "fecha_emision": fecha_raw,
+        "importe": importe_final,
+        "igv": igv_final,
+    }
+
+    return {
+        **item,
+        "text": text,
+        "fields": merged_fields,
+        "cliente_raw": cliente_raw,
+        "cliente_match": cliente_match,
+        "fecha_emision_norm": fecha_norm,
+        "fecha_emision_date": fecha_date,
+        "razon_social_emisor_detectada": razon_social_emisor,
+        "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
+        "qr_data": qr_data,
+    }
+
+
+def mark_documents_as_review(
+    items: list[dict],
+    estado_documento: str,
+    bucket: str = "pendientes_revision",
+) -> None:
+    for item in items:
+        pdf_path = resolve_absolute_path(item["ruta_temporal"])
+        file_name = item["nombre_archivo_actual"]
+
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+
+        destino_relativo = f"{bucket}/{year}/{month}/{file_name}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        fields = item.get("fields", {})
+        ruc_emisor = fields.get("ruc")
+        razon_social_emisor = item.get("razon_social_emisor_detectada") or item.get("razon_social") or "SIN_RAZON_SOCIAL"
+
+        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+        proveedor_id = proveedor["id"] if proveedor else None
+
+        if proveedor and proveedor.get("nombre"):
+            razon_social_emisor = proveedor["nombre"]
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                """
+                UPDATE documentos
+                SET
+                    proveedor_id = %(proveedor_id)s,
+                    tipo_documental = %(tipo_documental)s,
+                    serie = %(serie)s,
+                    numero = %(numero)s,
+                    ruc = %(ruc)s,
+                    razon_social = %(razon_social)s,
+                    fecha_emision = %(fecha_emision)s,
+                    importe = %(importe)s,
+                    igv = %(igv)s,
+                    estado_documento = %(estado_documento)s,
+                    actualizado_en = NOW()
+                WHERE id = %(documento_id)s
+                """,
+                {
+                    "proveedor_id": proveedor_id,
+                    "tipo_documental": fields.get("tipo_documental"),
+                    "serie": fields.get("serie"),
+                    "numero": fields.get("numero"),
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social_emisor,
+                    "fecha_emision": item.get("fecha_emision_norm"),
+                    "importe": normalize_amount(fields.get("importe")),
+                    "igv": normalize_amount(fields.get("igv")),
+                    "estado_documento": estado_documento,
+                    "documento_id": item["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": file_name,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": "observado",
+                    "archivo_id": item["archivo_id"],
+                },
+            )
+
+
+def process_correo(items: list[dict]) -> None:
+    enriched = [enrich_document(x) for x in items]
+
+    print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
+    for d in enriched:
+        print({
+            "documento_id": d["documento_id"],
+            "archivo": d["nombre_archivo_actual"],
+            "tipo": d["fields"]["tipo_documental"],
+            "serie": d["fields"]["serie"],
+            "numero": d["fields"]["numero"],
+            "ruc": d["fields"]["ruc"],
+            "oc": d["fields"].get("oc"),
+            "cliente_raw": d.get("cliente_raw"),
+            "cliente_match": d.get("cliente_match"),
+            "fecha": d.get("fecha_emision_norm"),
+            "qr": bool(d.get("qr_data")),
+        })
+
+    factura_principal = select_factura_principal(enriched)
+    print("[DEBUG] factura_principal =", factura_principal)
+
+    correo_id = items[0]["correo_id"]
+
+    if not factura_principal:
+        print(f"[WARN] correo_id={correo_id} sin factura principal")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="pendiente_asociacion",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="sin_factura_principal",
+            observacion="No se encontró factura principal en el correo.",
+        )
+        return
+
+    fecha_principal = factura_principal.get("fecha_emision_date")
+    if not fecha_principal:
+        print(f"[WARN] correo_id={correo_id} factura sin fecha")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="revision_manual",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="factura_sin_fecha",
+            observacion="La factura principal no tiene fecha de emisión reconocible.",
+        )
+        return
+
+    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
+
+    cliente_match = factura_principal.get("cliente_match")
+    cliente_destino_id = cliente_match["id"] if cliente_match else None
+
+    ruta_windows_final = None
+    if cliente_match:
+        ruta_windows_final = build_windows_target_path(
+            cliente_match["ruta_windows"],
+            fecha_principal,
+        )
+
+    documento_principal_id = factura_principal["documento_id"]
+
+    total_docs = len(enriched)
+    total_clasificados = 0
+    total_no_identificados = 0
+    total_adjuntos_factura = 0
+
+    for doc in enriched:
+        fields = doc["fields"]
+        tipo_documental = fields["tipo_documental"]
+        ruc_emisor = fields["ruc"]
+        razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
+
+        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+        proveedor_id = proveedor["id"] if proveedor else None
+
+        if proveedor and proveedor.get("nombre"):
+            razon_social_emisor = proveedor["nombre"]
+
+        es_principal = doc["documento_id"] == documento_principal_id
+        documento_principal_ref = None if es_principal else documento_principal_id
+
+        cliente_id_final = (
+            doc["cliente_match"]["id"]
+            if doc.get("cliente_match")
+            else cliente_destino_id
+        )
+
+        if (
+            tipo_documental == "factura"
+            and not fields["serie"]
+            and not fields["numero"]
+            and ruc_emisor
+            and factura_principal["fields"]["ruc"] == ruc_emisor
+        ):
+            tipo_documental = "adjunto_factura"
+            total_adjuntos_factura += 1
+            print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
+
+        if tipo_documental == "otro":
+            tipo_documental = "adjunto_documento"
+
+        nombre_final = build_final_name(
+            grupo_codigo=grupo_codigo,
+            tipo_documental=tipo_documental,
+            serie=fields["serie"],
+            numero=fields["numero"],
+            ruc_emisor=ruc_emisor,
+            razon_social_emisor=razon_social_emisor,
+            fallback_name=doc["nombre_archivo_actual"],
+        )
+
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+
+        # La factura principal define el año/mes para todo el grupo
+        year = f"{fecha_principal.year}"
+        month = f"{fecha_principal.month:02d}"
+
+        estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
+        bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
+
+        if estado_documento == "clasificado":
+            total_clasificados += 1
+        else:
+            total_no_identificados += 1
+
+        destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO,
+                {
+                    "proveedor_id": proveedor_id,
+                    "cliente_destino_id": cliente_id_final,
+                    "tipo_documental": tipo_documental,
+                    "serie": fields["serie"],
+                    "numero": fields["numero"],
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social_emisor,
+                    "fecha_emision": doc["fecha_emision_norm"],
+                    "importe": normalize_amount(fields["importe"]),
+                    "igv": normalize_amount(fields.get("igv")),
+                    "estado_documento": estado_documento,
+                    "grupo_codigo": grupo_codigo,
+                    "correlativo_mes": correlativo_mes,
+                    "es_principal": es_principal,
+                    "documento_principal_id": documento_principal_ref,
+                    "nombre_final": nombre_final,
+                    "ruta_windows_final": ruta_windows_final,
+                    "documento_id": doc["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": nombre_final,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": "renombrado",
+                    "archivo_id": doc["archivo_id"],
+                },
+            )
+
+        print(
+            f"[OK] correo={doc['correo_id']} "
+            f"doc={doc['documento_id']} "
+            f"tipo={tipo_documental} "
+            f"grupo={grupo_codigo} "
+            f"nombre={nombre_final}"
+        )
+
+    observacion = (
+        f"Procesado correctamente. "
+        f"Documentos: {total_docs}, "
+        f"clasificados: {total_clasificados}, "
+        f"no_identificados: {total_no_identificados}, "
+        f"adjuntos_factura: {total_adjuntos_factura}, "
+        f"grupo: {grupo_codigo}."
+    )
+
+    estado_correo = "procesado"
+    if total_no_identificados > 0:
+        estado_correo = "procesado_con_observaciones"
+
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=True,
+        estado_correo=estado_correo,
+        observacion=observacion,
+    )
+
+
+def main() -> None:
+    rows = get_pending_rows()
+    if not rows:
+        print("No hay documentos pendientes.")
+        return
+
+    grouped = group_by_correo(rows)
+    print(f"Correos pendientes encontrados: {len(grouped)}")
+
+    for correo_id, items in grouped.items():
+        print(f"[INFO] procesando correo_id={correo_id} documentos={len(items)}")
+        process_correo(items)
+
+
+if __name__ == "__main__":
+    main()
+Reglas finales que ya quedan aplicadas
+Factura
+Se detecta por:
+QR SUNAT válido
+nombre fuerte Fxxx-123
+texto FACTURA ELECTRONICA
+Orden de compra
+Se detecta por:
+ORDEN DE COMPRA N° 007902
+nombre de archivo tipo OC
+no por una simple referencia interna dentro de una factura
+Grupo
+La fecha de emisión de la factura principal define:
+mes del grupo
+carpeta local del grupo
+futura ruta Windows del grupo
+Sin factura principal
+Todo va a:
+pendientes_revision
+estado pendiente_asociacion
+Antes de probar
+Corre esto:
+Bash
+python -m py_compile app/core/text_utils.py
+python -m py_compile app/core/qr_parser.py
+python -m py_compile app/core/classifier.py
+python -m py_compile app/procesar_pendientes.py
+Luego:
+limpia BD
+limpia carpetas
+corre n8n
+corre python procesar_pendientes.py
+Cuando tengas la salida, pégamela y validamos si ya quedó cerrada la lógica local.
