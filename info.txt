@@ -1,44 +1,236 @@
-para el caso en particular sale:
---- RESUMEN MINIMO ---
-
-{'es_factura_valida': True,
- 'fecha_emision': '21/04/2026',
- 'fecha_norm': '2026-04-21',
- 'numero': '7700',
- 'ruc': '20111740438',
- 'serie': 'FF12',
- 'tipo_documental': 'factura'}
-
-RUC: 20538549071 
-Factura Electronica 
-F002-00000254
-python debug_pdf.pdf
-...
---- CANDIDATOS QR ---
-
-No se encontraron candidatos QR en el texto.
-
---- FECHA ---
-
-fecha_raw : None
-fecha_norm: None
-fecha_date: None
-
---- REGLA DE NEGOCIO (SIMULACION) ---
-
-[RESULTADO] NO ES FACTURA VALIDA COMPLETA
-Se deberia mover a: pendientes_revision/YYYY/MM/
-
---- RESUMEN MINIMO ---
-
-{'es_factura_valida': False,
- 'fecha_emision': None,
- 'fecha_norm': None,
- 'numero': '00000254',
- 'ruc': '20565747356',
- 'serie': 'F002',
- 'tipo_documental': 'factura'
-}
-tiene pero el dato esta debajo es decir salto de linea
-Fecha de Emisión 
+Perfecto. Ya encontramos otro patrón real:
+Caso 1: FF12-7700
+Ya quedó bien:
+es_factura_valida = True
+Caso 2: F002-00000254
+Falla por dos cosas:
+fecha_emision = None porque viene en salto de línea:
+Fecha de Emisión
 2026-04-16
+ruc = 20565747356 y ese parece ser el cliente, no el emisor
+el emisor real sería 20538549071
+Entonces hay que endurecer dos extracciones para factura:
+1. Fecha con salto de línea
+Debes aceptar esto:
+Plain text
+FECHA DE EMISION
+2026-04-16
+y no solo en la misma línea.
+2. RUC del emisor
+En factura, si el nombre del archivo trae este patrón:
+Plain text
+20538549071-01-F002-00000254.pdf
+ese RUC del nombre suele ser mucho más confiable como emisor que el primer RUC que aparezca en el texto, porque dentro del cuerpo también aparece el RUC del cliente.
+Ajuste recomendado en extract_basic_fields()
+Te dejo el bloque corregido para:
+priorizar RUC emisor desde nombre de archivo para facturas
+detectar fecha aunque esté debajo del texto Fecha de Emisión
+Reemplaza extract_basic_fields() por esta versión
+Python
+def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
+    doc_type = detect_tipo_documental(text, file_name)
+
+    FACTURA_SERIE_RE = r"F[A-Z0-9]{3}"
+    FACTURA_NUMERO_RE = r"\d{1,8}"
+
+    GUIA_SERIE_RE = r"(?:T[A-Z0-9]{3}|GR[A-Z0-9]{2,3})"
+    GUIA_NUMERO_RE = r"\d{1,8}"
+
+    ruc = None
+    serie = None
+    numero = None
+    fecha_emision = None
+    importe = None
+    oc = None
+    qr_data = None
+
+    # 1. QR primero
+    for candidate in extract_qr_candidates(text):
+        qr_data = parse_qr_payload(candidate)
+        if qr_data:
+            break
+
+    if qr_data and qr_data.get("tipo_documental") == "factura":
+        return {
+            "tipo_documental": "factura",
+            "serie": qr_data.get("serie"),
+            "numero": qr_data.get("numero"),
+            "ruc": qr_data.get("ruc_emisor"),
+            "fecha_emision": qr_data.get("fecha_emision"),
+            "importe": qr_data.get("importe"),
+            "igv": qr_data.get("igv"),
+            "oc": None,
+            "qr_data": qr_data,
+        }
+
+    # 2. Serie / número
+    if doc_type == "factura":
+        patrones = [
+            rf"\b({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
+            rf"\bNRO\s*({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
+        ]
+        for fuente in (text_u, name_u):
+            for patron in patrones:
+                m = re.search(patron, fuente, re.IGNORECASE)
+                if m:
+                    serie = m.group(1)
+                    numero = m.group(2)
+                    break
+            if serie and numero:
+                break
+
+    elif doc_type == "guia_remision":
+        patrones = [
+            rf"\b({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+            rf"\bNRO\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+        ]
+        for fuente in (text_u, name_u):
+            for patron in patrones:
+                m = re.search(patron, fuente, re.IGNORECASE)
+                if m:
+                    serie = m.group(1)
+                    numero = m.group(2)
+                    break
+            if serie and numero:
+                break
+
+    elif doc_type == "orden_compra":
+        m = re.search(r"\bORDEN DE COM(?:P|R)A\s*N(?:RO)?[°º:\s-]*([0-9]{4,})\b", text_u, re.IGNORECASE)
+        if not m:
+            m = re.search(r"\bOC[- ]?([0-9]{4,})\b", text_u, re.IGNORECASE)
+        if m:
+            serie = "OC"
+            numero = m.group(1)
+
+    elif doc_type == "requerimiento_compra":
+        m = re.search(r"\bREQ[- ]?(\d{3,})\b", text_u, re.IGNORECASE)
+        if not m:
+            m = re.search(r"\bREQUERIMIENTO(?: DE COMPRA)?\s*[:\-]?\s*([0-9]{3,})\b", text_u, re.IGNORECASE)
+        if m:
+            serie = "REQ"
+            numero = m.group(1)
+
+    # 3. RUC
+    # Para factura, priorizar el RUC del nombre del archivo:
+    # 20538549071-01-F002-00000254.pdf
+    if doc_type == "factura":
+        m = re.search(r"\b(\d{11})-\d{2}-F[A-Z0-9]{3}-\d{1,8}\b", name_u, re.IGNORECASE)
+        if m:
+            ruc = m.group(1)
+
+    # Si no salió del nombre, buscar en texto
+    if not ruc:
+        for patron in [
+            r"\bRUC[:\s]*([0-9]{11})\b",
+            r"\bR\.?U\.?C\.?\s*(?:NRO|N)?[:\s]*([0-9]{11})\b",
+            r"\bREG\.?\s*UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b",
+        ]:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                ruc = m.group(1)
+                break
+
+    # 4. Fecha de emisión
+    # 4.1 misma línea
+    for patron in [
+        r"\bFECHA DE EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bFECHA DE EMISION[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2})\b",
+        r"\bF\.?\s*EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bF\.?\s*EMISION[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            fecha_emision = m.group(1)
+            break
+
+    # 4.2 salto de línea o separada por espacios
+    if not fecha_emision:
+        for patron in [
+            r"FECHA DE EMISION\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+            r"FECHA DE EMISION\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
+            r"F\.?\s*EMISION\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+            r"F\.?\s*EMISION\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
+        ]:
+            m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+            if m:
+                fecha_emision = m.group(1)
+                break
+
+    # 4.3 fallback contextual para factura
+    if not fecha_emision and doc_type == "factura" and serie and numero:
+        m_fact = re.search(
+            rf"({serie}-{numero})",
+            text_u,
+            re.IGNORECASE,
+        )
+        if m_fact:
+            start = max(0, m_fact.start() - 250)
+            end = min(len(text_u), m_fact.end() + 250)
+            window = text_u[start:end]
+            fechas = re.findall(r"\b([0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2})\b", window)
+            if fechas:
+                fecha_emision = fechas[0]
+
+    # 5. OC referencial
+    for patron in [
+        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bOC[:\s]*([0-9]{4,})\b",
+        r"\bORDEN COMPRA[:\s]*([0-9]{4,})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            oc = m.group(1)
+            break
+
+    # 6. Importe
+    for patron in [
+        r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
+        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
+        r"\bTOTAL A PAGAR[:\s]*([0-9][0-9,.\s]*)\b",
+        r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9,.\s]*)\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            importe = m.group(1).strip()
+            break
+
+    return {
+        "tipo_documental": doc_type,
+        "serie": serie,
+        "numero": numero,
+        "ruc": ruc,
+        "fecha_emision": fecha_emision,
+        "importe": importe,
+        "igv": None,
+        "oc": oc,
+        "qr_data": qr_data,
+    }
+Por qué esto te corrige el caso F002-00000254
+Fecha
+Acepta:
+Plain text
+FECHA DE EMISION
+2026-04-16
+RUC
+Si el archivo se llama algo como:
+Plain text
+20538549071-01-F002-00000254.pdf
+tomará 20538549071 como emisor, aunque dentro del texto aparezca también 20565747356 del cliente.
+Qué deberías ver ahora en debug_pdf.py
+Plain text
+tipo_documental: factura
+serie: F002
+numero: 00000254
+ruc: 20538549071
+fecha_emision: 2026-04-16
+fecha_norm: 2026-04-16
+es_factura_valida: True
+Conclusión
+Sí, ya estás en la recta final.
+Te faltaba robustecer:
+fecha con salto de línea
+RUC emisor desde nombre de archivo cuando es factura
+Haz ese cambio y vuelve a ejecutar debug_pdf.py para ese F002-00000254.
+Si sale es_factura_valida: True, entonces ya debe ir a pendientes_clasificados.
