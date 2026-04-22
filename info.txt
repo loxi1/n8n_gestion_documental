@@ -1,53 +1,8 @@
-Sí, buena observación. Con ese bloque solo, FF12-7700 sí debería caer como factura.
-Entonces, si no se movió a pendientes_clasificados, la causa más probable no fue ese regex aislado, sino una de estas:
-Dónde puede haber fallado realmente
-1. Se estaba ejecutando una versión anterior de classifier.py
-Esto es lo más probable.
-Porque en tu log anterior ese documento salió como:
-Plain text
-tipo: orden_compra
-y eso no cuadra con este bloque:
-Python
-if (
-    re.search(r"\bF[A-Z0-9]{3}-\d{1,8}\b", name_u)
-    or re.search(r"\b\d{11}-\d{2}-F[A-Z0-9]{3}-\d{1,8}\b", name_u)
-):
-    return "factura"
-Para el nombre:
-Plain text
-20111740438-01-FF12-7700.pdf
-sí hay match.
-Entonces, si igual salió orden_compra, casi seguro pasó una de estas dos cosas:
-el archivo que se ejecutó no tenía ese código actualizado
-o luego lo corregiste, pero ese documento observado ya venía de una corrida anterior
-2. detect_tipo_documental() pudo decir factura, pero extract_basic_fields() no logró sacar serie/número
-Esto también puede romper el flujo.
-Porque mover a clasificados no depende solo de “parece factura”, sino de que luego el documento quede usable.
-Si por ejemplo:
-Python
-tipo_documental = "factura"
-serie = None
-numero = None
-fecha_emision = None
-entonces el flujo puede mandarlo a revisión.
-En tu caso
-Si el patrón de extracción de serie/número no contemplaba bien FF12-7700, el tipo pudo ser “factura”, pero sin datos suficientes.
-3. El documento ya estaba en pendientes_revision de una corrida previa
-Esto también pasa mucho.
-Si ya había sido movido antes por una clasificación incorrecta, después cambiar el regex no lo mueve solo si ya no está en estado pendiente o si no entra en la nueva corrida.
-4. Otra validación posterior lo frenó
-Aunque el tipo salga bien, todavía hay otras validaciones:
-fecha de emisión
-factura principal
-actualización BD
-errores SQL
-flujo del correo
-Entonces el regex puede estar bien y aun así no terminar en clasificados.
-Lo importante: cómo comprobarlo sin adivinar
-Haz esta prueba exacta en classifier.py o en un script rápido.
-Prueba mínima
-Python
+agreger esto en classifier.py
+from __future__ import annotations
+
 import re
+from typing import Any
 from core.text_utils import normalize_text
 
 name = "20111740438-01-FF12-7700.pdf"
@@ -56,15 +11,16 @@ name_u = normalize_text(name)
 print(name_u)
 print(bool(re.search(r"\bF[A-Z0-9]{3}-\d{1,8}\b", name_u)))
 print(bool(re.search(r"\b\d{11}-\d{2}-F[A-Z0-9]{3}-\d{1,8}\b", name_u)))
-Resultado esperado
-Debe dar:
-Plain text
-20111740438-01-FF12-7700.PDF
-True
-True
-Si da True, entonces el problema no era ese regex.
-Mi diagnóstico con lo que mostraste
-Por cómo fue evolucionando tu log, yo creo que pasó esto:
+...
+
+salde este error en consola:
+$ python core/classifier.py
+Traceback (most recent call last):
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\core\classifier.py", line 5, in <module>
+    from core.text_utils import normalize_text
+ModuleNotFoundError: No module named 'core'
+(venv) 
+
 Antes
 El documento fue procesado con una versión donde:
 o no estaba esa prioridad por nombre fuerte
