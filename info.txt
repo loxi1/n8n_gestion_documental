@@ -3,6 +3,10 @@ CREDENCIALES
 SERVBBTI\sistemas	
 515t3mbbt1@dm
 
+[15/4, 11:14 a. m.] Jesus BBTI SAC: facturasbbti@gmail.com
+[15/4, 11:14 a. m.] Jesus BBTI SAC: factur@5bbt12026
+[15/4, 11:28 a. m.] Jesus BBTI SAC: facturas@bbti.com.pe
+
 la orden de compra va tener esta frase en tu contenenido La pseentacion de las facturas deberá ralizarse únicamente a travéz del siguiente medio digital: facturas@bbti.com.pe y creo que para identificar que es el documento de compra debe decir facturas@bbti.com.pe
 Sí, con este formato ya se puede dejar una regla mucho más confiable para orden_compra. En la plantilla que subiste se ve claramente el patrón base: encabezado “Orden de Compra N°: 007902”, proveedor en “SEÑOR(ES)”, RUC del proveedor, fecha, moneda, cotización, centro de costos, lugar de entrega, detalle, subtotales y total. �
 ORDEN DE COMRA 007902.pdf.pdf
