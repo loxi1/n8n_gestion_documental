@@ -1,41 +1,286 @@
-No entiendo que paso puse DEV_FORCE_REVIEW_FACTURAS=0
-todo los archivos estan en pendientes_revision, pero si ya tiene todo el nombre completo ya estan verificados porque no se mueven a pendientes_clasificados y creo que ya deberia estar bien porque de aqui para mover a la carpeta windows consideracion esta es la estructura de carpetas cual seria encontes la logica de negocio pense que ivan a esar pendienes_clasificado e ivan a pasar a la carpeta compartida de windows:
-$ ls -l
-total 6497
--rw-r--r-- 1 BBTI 01 197121  969689 Mar 18 08:27 '04-260 F001-1302.pdf'
--rw-r--r-- 1 BBTI 01 197121  391840 Mar 18 08:28 '04-274 E001-56.pdf'
--rw-r--r-- 1 BBTI 01 197121  951921 Mar 18 08:29 '04-70 E001-341.pdf'
-drwxr-xr-x 1 BBTI 01 197121       0 Jul 22  2022 '1 PERIODO 2021'/
-drwxr-xr-x 1 BBTI 01 197121       0 Sep 28  2022 '2 PERIODO 2022'/
--rw-r--r-- 1 BBTI 01 197121  213842 Feb  2 09:12  20260202092812342.pdf
--rw-r--r-- 1 BBTI 01 197121  117327 Feb 20 14:40  20260220145554234.pdf
--rw-r--r-- 1 BBTI 01 197121  562945 Mar 18 08:28  20260318095809304.pdf
--rw-r--r-- 1 BBTI 01 197121  238650 Apr 10 17:41  20260410191125904.pdf
-drwxr-xr-x 1 BBTI 01 197121       0 Jan 23  2024 '3 PERIODO 2023'/
-drwxr-xr-x 1 BBTI 01 197121       0 Oct 23  2024 '4 PERIODO 2024'/
-drwxr-xr-x 1 BBTI 01 197121       0 Nov  6 19:02 '5 PERIODO 2025'/
-drwxr-xr-x 1 BBTI 01 197121       0 Feb 18 17:28 '6 PERIODO 2026'/
-drwxr-xr-x 1 BBTI 01 197121       0 Jan  5 12:04 '7 IMPORTACION'/
--rw-r--r-- 1 BBTI 01 197121   23428 Jan  6 15:19 'BBTI NOVIEMRE.xlsx'
--rw-r--r-- 1 BBTI 01 197121   22723 Jan  6 15:16 'BBTI OCTUBRE.xlsx'
--rw-r--r-- 1 BBTI 01 197121   23196 Feb  6 09:25 'BBTI SETIEMBRE.xlsx'
--rw-r--r-- 1 BBTI 01 197121 3102720 Jan 13 17:58  Thumbs.db
--rwxr-xr-x 1 BBTI 01 197121     598 Apr 15 08:20 'finanzas (192.168.0.143) (Y) - Acceso directo.lnk'*
--rw-r--r-- 1 BBTI 01 197121     165 Jun  9  2023 '~$CLAVES.xlsx'
+Sí, ya lo validé y te digo claro qué ya está y qué falta.
+Lo que ya tienes bien
+En tu process_correo() actual ya veo:
+enrich_document() devuelve qr_data y pisa los campos con QR cuando existe. � �
+Código pegado (2).py
+Código pegado (2).py
+process_correo() ya imprime si el documento tiene QR con bool(d.get("qr_data")). �
+Código pegado: py
+ya tienes la rama de revision_manual por DEV_FORCE_REVIEW_FACTURAS. �
+Código pegado: py
+ya cuentas total_revision_manual. �
+Código pegado: py
+Lo que falta
+Todavía no veo integrado en tu process_correo():
+la llamada a:
+Python
+es_factura_valida, diferencias_criticas, advertencias = is_factura_valida_produccion(fields, qr_data)
+la lógica de producción para facturas:
+si not es_factura_valida → revision_manual
+si DEV_FORCE_REVIEW_FACTURAS → revision_manual
+si no → clasificado
+los logs de:
+diferencias_criticas
+advertencias
+Además, en el snippet más viejo todavía aparece estado_archivo: "renombrado" fijo y el resumen final sin revision_manual, que era la versión anterior. �
+Código pegado (2).py
+Dónde ponerlo
+Pon esto dentro del for doc in enriched:, justo después de:
+Python
+fields = doc["fields"]
+tipo_documental = fields["tipo_documental"]
+y antes de calcular proveedor:
+Python
+qr_data = doc.get("qr_data")
 
-BBTI 01@PROGRAMACION MINGW64 /y
-$ cd 6\ PERIODO\ 2026/
+es_factura_valida, diferencias_criticas, advertencias = is_factura_valida_produccion(
+    fields,
+    qr_data,
+)
+process_correo() final
+Te dejo la función final lista para pegar.
+Python
+def process_correo(items: list[dict]) -> None:
+    enriched = [enrich_document(x) for x in items]
 
-BBTI 01@PROGRAMACION MINGW64 /y/6 PERIODO 2026
-$ ls -l
-total 0
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 22 14:56 'BB TECNOLOGIA'/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 20 15:50 'CIMA ENERGY'/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:58  HUANCAVELICA/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:21  ILUMINACION/
-drwxr-xr-x 1 BBTI 01 197121 0 Mar 17 08:58  KIMBIRI/
+    print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
+    for d in enriched:
+        print({
+            "documento_id": d["documento_id"],
+            "archivo": d["nombre_archivo_actual"],
+            "tipo": d["fields"]["tipo_documental"],
+            "serie": d["fields"]["serie"],
+            "numero": d["fields"]["numero"],
+            "ruc": d["fields"]["ruc"],
+            "oc": d["fields"].get("oc"),
+            "cliente_raw": d.get("cliente_raw"),
+            "cliente_match": d.get("cliente_match"),
+            "fecha": d.get("fecha_emision_norm"),
+            "qr": bool(d.get("qr_data")),
+        })
 
-BBTI 01@PROGRAMACION MINGW64 /y/6 PERIODO 2026
-$
-yo quiero usar 6\ PERIODO\ 2026/ actuamente pesa 1.10 GB por ejemplo  y el 5 PERIODO 2025 pesa 3.95GB
-mi duda es cuando desmonto la carpeta o todo el disco Y todo esos archivo van a ocupar espacio en mi servidor ubuntu?
+    factura_principal = select_factura_principal(enriched)
+    print("[DEBUG] factura_principal =", factura_principal)
+
+    correo_id = items[0]["correo_id"]
+
+    if not factura_principal:
+        print(f"[WARN] correo_id={correo_id} sin factura principal")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="pendiente_asociacion",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="sin_factura_principal",
+            observacion="No se encontró factura principal en el correo.",
+        )
+        return
+
+    fecha_principal = factura_principal.get("fecha_emision_date")
+    if not fecha_principal:
+        print(f"[WARN] correo_id={correo_id} factura sin fecha")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="revision_manual",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="factura_sin_fecha",
+            observacion="La factura principal no tiene fecha de emisión reconocible.",
+        )
+        return
+
+    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
+
+    cliente_match = factura_principal.get("cliente_match")
+    cliente_destino_id = cliente_match["id"] if cliente_match else None
+
+    ruta_windows_final = None
+    if cliente_match:
+        ruta_windows_final = build_windows_target_path(
+            cliente_match["ruta_windows"],
+            fecha_principal,
+        )
+
+    documento_principal_id = factura_principal["documento_id"]
+
+    total_docs = len(enriched)
+    total_clasificados = 0
+    total_no_identificados = 0
+    total_adjuntos_factura = 0
+    total_revision_manual = 0
+
+    for doc in enriched:
+        fields = doc["fields"]
+        tipo_documental = fields["tipo_documental"]
+        qr_data = doc.get("qr_data")
+
+        es_factura_valida, diferencias_criticas, advertencias = is_factura_valida_produccion(
+            fields,
+            qr_data,
+        )
+
+        ruc_emisor = fields["ruc"]
+        razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
+
+        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+        proveedor_id = proveedor["id"] if proveedor else None
+
+        if proveedor and proveedor.get("nombre"):
+            razon_social_emisor = proveedor["nombre"]
+
+        es_principal = doc["documento_id"] == documento_principal_id
+        documento_principal_ref = None if es_principal else documento_principal_id
+
+        cliente_id_final = (
+            doc["cliente_match"]["id"]
+            if doc.get("cliente_match")
+            else cliente_destino_id
+        )
+
+        if (
+            tipo_documental == "factura"
+            and not fields["serie"]
+            and not fields["numero"]
+            and ruc_emisor
+            and factura_principal["fields"]["ruc"] == ruc_emisor
+        ):
+            tipo_documental = "adjunto_factura"
+            total_adjuntos_factura += 1
+            print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
+
+        nombre_final = build_final_name(
+            grupo_codigo=grupo_codigo,
+            tipo_documental=tipo_documental,
+            serie=fields["serie"],
+            numero=fields["numero"],
+            ruc_emisor=ruc_emisor,
+            razon_social_emisor=razon_social_emisor,
+            fallback_name=doc["nombre_archivo_actual"],
+        )
+
+        if tipo_documental == "otro":
+            estado_documento = "no_identificado"
+            bucket = "no_identificados"
+            estado_archivo = "observado"
+            total_no_identificados += 1
+
+        elif tipo_documental in ("factura", "adjunto_factura"):
+            if not es_factura_valida:
+                estado_documento = "revision_manual"
+                bucket = "pendientes_revision"
+                estado_archivo = "observado"
+                total_revision_manual += 1
+            elif DEV_FORCE_REVIEW_FACTURAS:
+                estado_documento = "revision_manual"
+                bucket = "pendientes_revision"
+                estado_archivo = "observado"
+                total_revision_manual += 1
+            else:
+                estado_documento = "clasificado"
+                bucket = "pendientes_clasificados"
+                estado_archivo = "renombrado"
+                total_clasificados += 1
+
+        else:
+            estado_documento = "clasificado"
+            bucket = "pendientes_clasificados"
+            estado_archivo = "renombrado"
+            total_clasificados += 1
+
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+
+        destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO,
+                {
+                    "proveedor_id": proveedor_id,
+                    "cliente_destino_id": cliente_id_final,
+                    "tipo_documental": tipo_documental,
+                    "serie": fields["serie"],
+                    "numero": fields["numero"],
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social_emisor,
+                    "fecha_emision": doc["fecha_emision_norm"],
+                    "importe": normalize_amount(fields["importe"]),
+                    "igv": normalize_amount(fields.get("igv")),
+                    "estado_documento": estado_documento,
+                    "grupo_codigo": grupo_codigo,
+                    "correlativo_mes": correlativo_mes,
+                    "es_principal": es_principal,
+                    "documento_principal_id": documento_principal_ref,
+                    "nombre_final": nombre_final,
+                    "ruta_windows_final": ruta_windows_final,
+                    "documento_id": doc["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": nombre_final,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": estado_archivo,
+                    "archivo_id": doc["archivo_id"],
+                },
+            )
+
+        if diferencias_criticas:
+            print(
+                f"[WARN] doc={doc['documento_id']} diferencias críticas: "
+                + " | ".join(diferencias_criticas)
+            )
+
+        if advertencias:
+            print(
+                f"[INFO] doc={doc['documento_id']} advertencias: "
+                + " | ".join(advertencias)
+            )
+
+        print(
+            f"[OK] correo={doc['correo_id']} "
+            f"doc={doc['documento_id']} "
+            f"tipo={tipo_documental} "
+            f"grupo={grupo_codigo} "
+            f"nombre={nombre_final}"
+        )
+
+    observacion = (
+        f"Procesado correctamente. "
+        f"Documentos: {total_docs}, "
+        f"clasificados: {total_clasificados}, "
+        f"revision_manual: {total_revision_manual}, "
+        f"no_identificados: {total_no_identificados}, "
+        f"adjuntos_factura: {total_adjuntos_factura}, "
+        f"grupo: {grupo_codigo}."
+    )
+
+    estado_correo = "procesado"
+    if total_no_identificados > 0 or total_revision_manual > 0:
+        estado_correo = "procesado_con_observaciones"
+
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=True,
+        estado_correo=estado_correo,
+        observacion=observacion,
+    )
+Conclusión final
+Ahora mismo, por lo que vi en tu archivo, te falta integrar esa validación de producción dentro del for doc in enriched:. La parte de qr_data ya la tienes; lo que falta es usar is_factura_valida_produccion() para decidir revision_manual vs clasificado. � � �
+Código pegado: py
+Código pegado (2).py
+Código pegado (2).py
+Si quieres, te dejo también la función is_factura_valida_produccion() final exacta para que todo cierre completo.
