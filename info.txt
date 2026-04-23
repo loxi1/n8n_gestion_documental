@@ -1,1 +1,4 @@
-Aqui esta el proyecto puedes revisar: https://github.com/loxi1/n8n_gestion_documental en caso de que leas los archivo me dices para quizas parsarte la url y en caso extermo el contenido quedo atento a tu mensaje.
+para tener claro hablamos de un cron en n8n -> http://n8n.io/integrations/cron/ o un cron de ubuntu?
+te dejo el diagrama de secuencia de n8n en url imagen -> https://i.ibb.co/7t1DDF4h/url.png
+el cron por favor luego de terminar o afinar los datos porque como sabes tenemos muchas casuisticas con la factura respecto a la fecha temina de afinar eso para luego hacer el movimeinto de los archivos a una carpeta de windos tengo los usuarios: CREDENCIALES para acceder a la carpeta Contabilidad
+SERxx\sistexx clave: xxxxx a la carpeta una vez terminado eso voy a instalar ubuntu en un maquina y levantar los servicios para produccion
