@@ -1,4 +1,129 @@
-para tener claro hablamos de un cron en n8n -> http://n8n.io/integrations/cron/ o un cron de ubuntu?
-te dejo el diagrama de secuencia de n8n en url imagen -> https://i.ibb.co/7t1DDF4h/url.png
-el cron por favor luego de terminar o afinar los datos porque como sabes tenemos muchas casuisticas con la factura respecto a la fecha temina de afinar eso para luego hacer el movimeinto de los archivos a una carpeta de windos tengo los usuarios: CREDENCIALES para acceder a la carpeta Contabilidad
-SERxx\sistexx clave: xxxxx a la carpeta una vez terminado eso voy a instalar ubuntu en un maquina y levantar los servicios para produccion
+Que paso porque estan aca:
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+$ ls -l ../storage/files/pendientes_revision/2026/04/
+total 252
+-rw-r--r-- 1 BBTI 01 197121  60776 abr. 23 12:03 '04-0001 FACTURA F231 0101575 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60679 abr. 23 12:03 '04-0002 FACTURA F231 0101576 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121 133379 abr. 23 12:03 '04-0003 FACTURA FF12 7700 20111740438 SONEPAR_PERU_S_A_C.pdf'
+(venv) 
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+$ 
+gestiondocumental=# select * from correos_ingresados;
+ id | origen | proveedor_correo |                                     message_id                                     | thread_id | remitente_no
+mbre |      remitente_email      | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                                  asunto
+                                  | cuerpo_texto | cuerpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado |
+estado_correo        | cantidad_adjuntos |                                                              observacion
+                                   |         creado_en          |       actualizado_en
+----+--------+------------------+------------------------------------------------------------------------------------+-----------+-------------
+-----+---------------------------+----------+-------------------+-----------------+------------------+-----------------------------------------
+----------------------------------+--------------+-------------+---------------------+----------------------------+-------+-----------+--------
+---------------------+-------------------+-----------------------------------------------------------------------------------------------------
+-----------------------------------+----------------------------+----------------------------
+  1 | correo | imap             | <499dd1f672b896e2880ca914260fd910@localhost.localdomain>                           |           |
+     | efactura@promelsa.com.pe  |          |                   |                 |                  | PRD: PROMOTORES ELECTRICOS S A - Doc: 20
+100084172-01-F231-0101575.        |              |             | 2026-04-21 20:59:07 | 2026-04-23 12:03:43.658142 | f     | t         | procesa
+do_con_observaciones |                 1 | Procesado correctamente. Documentos: 1, clasificados: 0, revision_manual: 1, no_identificados: 0, ad
+juntos_factura: 0, grupo: 04-0001. | 2026-04-23 12:03:43.658142 | 2026-04-23 12:04:47.581885
+  2 | correo | imap             | <f0d4c16297e8bffdc7757a449bcedf31@localhost.localdomain>                           |           |
+     | efactura@promelsa.com.pe  |          |                   |                 |                  | PRD: PROMOTORES ELECTRICOS S A - Doc: 20
+100084172-01-F231-0101576.        |              |             | 2026-04-21 20:59:28 | 2026-04-23 12:03:43.658142 | f     | t         | procesa
+do_con_observaciones |                 1 | Procesado correctamente. Documentos: 1, clasificados: 0, revision_manual: 1, no_identificados: 0, ad
+juntos_factura: 0, grupo: 04-0002. | 2026-04-23 12:03:43.658142 | 2026-04-23 12:05:04.416792
+  3 | correo | imap             | <DB9PR05MB10250CA7096BC22409239E8A5BA2C2@DB9PR05MB10250.eurprd05.prod.outlook.com> |           |
+     | fexsonepar@sonepar.pe     |          |                   |                 |                  | Has recibido una FACTURA ELECTRONICA Nro
+. FF12-7700 de [SONEPAR PERU SAC] |              |             | 2026-04-21 22:28:13 | 2026-04-23 12:03:43.658142 | f     | t         | procesa
+do_con_observaciones |                 1 | Procesado correctamente. Documentos: 1, clasificados: 0, revision_manual: 1, no_identificados: 0, ad
+juntos_factura: 0, grupo: 04-0003. | 2026-04-23 12:03:43.658142 | 2026-04-23 12:05:28.369577
+  7 | correo | imap             | <CAFtAZZA_wFVDApK7kpr8J1zy1-yDGpkVxy5o3wtToVrv43Gi8w@mail.gmail.com>               |           |
+     | anibal.cayetano@gmail.com |          |                   |                 |                  | revisar factura
+                                  |              |             | 2026-04-23 17:09:33 | 2026-04-23 12:11:42.299117 | f     | f         | descarg
+ado                  |                 1 |
+                                   | 2026-04-23 12:11:42.299117 | 2026-04-23 12:11:42.299117
+  8 | correo | imap             | <CAFtAZZA3rvbg8KuhbJUQ_f5Zfy+W+97bx3nc6TEKd91U9Sn1PA@mail.gmail.com>               |           |
+     | anibal.cayetano@gmail.com |          |                   |                 |                  | otro correo
+                                  |              |             | 2026-04-23 17:10:09 | 2026-04-23 12:11:42.299117 | f     | f         | descarg
+ado                  |                 1 |
+                                   | 2026-04-23 12:11:42.299117 | 2026-04-23 12:11:42.299117
+  9 | correo | imap             | <CAFtAZZDQ-nMuHm-R_awtqzSCJiDUSasFZb9GEAs8x1h=A0ofSw@mail.gmail.com>               |           |
+     | anibal.cayetano@gmail.com |          |                   |                 |                  | va
+                                  |              |             | 2026-04-23 17:10:41 | 2026-04-23 12:11:42.299117 | f     | f         | descarg
+ado                  |                 1 |
+                                   | 2026-04-23 12:11:42.299117 | 2026-04-23 12:11:42.299117
+ 10 | correo | imap             | <CAFtAZZAY3wsLjezEdTgCJbR6biJ4dnYqti3mV3v52ihq2Z-8jQ@mail.gmail.com>               |           |
+     | anibal.cayetano@gmail.com |          |                   |                 |                  | avr
+                                  |              |             | 2026-04-23 17:11:03 | 2026-04-23 12:11:42.299117 | f     | f         | descarg
+ado                  |                 1 |
+                                   | 2026-04-23 12:11:42.299117 | 2026-04-23 12:11:42.299117
+(7 rows)
+
+
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero  |     ruc     |       razon_social        | fecha_emision | fecha
+_vencimiento | moneda | importe |  igv   | base_imponible | saldo | clave_documental | estado_documento |          observacion           |
+    creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_
+id |                              nombre_final                              |            ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+---------+-------------+---------------------------+---------------+------
+-------------+--------+---------+--------+----------------+-------+------------------+------------------+--------------------------------+-----
+-----------------------+----------------------------+--------------------+--------------+-----------------+--------------+---------------------
+---+------------------------------------------------------------------------+------------------------------------------
+  1 |         1 |          754 | factura         |          | F231  | 0101575 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-21    |
+             |        |  400.20 |  61.05 |                |       |                  | revision_manual  | Documento descargado desde n8n | 2026
+-04-23 12:03:50.69314  | 2026-04-23 12:04:47.533874 |                  2 | 04-0001      |               1 | t            |
+   | 04-0001 FACTURA F231 0101575 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  2 |         2 |          754 | factura         |          | F231  | 0101576 | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-21    |
+             |        | 1530.70 | 233.50 |                |       |                  | revision_manual  | Documento descargado desde n8n | 2026
+-04-23 12:03:50.69314  | 2026-04-23 12:05:04.390237 |                  2 | 04-0002      |               2 | t            |
+   | 04-0002 FACTURA F231 0101576 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  3 |         3 |          828 | factura         |          | FF12  | 7700    | 20111740438 | SONEPAR PERU S.A.C.       | 2026-04-21    |
+             |        |  942.48 | 143.77 |                |       |                  | revision_manual  | Documento descargado desde n8n | 2026
+-04-23 12:03:50.69314  | 2026-04-23 12:05:28.342549 |                    | 04-0003      |               3 | t            |
+   | 04-0003 FACTURA FF12 7700 20111740438 SONEPAR_PERU_S_A_C.pdf           |
+  4 |         7 |              |                 |          |       |         |             |                           |               |
+             |        |         |        |                |       |                  | pendiente        | Documento descargado desde n8n | 2026
+-04-23 12:11:42.428843 | 2026-04-23 12:11:42.428843 |                    |              |                 | f            |
+   |                                                                        |
+  5 |         8 |              |                 |          |       |         |             |                           |               |
+             |        |         |        |                |       |                  | pendiente        | Documento descargado desde n8n | 2026
+-04-23 12:11:42.428843 | 2026-04-23 12:11:42.428843 |                    |              |                 | f            |
+   |                                                                        |
+  6 |         9 |              |                 |          |       |         |             |                           |               |
+             |        |         |        |                |       |                  | pendiente        | Documento descargado desde n8n | 2026
+-04-23 12:11:42.428843 | 2026-04-23 12:11:42.428843 |                    |              |                 | f            |
+   |                                                                        |
+  7 |        10 |              |                 |          |       |         |             |                           |               |
+             |        |         |        |                |       |                  | pendiente        | Documento descargado desde n8n | 2026
+-04-23 12:11:42.428843 | 2026-04-23 12:11:42.428843 |                    |              |                 | f            |
+   |                                                                        |
+(7 rows)
+
+
+gestiondocumental=# select * from archivos;
+ id | documento_id | correo_id |     nombre_archivo_original     |                               nombre_archivo_actual
+       | extension |    mime_type    | tamano_bytes | hash_sha256 |                                           ruta_temporal
+                        | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
+----+--------------+-----------+---------------------------------+-----------------------------------------------------------------------------
+-------+-----------+-----------------+--------------+-------------+----------------------------------------------------------------------------
+------------------------+------------+--------------+----------------+----------------------------+----------------------------
+  1 |            1 |         1 | 20100084172-01-F231-0101575.pdf | 04-0001 FACTURA F231 0101575 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+       | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0001 FACTURA F231 0101575 20100084172 PROMOT
+ORES_ELECTRICOS_S_A.pdf |            | t            | observado      | 2026-04-23 12:03:56.434382 | 2026-04-23 12:04:47.533874
+  2 |            2 |         2 | 20100084172-01-F231-0101576.pdf | 04-0002 FACTURA F231 0101576 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+       | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0002 FACTURA F231 0101576 20100084172 PROMOT
+ORES_ELECTRICOS_S_A.pdf |            | t            | observado      | 2026-04-23 12:03:56.434382 | 2026-04-23 12:05:04.390237
+  3 |            3 |         3 | 20111740438-01-FF12-7700.pdf    | 04-0003 FACTURA FF12 7700 20111740438 SONEPAR_PERU_S_A_C.pdf
+       | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0003 FACTURA FF12 7700 20111740438 SONEPAR_P
+ERU_S_A_C.pdf           |            | t            | observado      | 2026-04-23 12:03:56.434382 | 2026-04-23 12:05:28.342549
+  4 |            4 |         7 | b.pdf                           | posible_documento_20260423171142257_CAFtAZZA_wFVDApK7kpr8J1zy1-yDGpkVxy5o3wt
+_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260423171142257_CAFtAZZA_wFVDApK7kpr8J1zy
+1-yDGpkVxy5o3wt_1.pdf   |            | t            | descargado     | 2026-04-23 12:11:42.474641 | 2026-04-23 12:11:42.474641
+  5 |            5 |         8 | d.pdf                           | posible_documento_20260423171142257_CAFtAZZA3rvbg8KuhbJUQ_f5Zfy_W_97bx3nc6TE
+_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260423171142257_CAFtAZZA3rvbg8KuhbJUQ_f5Z
+fy_W_97bx3nc6TE_1.pdf   |            | t            | descargado     | 2026-04-23 12:11:42.474641 | 2026-04-23 12:11:42.474641
+  6 |            6 |         9 | e.pdf                           | posible_documento_20260423171142257_CAFtAZZDQ-nMuHm-R_awtqzSCJiDUSasFZb9GEAs
+_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260423171142257_CAFtAZZDQ-nMuHm-R_awtqzSC
+JiDUSasFZb9GEAs_1.pdf   |            | t            | descargado     | 2026-04-23 12:11:42.474641 | 2026-04-23 12:11:42.474641
+  7 |            7 |        10 | f.pdf                           | posible_documento_20260423171142257_CAFtAZZAY3wsLjezEdTgCJbR6biJ4dnYqti3mV3v
+_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260423171142257_CAFtAZZAY3wsLjezEdTgCJbR6
+biJ4dnYqti3mV3v_1.pdf   |            | t            | descargado     | 2026-04-23 12:11:42.474641 | 2026-04-23 12:11:42.474641
+(7 rows)
+
