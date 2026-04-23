@@ -474,16 +474,24 @@ def process_correo(items: list[dict]) -> None:
             "cliente_raw": d.get("cliente_raw"),
             "cliente_match": d.get("cliente_match"),
             "fecha": d.get("fecha_emision_norm"),
-            "qr_data": d.get("qr_data"),
+            "qr": bool(d.get("qr_data")),
         })
 
     factura_principal = select_factura_principal(enriched)
     print("[DEBUG] factura_principal =", factura_principal)
 
+    correo_id = items[0]["correo_id"]
+
     if not factura_principal:
-        print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
-        mark_correo_result(
-            correo_id=items[0]["correo_id"],
+        print(f"[WARN] correo_id={correo_id} sin factura principal")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="pendiente_asociacion",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
             estado_correo="sin_factura_principal",
             observacion="No se encontró factura principal en el correo.",
         )
@@ -491,9 +499,15 @@ def process_correo(items: list[dict]) -> None:
 
     fecha_principal = factura_principal.get("fecha_emision_date")
     if not fecha_principal:
-        print(f"[WARN] correo_id={items[0]['correo_id']} factura sin fecha")
-        mark_correo_result(
-            correo_id=items[0]["correo_id"],
+        print(f"[WARN] correo_id={correo_id} factura sin fecha")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="revision_manual",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
             estado_correo="factura_sin_fecha",
             observacion="La factura principal no tiene fecha de emisión reconocible.",
         )
@@ -531,6 +545,7 @@ def process_correo(items: list[dict]) -> None:
 
         ruc_emisor = fields["ruc"]
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
+
         proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
         proveedor_id = proveedor["id"] if proveedor else None
 
@@ -675,8 +690,9 @@ def process_correo(items: list[dict]) -> None:
     if total_no_identificados > 0 or total_revision_manual > 0:
         estado_correo = "procesado_con_observaciones"
 
-    mark_correo_result(
-        correo_id=items[0]["correo_id"],
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=True,
         estado_correo=estado_correo,
         observacion=observacion,
     )
@@ -762,12 +778,22 @@ def build_qr_text_validation(fields: dict, qr_data: dict | None) -> tuple[bool, 
 
     return len(diferencias_criticas) == 0, diferencias_criticas, diferencias_no_criticas
 
-def is_factura_valida_produccion(fields: dict, qr_data: dict | None) -> tuple[bool, list[str], list[str]]:
+def is_factura_valida_produccion(
+    fields: dict,
+    qr_data: dict | None,
+) -> tuple[bool, list[str], list[str]]:
     """
+    Valida si una factura puede pasar a clasificado en modo producción.
+
     Retorna:
-    - es_valida: bool
-    - diferencias_criticas: list[str]
-    - advertencias: list[str]
+    - es_valida
+    - diferencias_criticas
+    - advertencias
+
+    Regla:
+    - Si hay QR válido tipo 01, el QR manda.
+    - Si no hay QR, se exige texto completo.
+    - RUC textual diferente al QR es advertencia, no bloqueo.
     """
 
     criticas: list[str] = []
@@ -779,30 +805,33 @@ def is_factura_valida_produccion(fields: dict, qr_data: dict | None) -> tuple[bo
     ruc = fields.get("ruc")
     fecha = normalize_date(fields.get("fecha_emision"))
 
-    # Caso 1: factura con QR válido
+    # Ruta A: factura con QR válido
     if qr_data and qr_data.get("tipo_doc_codigo") == "01":
         qr_serie = qr_data.get("serie")
         qr_numero = qr_data.get("numero")
         qr_ruc = qr_data.get("ruc_emisor")
         qr_fecha = normalize_date(qr_data.get("fecha_emision"))
 
-        if tipo and tipo != "factura":
+        # El tipo sí puede bloquear si contradice claramente al QR
+        if tipo and normalize_compare_str(tipo) not in ("FACTURA", "ADJUNTO_FACTURA"):
             criticas.append(f"tipo texto={tipo} QR=factura")
 
+        # Serie y número sí son críticos
         if serie and qr_serie and normalize_compare_str(serie) != normalize_compare_str(qr_serie):
             criticas.append(f"serie texto={serie} QR={qr_serie}")
 
         if numero and qr_numero and normalize_compare_str(numero) != normalize_compare_str(qr_numero):
             criticas.append(f"numero texto={numero} QR={qr_numero}")
 
-        # RUC textual: solo warning, no bloqueo
+        # RUC textual NO bloquea, porque puede ser RUC cliente leído por OCR
         if ruc and qr_ruc and normalize_compare_str(ruc) != normalize_compare_str(qr_ruc):
             advertencias.append(f"ruc texto={ruc} QR={qr_ruc}")
 
+        # Fecha textual NO bloquea si hay QR
         if fecha and qr_fecha and normalize_compare_str(fecha) != normalize_compare_str(qr_fecha):
             advertencias.append(f"fecha texto={fecha} QR={qr_fecha}")
 
-        # Validación mínima real por QR
+        # Mínimos obligatorios del QR
         if not qr_ruc:
             criticas.append("qr sin ruc_emisor")
         if not qr_serie:
@@ -814,7 +843,7 @@ def is_factura_valida_produccion(fields: dict, qr_data: dict | None) -> tuple[bo
 
         return len(criticas) == 0, criticas, advertencias
 
-    # Caso 2: factura sin QR
+    # Ruta B: factura sin QR, debe venir completa por texto/PDF/OCR
     if tipo == "factura":
         if not serie:
             criticas.append("texto sin serie")
@@ -827,8 +856,8 @@ def is_factura_valida_produccion(fields: dict, qr_data: dict | None) -> tuple[bo
 
         return len(criticas) == 0, criticas, advertencias
 
-    # No es factura
-    criticas.append("tipo_documental no es factura")
+    # No es factura principal válida
+    criticas.append(f"tipo_documental no es factura: {tipo}")
     return False, criticas, advertencias
 
 if __name__ == "__main__":
