@@ -1,9 +1,62 @@
-Por favor validar ver el repo: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py 
-porque los archivos siguen ahi en revision:
-$ ls -l ../storage/files/pendientes_revision/2026/04/
-total 324
--rw-r--r-- 1 BBTI 01 197121 71578 abr. 23 17:13 '04-0001 FACTURA F001 00011006 20563293587 IMPORT_EXPORT_PACKING_PERU_S_A.pdf'
--rw-r--r-- 1 BBTI 01 197121 93585 abr. 23 17:13 '04-0002 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf'
--rw-r--r-- 1 BBTI 01 197121 71578 abr. 23 17:13 '04-0003 FACTURA F001 00011006 20563293587 IMPORT_EXPORT_PACKING_PERU_S_A.pdf'
--rw-r--r-- 1 BBTI 01 197121 86071 abr. 23 17:13 '04-0004 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pdf'
-(venv) 
+Ya validé el archivo. El flujo principal sí está bien integrado, pero hay 2 puntos importantes.
+1. Por qué siguen en revisión
+Con el código actual, una factura solo pasa a pendientes_clasificados si:
+Python
+es_factura_valida == True
+DEV_FORCE_REVIEW_FACTURAS == False
+Si sigue cayendo a pendientes_revision, entonces una de estas dos cosas pasa:
+Python
+not es_factura_valida
+o
+Python
+DEV_FORCE_REVIEW_FACTURAS == True
+En tu caso, lo primero que debes confirmar es imprimir esto dentro del for doc in enriched, justo después de llamar a is_factura_valida_produccion():
+Python
+print("[DEBUG VALIDACION]", {
+    "doc": doc["documento_id"],
+    "tipo": tipo_documental,
+    "qr": bool(qr_data),
+    "DEV_FORCE_REVIEW_FACTURAS": DEV_FORCE_REVIEW_FACTURAS,
+    "es_factura_valida": es_factura_valida,
+    "diferencias_criticas": diferencias_criticas,
+    "advertencias": advertencias,
+})
+Eso te dirá exactamente por qué se va a revisión.
+2. Ojo: el repo todavía tiene una función vieja que ya no necesitas
+Veo que todavía existe build_qr_text_validation(). Ya no es necesaria si estás usando:
+Python
+is_factura_valida_produccion()
+No rompe nada si no se llama, pero puede confundirte. Puedes dejarla por ahora o eliminarla después.
+3. La parte que está correcta
+Esto está bien:
+Python
+es_factura_valida, diferencias_criticas, advertencias = is_factura_valida_produccion(
+    fields,
+    qr_data,
+)
+Y esta lógica también está bien:
+Python
+elif tipo_documental in ("factura", "adjunto_factura"):
+    if not es_factura_valida:
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+    elif DEV_FORCE_REVIEW_FACTURAS:
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+    else:
+        estado_documento = "clasificado"
+        bucket = "pendientes_clasificados"
+4. Detalle importante
+Si DEV_FORCE_REVIEW_FACTURAS=0 pero no reiniciaste terminal/proceso, puede seguir usando el valor anterior.
+Prueba:
+Bash
+python -c "from core.config import DEV_FORCE_REVIEW_FACTURAS; print(DEV_FORCE_REVIEW_FACTURAS)"
+Debe salir:
+Plain text
+False
+Si sale True, el .env no se está cargando como crees o la terminal sigue con variable vieja.
+Conclusión
+Tu lógica ya está casi cerrada. Lo que falta no es reescribir, sino ver el motivo exacto con el debug:
+Python
+print("[DEBUG VALIDACION]", {...})
+Ahí sabremos si el problema es el flag o si is_factura_valida_produccion() está devolviendo False.
