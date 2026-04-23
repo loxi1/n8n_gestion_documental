@@ -10,7 +10,7 @@ from procesar_pendientes import normalize_date, parse_iso_date
 
 def main() -> None:
     pdf_path = Path(
-        r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_revision\2026\04\F_F002-00000254.pdf"
+        r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_revision\2026\04\e.pdf"
     )
 
     if not pdf_path.exists():

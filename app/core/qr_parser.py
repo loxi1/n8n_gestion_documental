@@ -2,27 +2,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.text_utils import normalize_text
-
 
 TIPO_DOC_MAP = {
     "01": "factura",
     "03": "boleta",
     "07": "nota_credito",
     "08": "nota_debito",
+    "09": "guia_remision",
 }
 
 
 def parse_qr_payload(qr_text: str | None) -> dict[str, Any] | None:
-    """
-    Formato SUNAT esperado, separado por "|":
-    RUC|TIPO_DOC|SERIE|NUMERO|IGV|TOTAL|FECHA|TIPO_DOC_ADQ|NUM_DOC_ADQ|VALOR_RESUMEN|VALOR_FIRMA
-    Puede venir con menos o más campos al final.
-    """
     if not qr_text:
         return None
 
-    raw = qr_text.strip()
+    raw = qr_text.strip().replace("\n", "").replace("\r", "")
     parts = [p.strip() for p in raw.split("|")]
 
     if len(parts) < 9:
@@ -58,13 +52,11 @@ def parse_qr_payload(qr_text: str | None) -> dict[str, Any] | None:
         "num_doc_adquirente": num_doc_adquirente,
         "valor_resumen": valor_resumen,
         "valor_firma": valor_firma,
+        "qr_raw": raw,
     }
 
 
 def extract_qr_candidates(text: str | None) -> list[str]:
-    """
-    Busca líneas o bloques tipo QR SUNAT con separador '|'.
-    """
     if not text:
         return []
 
@@ -73,13 +65,5 @@ def extract_qr_candidates(text: str | None) -> list[str]:
         line = line.strip()
         if "|" in line and len(line.split("|")) >= 9:
             candidates.append(line)
-
-    # fallback: buscar en texto colapsado
-    text_u = normalize_text(text)
-    if "|" in text_u and not candidates:
-        chunks = text_u.split()
-        joined = " ".join(chunks)
-        if joined.count("|") >= 8:
-            candidates.append(joined)
 
     return candidates

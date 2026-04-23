@@ -17,6 +17,8 @@ from core.clientes_destino import extract_cliente_destino_raw, find_cliente_dest
 from core.grupo_documental import get_next_correlativo_mes, select_factura_principal
 from core.text_utils import normalize_text
 from core.windows_path import build_windows_target_path
+from core.qr_reader import decode_qr_from_pdf
+from core.qr_parser import parse_qr_payload
 
 
 SQL_SELECT_PENDING = """
@@ -104,6 +106,7 @@ def normalize_date(value: str | None) -> str | None:
         return None
 
     raw = value.strip().upper()
+
     meses = {
         "ENE": "01", "FEB": "02", "MAR": "03", "ABR": "04",
         "MAY": "05", "JUN": "06", "JUL": "07", "AGO": "08",
@@ -113,28 +116,33 @@ def normalize_date(value: str | None) -> str | None:
         "SEPTIEMBRE": "09", "OCTUBRE": "10", "NOVIEMBRE": "11", "DICIEMBRE": "12",
     }
 
+    # 21/04/2026
     m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
     if m:
         day, mon, year = m.groups()
         return f"{year}-{mon}-{day}"
 
+    # 2026-04-16
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
+    if m:
+        return raw
+
+    # 14-04-2026
     m = re.match(r"^(\d{2})-(\d{2})-(\d{4})$", raw)
     if m:
         day, mon, year = m.groups()
         return f"{year}-{mon}-{day}"
 
-    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
-    if m:
-        return raw
-
-    m = re.match(r"^(\d{2})-([A-Z]{3})-(\d{4})$", raw)
+    # 14-ABR-2026
+    m = re.match(r"^(\d{1,2})-([A-Z]{3})-(\d{4})$", raw)
     if m:
         day, mon_txt, year = m.groups()
         mon = meses.get(mon_txt)
         if mon:
-            return f"{year}-{mon}-{day}"
+            return f"{year}-{mon}-{str(day).zfill(2)}"
 
-    m = re.match(r"^(\d{1,2}) DE ([A-ZÁÉÍÓÚ]+) DEL (\d{4})$", raw)
+    # CALLAO, 21 DE ABRIL DEL 2026
+    m = re.search(r"(\d{1,2}) DE ([A-ZÁÉÍÓÚ]+) DEL (\d{4})", raw)
     if m:
         day, mon_txt, year = m.groups()
         mon_txt = (
@@ -300,12 +308,22 @@ def enrich_document(item: dict) -> dict:
     pdf_path = resolve_absolute_path(item["ruta_temporal"])
     text = ""
     ocr_output = None
+    qr_data = None
 
     try:
         text = extract_text_from_pdf(pdf_path)
     except Exception:
         text = ""
 
+    # 1. Intentar QR real directamente del PDF
+    qr_candidates = decode_qr_from_pdf(pdf_path)
+    for candidate in qr_candidates:
+        parsed = parse_qr_payload(candidate)
+        if parsed:
+            qr_data = parsed
+            break
+
+    # 2. Si no hay texto útil, hacer OCR
     if not text.strip():
         year = pdf_path.parent.parent.name
         month = pdf_path.parent.name
@@ -317,14 +335,31 @@ def enrich_document(item: dict) -> dict:
             except Exception:
                 text = ""
 
+            # 3. Si aún no hay QR, intentar desde OCR PDF
+            if not qr_data:
+                qr_candidates = decode_qr_from_pdf(ocr_output)
+                for candidate in qr_candidates:
+                    parsed = parse_qr_payload(candidate)
+                    if parsed:
+                        qr_data = parsed
+                        break
+
     fields = extract_basic_fields(text, item["nombre_archivo_original"])
-    qr_data = fields.get("qr_data") or {}
+
+    # Si QR real existe, tiene prioridad
+    if qr_data:
+        fields["tipo_documental"] = qr_data.get("tipo_documental") or fields.get("tipo_documental")
+        fields["serie"] = qr_data.get("serie") or fields.get("serie")
+        fields["numero"] = qr_data.get("numero") or fields.get("numero")
+        fields["ruc"] = qr_data.get("ruc_emisor") or fields.get("ruc")
+        fields["fecha_emision"] = qr_data.get("fecha_emision") or fields.get("fecha_emision")
+        fields["importe"] = qr_data.get("importe") or fields.get("importe")
+        fields["igv"] = qr_data.get("igv") or fields.get("igv")
 
     cliente_raw = extract_cliente_destino_raw(text)
     cliente_match = find_cliente_destino_by_alias(cliente_raw)
 
-    fecha_raw = qr_data.get("fecha_emision") or fields["fecha_emision"]
-    fecha_norm = normalize_date(fecha_raw)
+    fecha_norm = normalize_date(fields["fecha_emision"])
     fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
 
     razon_social_emisor = item.get("razon_social") or None
@@ -337,28 +372,10 @@ def enrich_document(item: dict) -> dict:
         if m:
             razon_social_emisor = m.group(1).strip()
 
-    ruc_emisor_final = qr_data.get("ruc_emisor") or fields.get("ruc")
-    serie_final = qr_data.get("serie") or fields.get("serie")
-    numero_final = qr_data.get("numero") or fields.get("numero")
-    importe_final = qr_data.get("importe") or fields.get("importe")
-    igv_final = qr_data.get("igv") or fields.get("igv")
-    tipo_final = qr_data.get("tipo_documental") or fields.get("tipo_documental")
-
-    merged_fields = {
-        **fields,
-        "tipo_documental": tipo_final,
-        "serie": serie_final,
-        "numero": numero_final,
-        "ruc": ruc_emisor_final,
-        "fecha_emision": fecha_raw,
-        "importe": importe_final,
-        "igv": igv_final,
-    }
-
     return {
         **item,
         "text": text,
-        "fields": merged_fields,
+        "fields": fields,
         "cliente_raw": cliente_raw,
         "cliente_match": cliente_match,
         "fecha_emision_norm": fecha_norm,
