@@ -474,26 +474,16 @@ def process_correo(items: list[dict]) -> None:
             "cliente_raw": d.get("cliente_raw"),
             "cliente_match": d.get("cliente_match"),
             "fecha": d.get("fecha_emision_norm"),
-            "qr": bool(d.get("qr_data")),
+            "qr_data": d.get("qr_data"),
         })
-
-    total_revision_manual = 0
 
     factura_principal = select_factura_principal(enriched)
     print("[DEBUG] factura_principal =", factura_principal)
 
-    correo_id = items[0]["correo_id"]
-
     if not factura_principal:
-        print(f"[WARN] correo_id={correo_id} sin factura principal")
-        mark_documents_as_review(
-            items=enriched,
-            estado_documento="pendiente_asociacion",
-            bucket="pendientes_revision",
-        )
-        update_correo_estado(
-            correo_id=correo_id,
-            procesado=False,
+        print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
+        mark_correo_result(
+            correo_id=items[0]["correo_id"],
             estado_correo="sin_factura_principal",
             observacion="No se encontró factura principal en el correo.",
         )
@@ -501,15 +491,9 @@ def process_correo(items: list[dict]) -> None:
 
     fecha_principal = factura_principal.get("fecha_emision_date")
     if not fecha_principal:
-        print(f"[WARN] correo_id={correo_id} factura sin fecha")
-        mark_documents_as_review(
-            items=enriched,
-            estado_documento="revision_manual",
-            bucket="pendientes_revision",
-        )
-        update_correo_estado(
-            correo_id=correo_id,
-            procesado=False,
+        print(f"[WARN] correo_id={items[0]['correo_id']} factura sin fecha")
+        mark_correo_result(
+            correo_id=items[0]["correo_id"],
             estado_correo="factura_sin_fecha",
             observacion="La factura principal no tiene fecha de emisión reconocible.",
         )
@@ -539,10 +523,14 @@ def process_correo(items: list[dict]) -> None:
         fields = doc["fields"]
         tipo_documental = fields["tipo_documental"]
         qr_data = doc.get("qr_data")
-        qr_ok_critico, qr_diferencias_criticas, qr_diferencias_no_criticas = build_qr_text_validation(fields, qr_data)
+
+        es_factura_valida, diferencias_criticas, advertencias = is_factura_valida_produccion(
+            fields,
+            qr_data,
+        )
+
         ruc_emisor = fields["ruc"]
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
-
         proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
         proveedor_id = proveedor["id"] if proveedor else None
 
@@ -569,9 +557,6 @@ def process_correo(items: list[dict]) -> None:
             total_adjuntos_factura += 1
             print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
 
-        if tipo_documental == "otro":
-            tipo_documental = "adjunto_documento"
-
         nombre_final = build_final_name(
             grupo_codigo=grupo_codigo,
             tipo_documental=tipo_documental,
@@ -582,39 +567,38 @@ def process_correo(items: list[dict]) -> None:
             fallback_name=doc["nombre_archivo_actual"],
         )
 
-        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
-
-        # La factura principal define el año/mes para todo el grupo
-        year = f"{fecha_principal.year}"
-        month = f"{fecha_principal.month:02d}"
-
-        # Regla base
         if tipo_documental == "otro":
             estado_documento = "no_identificado"
             bucket = "no_identificados"
             estado_archivo = "observado"
             total_no_identificados += 1
 
-        else:
-            # Si hay QR válido pero contradice campos críticos, revisión obligatoria
-            if qr_data and not qr_ok_critico:
+        elif tipo_documental in ("factura", "adjunto_factura"):
+            if not es_factura_valida:
                 estado_documento = "revision_manual"
                 bucket = "pendientes_revision"
                 estado_archivo = "observado"
                 total_revision_manual += 1
-
-            # En desarrollo: toda factura válida queda en revisión manual
-            elif DEV_FORCE_REVIEW_FACTURAS and tipo_documental in ("factura", "adjunto_factura"):
+            elif DEV_FORCE_REVIEW_FACTURAS:
                 estado_documento = "revision_manual"
                 bucket = "pendientes_revision"
                 estado_archivo = "observado"
                 total_revision_manual += 1
-
             else:
                 estado_documento = "clasificado"
                 bucket = "pendientes_clasificados"
                 estado_archivo = "renombrado"
                 total_clasificados += 1
+
+        else:
+            estado_documento = "clasificado"
+            bucket = "pendientes_clasificados"
+            estado_archivo = "renombrado"
+            total_clasificados += 1
+
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
 
         destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
         destino_abs = STORAGE_DIR / destino_relativo
@@ -657,16 +641,16 @@ def process_correo(items: list[dict]) -> None:
                 },
             )
 
-        if qr_data and qr_diferencias_criticas:
+        if diferencias_criticas:
             print(
-                f"[WARN] doc={doc['documento_id']} diferencias QR/TEXTO CRITICAS: "
-                + " | ".join(qr_diferencias_criticas)
+                f"[WARN] doc={doc['documento_id']} diferencias críticas: "
+                + " | ".join(diferencias_criticas)
             )
 
-        if qr_data and qr_diferencias_no_criticas:
+        if advertencias:
             print(
-                f"[INFO] doc={doc['documento_id']} diferencias QR/TEXTO NO CRITICAS: "
-                + " | ".join(qr_diferencias_no_criticas)
+                f"[INFO] doc={doc['documento_id']} advertencias: "
+                + " | ".join(advertencias)
             )
 
         print(
@@ -691,9 +675,8 @@ def process_correo(items: list[dict]) -> None:
     if total_no_identificados > 0 or total_revision_manual > 0:
         estado_correo = "procesado_con_observaciones"
 
-    update_correo_estado(
-        correo_id=correo_id,
-        procesado=True,
+    mark_correo_result(
+        correo_id=items[0]["correo_id"],
         estado_correo=estado_correo,
         observacion=observacion,
     )
@@ -847,6 +830,6 @@ def is_factura_valida_produccion(fields: dict, qr_data: dict | None) -> tuple[bo
     # No es factura
     criticas.append("tipo_documental no es factura")
     return False, criticas, advertencias
-    
+
 if __name__ == "__main__":
     main()
