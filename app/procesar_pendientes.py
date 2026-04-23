@@ -539,7 +539,7 @@ def process_correo(items: list[dict]) -> None:
         fields = doc["fields"]
         tipo_documental = fields["tipo_documental"]
         qr_data = doc.get("qr_data")
-        qr_ok, qr_diferencias = build_qr_text_validation(fields, qr_data)
+        qr_ok_critico, qr_diferencias_criticas, qr_diferencias_no_criticas = build_qr_text_validation(fields, qr_data)
         ruc_emisor = fields["ruc"]
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
 
@@ -596,8 +596,8 @@ def process_correo(items: list[dict]) -> None:
             total_no_identificados += 1
 
         else:
-            # Si hay QR válido pero contradice al texto, revisión obligatoria
-            if qr_data and not qr_ok:
+            # Si hay QR válido pero contradice campos críticos, revisión obligatoria
+            if qr_data and not qr_ok_critico:
                 estado_documento = "revision_manual"
                 bucket = "pendientes_revision"
                 estado_archivo = "observado"
@@ -657,10 +657,16 @@ def process_correo(items: list[dict]) -> None:
                 },
             )
 
-        if qr_data and not qr_ok:
+        if qr_data and qr_diferencias_criticas:
             print(
-                f"[WARN] doc={doc['documento_id']} diferencias QR/TEXTO: "
-                + " | ".join(qr_diferencias)
+                f"[WARN] doc={doc['documento_id']} diferencias QR/TEXTO CRITICAS: "
+                + " | ".join(qr_diferencias_criticas)
+            )
+
+        if qr_data and qr_diferencias_no_criticas:
+            print(
+                f"[INFO] doc={doc['documento_id']} diferencias QR/TEXTO NO CRITICAS: "
+                + " | ".join(qr_diferencias_no_criticas)
             )
 
         print(
@@ -719,16 +725,18 @@ def normalize_compare_amount(value: str | None) -> str:
     return raw or ""
 
 
-def build_qr_text_validation(fields: dict, qr_data: dict | None) -> tuple[bool, list[str]]:
+def build_qr_text_validation(fields: dict, qr_data: dict | None) -> tuple[bool, list[str], list[str]]:
     """
     Retorna:
-    - coincide: bool
-    - diferencias: list[str]
+    - ok_critico: bool
+    - diferencias_criticas: list[str]
+    - diferencias_no_criticas: list[str]
     """
     if not qr_data:
-        return True, []
+        return True, [], []
 
-    diferencias: list[str] = []
+    diferencias_criticas: list[str] = []
+    diferencias_no_criticas: list[str] = []
 
     qr_tipo = qr_data.get("tipo_documental")
     qr_ruc = qr_data.get("ruc_emisor")
@@ -746,29 +754,99 @@ def build_qr_text_validation(fields: dict, qr_data: dict | None) -> tuple[bool, 
     tx_importe = normalize_compare_amount(fields.get("importe"))
     tx_igv = normalize_compare_amount(fields.get("igv"))
 
+    # CRITICOS
     if qr_tipo and tx_tipo and normalize_compare_str(qr_tipo) != normalize_compare_str(tx_tipo):
-        diferencias.append(f"tipo QR={qr_tipo} TEXTO={tx_tipo}")
+        diferencias_criticas.append(f"tipo QR={qr_tipo} TEXTO={tx_tipo}")
 
     if qr_ruc and tx_ruc and normalize_compare_str(qr_ruc) != normalize_compare_str(tx_ruc):
-        diferencias.append(f"ruc QR={qr_ruc} TEXTO={tx_ruc}")
+        diferencias_criticas.append(f"ruc QR={qr_ruc} TEXTO={tx_ruc}")
 
     if qr_serie and tx_serie and normalize_compare_str(qr_serie) != normalize_compare_str(tx_serie):
-        diferencias.append(f"serie QR={qr_serie} TEXTO={tx_serie}")
+        diferencias_criticas.append(f"serie QR={qr_serie} TEXTO={tx_serie}")
 
     if qr_numero and tx_numero and normalize_compare_str(qr_numero) != normalize_compare_str(tx_numero):
-        diferencias.append(f"numero QR={qr_numero} TEXTO={tx_numero}")
+        diferencias_criticas.append(f"numero QR={qr_numero} TEXTO={tx_numero}")
 
+    # NO CRITICOS
     if qr_fecha and tx_fecha and normalize_compare_str(qr_fecha) != normalize_compare_str(tx_fecha):
-        diferencias.append(f"fecha QR={qr_fecha} TEXTO={tx_fecha}")
+        diferencias_no_criticas.append(f"fecha QR={qr_fecha} TEXTO={tx_fecha}")
 
     if qr_importe and tx_importe and qr_importe != tx_importe:
-        diferencias.append(f"importe QR={qr_importe} TEXTO={tx_importe}")
+        diferencias_no_criticas.append(f"importe QR={qr_importe} TEXTO={tx_importe}")
 
     if qr_igv and tx_igv and qr_igv != tx_igv:
-        diferencias.append(f"igv QR={qr_igv} TEXTO={tx_igv}")
+        diferencias_no_criticas.append(f"igv QR={qr_igv} TEXTO={tx_igv}")
 
-    return len(diferencias) == 0, diferencias
+    return len(diferencias_criticas) == 0, diferencias_criticas, diferencias_no_criticas
 
+def is_factura_valida_produccion(fields: dict, qr_data: dict | None) -> tuple[bool, list[str], list[str]]:
+    """
+    Retorna:
+    - es_valida: bool
+    - diferencias_criticas: list[str]
+    - advertencias: list[str]
+    """
 
+    criticas: list[str] = []
+    advertencias: list[str] = []
+
+    tipo = fields.get("tipo_documental")
+    serie = fields.get("serie")
+    numero = fields.get("numero")
+    ruc = fields.get("ruc")
+    fecha = normalize_date(fields.get("fecha_emision"))
+
+    # Caso 1: factura con QR válido
+    if qr_data and qr_data.get("tipo_doc_codigo") == "01":
+        qr_serie = qr_data.get("serie")
+        qr_numero = qr_data.get("numero")
+        qr_ruc = qr_data.get("ruc_emisor")
+        qr_fecha = normalize_date(qr_data.get("fecha_emision"))
+
+        if tipo and tipo != "factura":
+            criticas.append(f"tipo texto={tipo} QR=factura")
+
+        if serie and qr_serie and normalize_compare_str(serie) != normalize_compare_str(qr_serie):
+            criticas.append(f"serie texto={serie} QR={qr_serie}")
+
+        if numero and qr_numero and normalize_compare_str(numero) != normalize_compare_str(qr_numero):
+            criticas.append(f"numero texto={numero} QR={qr_numero}")
+
+        # RUC textual: solo warning, no bloqueo
+        if ruc and qr_ruc and normalize_compare_str(ruc) != normalize_compare_str(qr_ruc):
+            advertencias.append(f"ruc texto={ruc} QR={qr_ruc}")
+
+        if fecha and qr_fecha and normalize_compare_str(fecha) != normalize_compare_str(qr_fecha):
+            advertencias.append(f"fecha texto={fecha} QR={qr_fecha}")
+
+        # Validación mínima real por QR
+        if not qr_ruc:
+            criticas.append("qr sin ruc_emisor")
+        if not qr_serie:
+            criticas.append("qr sin serie")
+        if not qr_numero:
+            criticas.append("qr sin numero")
+        if not qr_fecha:
+            criticas.append("qr sin fecha_emision")
+
+        return len(criticas) == 0, criticas, advertencias
+
+    # Caso 2: factura sin QR
+    if tipo == "factura":
+        if not serie:
+            criticas.append("texto sin serie")
+        if not numero:
+            criticas.append("texto sin numero")
+        if not ruc:
+            criticas.append("texto sin ruc")
+        if not fecha:
+            criticas.append("texto sin fecha_emision")
+
+        return len(criticas) == 0, criticas, advertencias
+
+    # No es factura
+    criticas.append("tipo_documental no es factura")
+    return False, criticas, advertencias
+    
 if __name__ == "__main__":
     main()
