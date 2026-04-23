@@ -8,7 +8,7 @@ from pathlib import Path
 
 import requests
 
-from core.config import STORAGE_DIR, OCR_TMP_DIR, APISPERU_TOKEN
+from core.config import STORAGE_DIR, OCR_TMP_DIR, APISPERU_TOKEN, DEV_FORCE_REVIEW_FACTURAS
 from core.db import get_cursor
 from core.extractor_pdf import extract_text_from_pdf
 from core.classifier import extract_basic_fields
@@ -477,6 +477,8 @@ def process_correo(items: list[dict]) -> None:
             "qr": bool(d.get("qr_data")),
         })
 
+    total_revision_manual = 0
+
     factura_principal = select_factura_principal(enriched)
     print("[DEBUG] factura_principal =", factura_principal)
 
@@ -531,10 +533,13 @@ def process_correo(items: list[dict]) -> None:
     total_clasificados = 0
     total_no_identificados = 0
     total_adjuntos_factura = 0
+    total_revision_manual = 0
 
     for doc in enriched:
         fields = doc["fields"]
         tipo_documental = fields["tipo_documental"]
+        qr_data = doc.get("qr_data")
+        qr_ok, qr_diferencias = build_qr_text_validation(fields, qr_data)
         ruc_emisor = fields["ruc"]
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
 
@@ -583,13 +588,33 @@ def process_correo(items: list[dict]) -> None:
         year = f"{fecha_principal.year}"
         month = f"{fecha_principal.month:02d}"
 
-        estado_documento = "clasificado" if tipo_documental != "otro" else "no_identificado"
-        bucket = "pendientes_clasificados" if estado_documento == "clasificado" else "no_identificados"
-
-        if estado_documento == "clasificado":
-            total_clasificados += 1
-        else:
+        # Regla base
+        if tipo_documental == "otro":
+            estado_documento = "no_identificado"
+            bucket = "no_identificados"
+            estado_archivo = "observado"
             total_no_identificados += 1
+
+        else:
+            # Si hay QR válido pero contradice al texto, revisión obligatoria
+            if qr_data and not qr_ok:
+                estado_documento = "revision_manual"
+                bucket = "pendientes_revision"
+                estado_archivo = "observado"
+                total_revision_manual += 1
+
+            # En desarrollo: toda factura válida queda en revisión manual
+            elif DEV_FORCE_REVIEW_FACTURAS and tipo_documental in ("factura", "adjunto_factura"):
+                estado_documento = "revision_manual"
+                bucket = "pendientes_revision"
+                estado_archivo = "observado"
+                total_revision_manual += 1
+
+            else:
+                estado_documento = "clasificado"
+                bucket = "pendientes_clasificados"
+                estado_archivo = "renombrado"
+                total_clasificados += 1
 
         destino_relativo = f"{bucket}/{year}/{month}/{nombre_final}"
         destino_abs = STORAGE_DIR / destino_relativo
@@ -627,9 +652,15 @@ def process_correo(items: list[dict]) -> None:
                 {
                     "nombre_archivo_actual": nombre_final,
                     "ruta_temporal": destino_relativo,
-                    "estado_archivo": "renombrado",
+                    "estado_archivo": estado_archivo,
                     "archivo_id": doc["archivo_id"],
                 },
+            )
+
+        if qr_data and not qr_ok:
+            print(
+                f"[WARN] doc={doc['documento_id']} diferencias QR/TEXTO: "
+                + " | ".join(qr_diferencias)
             )
 
         print(
@@ -644,13 +675,14 @@ def process_correo(items: list[dict]) -> None:
         f"Procesado correctamente. "
         f"Documentos: {total_docs}, "
         f"clasificados: {total_clasificados}, "
+        f"revision_manual: {total_revision_manual}, "
         f"no_identificados: {total_no_identificados}, "
         f"adjuntos_factura: {total_adjuntos_factura}, "
         f"grupo: {grupo_codigo}."
     )
 
     estado_correo = "procesado"
-    if total_no_identificados > 0:
+    if total_no_identificados > 0 or total_revision_manual > 0:
         estado_correo = "procesado_con_observaciones"
 
     update_correo_estado(
@@ -673,6 +705,69 @@ def main() -> None:
     for correo_id, items in grouped.items():
         print(f"[INFO] procesando correo_id={correo_id} documentos={len(items)}")
         process_correo(items)
+
+def normalize_compare_str(value: str | None) -> str:
+    if value is None:
+        return ""
+    return str(value).strip().upper()
+
+
+def normalize_compare_amount(value: str | None) -> str:
+    if not value:
+        return ""
+    raw = normalize_amount(value)
+    return raw or ""
+
+
+def build_qr_text_validation(fields: dict, qr_data: dict | None) -> tuple[bool, list[str]]:
+    """
+    Retorna:
+    - coincide: bool
+    - diferencias: list[str]
+    """
+    if not qr_data:
+        return True, []
+
+    diferencias: list[str] = []
+
+    qr_tipo = qr_data.get("tipo_documental")
+    qr_ruc = qr_data.get("ruc_emisor")
+    qr_serie = qr_data.get("serie")
+    qr_numero = qr_data.get("numero")
+    qr_fecha = normalize_date(qr_data.get("fecha_emision"))
+    qr_importe = normalize_compare_amount(qr_data.get("importe"))
+    qr_igv = normalize_compare_amount(qr_data.get("igv"))
+
+    tx_tipo = fields.get("tipo_documental")
+    tx_ruc = fields.get("ruc")
+    tx_serie = fields.get("serie")
+    tx_numero = fields.get("numero")
+    tx_fecha = normalize_date(fields.get("fecha_emision"))
+    tx_importe = normalize_compare_amount(fields.get("importe"))
+    tx_igv = normalize_compare_amount(fields.get("igv"))
+
+    if qr_tipo and tx_tipo and normalize_compare_str(qr_tipo) != normalize_compare_str(tx_tipo):
+        diferencias.append(f"tipo QR={qr_tipo} TEXTO={tx_tipo}")
+
+    if qr_ruc and tx_ruc and normalize_compare_str(qr_ruc) != normalize_compare_str(tx_ruc):
+        diferencias.append(f"ruc QR={qr_ruc} TEXTO={tx_ruc}")
+
+    if qr_serie and tx_serie and normalize_compare_str(qr_serie) != normalize_compare_str(tx_serie):
+        diferencias.append(f"serie QR={qr_serie} TEXTO={tx_serie}")
+
+    if qr_numero and tx_numero and normalize_compare_str(qr_numero) != normalize_compare_str(tx_numero):
+        diferencias.append(f"numero QR={qr_numero} TEXTO={tx_numero}")
+
+    if qr_fecha and tx_fecha and normalize_compare_str(qr_fecha) != normalize_compare_str(tx_fecha):
+        diferencias.append(f"fecha QR={qr_fecha} TEXTO={tx_fecha}")
+
+    if qr_importe and tx_importe and qr_importe != tx_importe:
+        diferencias.append(f"importe QR={qr_importe} TEXTO={tx_importe}")
+
+    if qr_igv and tx_igv and qr_igv != tx_igv:
+        diferencias.append(f"igv QR={qr_igv} TEXTO={tx_igv}")
+
+    return len(diferencias) == 0, diferencias
 
 
 if __name__ == "__main__":
