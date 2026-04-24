@@ -7,5 +7,9 @@ TEngo una factura que no fue a clasificada:
 [OK] correo=2 doc=2 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA FE65 0814011 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
 [INFO] procesando correo_id=3 documentos=1
 que paso porque no lo reconfocio como factura puede analizar el archivo esta pendientes_revision posible_documento_20260424154314567_ADR510000016197053000AFFC229FE151FD18FF3_1.pdf
+este archivo esta correcto porque es un certificado de calidad: posible_documento_20260424154314565_ADR510000016187943000AB56143BB971FD18FF2_1.pdf por favor buscar el archivo anterior y decir cual es el error o en que fallo porque no lo detecto como pendiente de supervision.
+lo que me di cuenta es que toda las guias de remison electronica tambien tienen qr por favor buscar las fuentes oficiales donde describan el contendio y simimilar si el archivo se detecto como guia de remision pues revalidar con el qr y los datos del qr serian lo lo mas importante ya que es una fuente de informacion confiable. Similar tiene falsos positivos como no encontrar la fecha, cliente, fecha emision. etc.
+he visto que las guias traen un qr algunos traen uno otros dos y son diferenes y pueden estar en diferentes posicion superior derecha y inferior izquierda pero quizas puede varia. el qr trae esta informacion:
+https://e-factura.sunat.gob.pe/v1/contribuyente/gre/comprobantes/descargaqr?hashqr=E82X05mBF6Z1MZnItHJTYaBxVJcC/UIc/JRgPBKmN/Kw0Eyc5AnIqQxb2boG7ZLFiEJ/R2bNDV5b0IX3MytFSh3aK/QC06WVlz+TsltUWEA=
 
-este archivo esta correcto porque es un certificado de calidad: posible_documento_20260424154314565_ADR510000016187943000AB56143BB971FD18FF2_1.pdf por favor buscar el archivo anterior y decir cual es el error o en que fallo porque no lo detecto como clasificado
+20538549071|09|T002|00280|0|2026-04-15|6|20565747356|https://e-factura.sunat.gob.pe/v1/contribuyente/gre/comprobantes/descargaqr?hashqr=i9PP93DgTkYyPM4qjLWzuAbyu4km6eGKR7XXoHwlaiZN4Dr72CCKUJ0/+zfOLeX03ycWaX4E8DncU5mJiyi3wx6EfYJCArAj5Q558MWT2lk=|
