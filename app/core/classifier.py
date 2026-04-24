@@ -288,3 +288,18 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
         "oc": oc,
         "qr_data": qr_data,
     }
+
+def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
+    patrones = [
+        rf"\b({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+        rf"\bNRO\.?\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+        rf"\bN[°º]\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+    ]
+
+    for fuente in (text_u, name_u):
+        for patron in patrones:
+            m = re.search(patron, fuente, re.IGNORECASE)
+            if m:
+                return m.group(1), m.group(2)
+
+    return None, None
