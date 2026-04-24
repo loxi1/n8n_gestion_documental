@@ -1,3 +1,64 @@
+
+El flujo sí procesó bien las facturas, pero se detuvo al llegar a una guía de remisión.
+Qué pasó
+Este error es claro:
+Plain text
+NameError: name '_extract_guia_fields' is not defined
+Significa que en classifier.py tienes esta llamada:
+Python
+serie, numero = _extract_guia_fields(text_u, name_u)
+pero la función _extract_guia_fields() no existe o fue eliminada accidentalmente.
+Por eso:
+correo 10 factura FE65-0814011 sí pasó a pendientes_clasificados
+correo 11 guía T073-0666763 se quedó en inbox
+el script se cortó antes de procesarla
+Lo que está correcto
+Estas facturas están bien:
+Plain text
+pendientes_clasificados/2026/04/
+04-0001 FACTURA F001 00011006 ...
+04-0002 FACTURA FE65 0812829 ...
+04-0003 FACTURA F001 00011006 ...
+04-0004 FACTURA F010 00011002 ...
+04-0005 FACTURA FE65 0814011 ...
+La lógica de factura ya está funcionando.
+Qué falta corregir
+En app/core/classifier.py, agrega nuevamente esta función:
+Python
+def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
+    patrones = [
+        rf"\b({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+        rf"\bNRO\.?\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+        rf"\bN[°º]\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+    ]
+
+    for fuente in (text_u, name_u):
+        for patron in patrones:
+            m = re.search(patron, fuente, re.IGNORECASE)
+            if m:
+                return m.group(1), m.group(2)
+
+    return None, None
+Debe ir cerca de esta función:
+Python
+def _extract_factura_fields(...)
+Además valida que arriba existan estas constantes
+Python
+GUIA_SERIE_RE = r"(?:T[A-Z0-9]{3}|GR[A-Z0-9]{2,3})"
+GUIA_NUMERO_RE = r"\d{1,8}"
+Después prueba
+Bash
+python -m py_compile core/classifier.py
+python procesar_pendientes.py
+Resultado esperado
+La guía del correo 11 debería dejar de romper el proceso. Como llega sola, sin factura principal asociada en el mismo correo, probablemente quede como:
+Plain text
+pendiente_asociacion
+o se moverá a pendientes_revision, según tu regla actual.
+Conclusión
+No falló la factura.
+Falló la clasificación de guía porque falta _extract_guia_fields() en classifier.py.
+
 Sí. Cambios puntuales:
 1) En qr_parser.py, ajusta parse_qr_payload()
 Para que soporte factura 01 y guía 09:
