@@ -1,15 +1,260 @@
-TEngo una factura que no fue a clasificada:
-[DEBUG] correo_id=3 enriquecidos:
-{'documento_id': 3, 'archivo': 'posible_documento_20260424154314567_ADR510000016197053000AFFC229FE151FD18FF3_1.pdf', 'tipo': 'guia_remision', 'serie': 'T073', 'numero': '0666763', 'ruc': '20565747356', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None, 'qr': False}
-[DEBUG] factura_principal = None
-[WARN] correo_id=3 sin factura principal
-[DEBUG VALIDACION] {'doc': 2, 'tipo': 'factura', 'qr': True, 'DEV_FORCE_REVIEW_FACTURAS': False, 'es_factura_valida': True, 'diferencias_criticas': [], 'advertencias': []}
-[OK] correo=2 doc=2 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA FE65 0814011 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
-[INFO] procesando correo_id=3 documentos=1
-que paso porque no lo reconfocio como factura puede analizar el archivo esta pendientes_revision posible_documento_20260424154314567_ADR510000016197053000AFFC229FE151FD18FF3_1.pdf
-este archivo esta correcto porque es un certificado de calidad: posible_documento_20260424154314565_ADR510000016187943000AB56143BB971FD18FF2_1.pdf por favor buscar el archivo anterior y decir cual es el error o en que fallo porque no lo detecto como pendiente de supervision.
-lo que me di cuenta es que toda las guias de remison electronica tambien tienen qr por favor buscar las fuentes oficiales donde describan el contendio y simimilar si el archivo se detecto como guia de remision pues revalidar con el qr y los datos del qr serian lo lo mas importante ya que es una fuente de informacion confiable. Similar tiene falsos positivos como no encontrar la fecha, cliente, fecha emision. etc.
-he visto que las guias traen un qr algunos traen uno otros dos y son diferenes y pueden estar en diferentes posicion superior derecha y inferior izquierda pero quizas puede varia. el qr trae esta informacion:
-https://e-factura.sunat.gob.pe/v1/contribuyente/gre/comprobantes/descargaqr?hashqr=E82X05mBF6Z1MZnItHJTYaBxVJcC/UIc/JRgPBKmN/Kw0Eyc5AnIqQxb2boG7ZLFiEJ/R2bNDV5b0IX3MytFSh3aK/QC06WVlz+TsltUWEA=
+Sí. Cambios puntuales:
+1) En qr_parser.py, ajusta parse_qr_payload()
+Para que soporte factura 01 y guía 09:
+Python
+def parse_qr_payload(qr_text: str | None) -> dict[str, Any] | None:
+    if not qr_text:
+        return None
 
-20538549071|09|T002|00280|0|2026-04-15|6|20565747356|https://e-factura.sunat.gob.pe/v1/contribuyente/gre/comprobantes/descargaqr?hashqr=i9PP93DgTkYyPM4qjLWzuAbyu4km6eGKR7XXoHwlaiZN4Dr72CCKUJ0/+zfOLeX03ycWaX4E8DncU5mJiyi3wx6EfYJCArAj5Q558MWT2lk=|
+    raw = qr_text.strip().replace("\n", "").replace("\r", "")
+    parts = [p.strip() for p in raw.split("|")]
+
+    if len(parts) < 8:
+        return None
+
+    ruc_emisor = parts[0] or None
+    tipo_doc = parts[1] or None
+    serie = parts[2] or None
+    numero = parts[3] or None
+
+    tipo_documental = TIPO_DOC_MAP.get(tipo_doc)
+
+    if not ruc_emisor or not tipo_doc or not serie or not numero:
+        return None
+
+    # FACTURA / BOLETA / NC / ND
+    if tipo_doc in ("01", "03", "07", "08"):
+        if len(parts) < 9:
+            return None
+
+        return {
+            "ruc_emisor": ruc_emisor,
+            "tipo_doc_codigo": tipo_doc,
+            "tipo_documental": tipo_documental,
+            "serie": serie,
+            "numero": numero,
+            "igv": parts[4] or None,
+            "importe": parts[5] or None,
+            "fecha_emision": parts[6] or None,
+            "tipo_doc_adquirente": parts[7] or None,
+            "num_doc_adquirente": parts[8] or None,
+            "valor_resumen": parts[9] if len(parts) > 9 and parts[9] else None,
+            "valor_firma": parts[10] if len(parts) > 10 and parts[10] else None,
+            "qr_raw": raw,
+        }
+
+    # GUÍA DE REMISIÓN ELECTRÓNICA
+    if tipo_doc == "09":
+        return {
+            "ruc_emisor": ruc_emisor,
+            "tipo_doc_codigo": tipo_doc,
+            "tipo_documental": "guia_remision",
+            "serie": serie,
+            "numero": numero,
+            "igv": None,
+            "importe": None,
+            "fecha_emision": parts[5] if len(parts) > 5 else None,
+            "tipo_doc_adquirente": parts[6] if len(parts) > 6 else None,
+            "num_doc_adquirente": parts[7] if len(parts) > 7 else None,
+            "url_descarga": parts[8] if len(parts) > 8 else None,
+            "qr_raw": raw,
+        }
+
+    return None
+2) En enrich_document(), el QR debe pisar también guías
+Busca algo parecido a:
+Python
+if qr_data and qr_data.get("tipo_documental") == "factura":
+Cámbialo por:
+Python
+if qr_data and qr_data.get("tipo_documental") in ("factura", "guia_remision"):
+    fields["tipo_documental"] = qr_data.get("tipo_documental") or fields.get("tipo_documental")
+    fields["serie"] = qr_data.get("serie") or fields.get("serie")
+    fields["numero"] = qr_data.get("numero") or fields.get("numero")
+    fields["ruc"] = qr_data.get("ruc_emisor") or fields.get("ruc")
+    fields["fecha_emision"] = qr_data.get("fecha_emision") or fields.get("fecha_emision")
+    fields["importe"] = qr_data.get("importe") or fields.get("importe")
+    fields["igv"] = qr_data.get("igv") or fields.get("igv")
+3) Agrega is_guia_valida_produccion()
+Ponla cerca de is_factura_valida_produccion():
+Python
+def is_guia_valida_produccion(fields: dict, qr_data: dict | None) -> tuple[bool, list[str], list[str]]:
+    criticas: list[str] = []
+    advertencias: list[str] = []
+
+    tipo = fields.get("tipo_documental")
+    serie = fields.get("serie")
+    numero = fields.get("numero")
+    ruc = fields.get("ruc")
+    fecha = normalize_date(fields.get("fecha_emision"))
+
+    if qr_data and qr_data.get("tipo_doc_codigo") == "09":
+        qr_serie = qr_data.get("serie")
+        qr_numero = qr_data.get("numero")
+        qr_ruc = qr_data.get("ruc_emisor")
+        qr_fecha = normalize_date(qr_data.get("fecha_emision"))
+
+        if tipo and tipo != "guia_remision":
+            criticas.append(f"tipo texto={tipo} QR=guia_remision")
+
+        if serie and qr_serie and normalize_compare_str(serie) != normalize_compare_str(qr_serie):
+            criticas.append(f"serie texto={serie} QR={qr_serie}")
+
+        if numero and qr_numero and normalize_compare_str(numero) != normalize_compare_str(qr_numero):
+            criticas.append(f"numero texto={numero} QR={qr_numero}")
+
+        if ruc and qr_ruc and normalize_compare_str(ruc) != normalize_compare_str(qr_ruc):
+            advertencias.append(f"ruc texto={ruc} QR={qr_ruc}")
+
+        if fecha and qr_fecha and normalize_compare_str(fecha) != normalize_compare_str(qr_fecha):
+            advertencias.append(f"fecha texto={fecha} QR={qr_fecha}")
+
+        if not qr_ruc:
+            criticas.append("qr guia sin ruc_emisor")
+        if not qr_serie:
+            criticas.append("qr guia sin serie")
+        if not qr_numero:
+            criticas.append("qr guia sin numero")
+        if not qr_fecha:
+            criticas.append("qr guia sin fecha_emision")
+
+        return len(criticas) == 0, criticas, advertencias
+
+    if tipo == "guia_remision":
+        if not serie:
+            criticas.append("guia sin serie")
+        if not numero:
+            criticas.append("guia sin numero")
+        if not ruc:
+            criticas.append("guia sin ruc")
+        if not fecha:
+            criticas.append("guia sin fecha_emision")
+
+        return len(criticas) == 0, criticas, advertencias
+
+    criticas.append("tipo_documental no es guia_remision")
+    return False, criticas, advertencias
+4) Ajuste clave en process_correo()
+No cortes el proceso si no hay factura principal.
+Cambia esta lógica:
+Python
+if not factura_principal:
+    mark_correo_result(...)
+    return
+Por esta lógica:
+Python
+hay_guia_valida = any(
+    d["fields"].get("tipo_documental") == "guia_remision"
+    and d.get("fecha_emision_date")
+    for d in enriched
+)
+
+if not factura_principal and not hay_guia_valida:
+    print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
+    mark_correo_result(
+        correo_id=items[0]["correo_id"],
+        estado_correo="sin_factura_principal",
+        observacion="No se encontró factura principal ni guía válida en el correo.",
+    )
+    return
+5) Dentro del for doc in enriched, valida factura o guía
+Después de:
+Python
+fields = doc["fields"]
+tipo_documental = fields["tipo_documental"]
+qr_data = doc.get("qr_data")
+pon:
+Python
+es_documento_valido = True
+diferencias_criticas = []
+advertencias = []
+
+if tipo_documental == "factura":
+    es_documento_valido, diferencias_criticas, advertencias = is_factura_valida_produccion(fields, qr_data)
+
+elif tipo_documental == "guia_remision":
+    es_documento_valido, diferencias_criticas, advertencias = is_guia_valida_produccion(fields, qr_data)
+6) Para fecha/grupo, usa factura si existe; si no, usa la propia guía
+Donde haces:
+Python
+correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
+deja esa parte solo si hay factura.
+Dentro del for, antes de crear el nombre final, define:
+Python
+fecha_base_doc = factura_principal.get("fecha_emision_date") if factura_principal else doc.get("fecha_emision_date")
+Y si no hay fecha:
+Python
+if not fecha_base_doc:
+    estado_documento = "revision_manual"
+    bucket = "pendientes_revision"
+    estado_archivo = "observado"
+Pero si sí hay fecha:
+Python
+correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_base_doc, prefijo="04")
+7) Regla de estado final
+Reemplaza la decisión de estado por esta:
+Python
+if tipo_documental == "otro":
+    estado_documento = "no_identificado"
+    bucket = "no_identificados"
+    estado_archivo = "observado"
+    total_no_identificados += 1
+
+elif tipo_documental in ("factura", "guia_remision", "adjunto_factura"):
+    if not es_documento_valido:
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+        estado_archivo = "observado"
+        total_revision_manual += 1
+
+    elif DEV_FORCE_REVIEW_FACTURAS and tipo_documental in ("factura", "adjunto_factura"):
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+        estado_archivo = "observado"
+        total_revision_manual += 1
+
+    else:
+        estado_documento = "clasificado"
+        bucket = "pendientes_clasificados"
+        estado_archivo = "renombrado"
+        total_clasificados += 1
+
+elif tipo_documental in ("certificado_calidad", "requerimiento_compra", "cotizacion"):
+    estado_documento = "pendiente_asociacion"
+    bucket = "pendientes_revision"
+    estado_archivo = "observado"
+    total_revision_manual += 1
+
+else:
+    estado_documento = "revision_manual"
+    bucket = "pendientes_revision"
+    estado_archivo = "observado"
+    total_revision_manual += 1
+Regla de negocio final
+Factura
+Clasifica sola si tiene QR válido o texto completo.
+Guía de remisión
+Clasifica sola si tiene QR válido o texto completo.
+Certificado de calidad
+No clasifica solo. Va a pendiente_asociacion.
+Guía sin factura
+Ya no debe quedar como error.
+Debe ir a:
+Plain text
+pendientes_clasificados/YYYY/MM/
+si tiene:
+serie
+número
+ruc
+fecha
+Resultado esperado para tu archivo
+20370146994-09-T073-0666763.pdf.pdf
+Debe quedar como:
+Plain text
+04-0006 GUIA_REMISION T073 0666763 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
+en:
+Plain text
+pendientes_clasificados/2026/04/
+Y el certificado sigue bien en:
+Plain text
+pendientes_revision/2026/04/
