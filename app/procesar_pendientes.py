@@ -655,6 +655,16 @@ def process_correo(items: list[dict]) -> None:
                     "archivo_id": doc["archivo_id"],
                 },
             )
+        
+        print("[DEBUG VALIDACION]", {
+            "doc": doc["documento_id"],
+            "tipo": tipo_documental,
+            "qr": bool(qr_data),
+            "DEV_FORCE_REVIEW_FACTURAS": DEV_FORCE_REVIEW_FACTURAS,
+            "es_factura_valida": es_factura_valida,
+            "diferencias_criticas": diferencias_criticas,
+            "advertencias": advertencias,
+        })
 
         if diferencias_criticas:
             print(
@@ -723,60 +733,6 @@ def normalize_compare_amount(value: str | None) -> str:
     raw = normalize_amount(value)
     return raw or ""
 
-
-def build_qr_text_validation(fields: dict, qr_data: dict | None) -> tuple[bool, list[str], list[str]]:
-    """
-    Retorna:
-    - ok_critico: bool
-    - diferencias_criticas: list[str]
-    - diferencias_no_criticas: list[str]
-    """
-    if not qr_data:
-        return True, [], []
-
-    diferencias_criticas: list[str] = []
-    diferencias_no_criticas: list[str] = []
-
-    qr_tipo = qr_data.get("tipo_documental")
-    qr_ruc = qr_data.get("ruc_emisor")
-    qr_serie = qr_data.get("serie")
-    qr_numero = qr_data.get("numero")
-    qr_fecha = normalize_date(qr_data.get("fecha_emision"))
-    qr_importe = normalize_compare_amount(qr_data.get("importe"))
-    qr_igv = normalize_compare_amount(qr_data.get("igv"))
-
-    tx_tipo = fields.get("tipo_documental")
-    tx_ruc = fields.get("ruc")
-    tx_serie = fields.get("serie")
-    tx_numero = fields.get("numero")
-    tx_fecha = normalize_date(fields.get("fecha_emision"))
-    tx_importe = normalize_compare_amount(fields.get("importe"))
-    tx_igv = normalize_compare_amount(fields.get("igv"))
-
-    # CRITICOS
-    if qr_tipo and tx_tipo and normalize_compare_str(qr_tipo) != normalize_compare_str(tx_tipo):
-        diferencias_criticas.append(f"tipo QR={qr_tipo} TEXTO={tx_tipo}")
-
-    if qr_ruc and tx_ruc and normalize_compare_str(qr_ruc) != normalize_compare_str(tx_ruc):
-        diferencias_criticas.append(f"ruc QR={qr_ruc} TEXTO={tx_ruc}")
-
-    if qr_serie and tx_serie and normalize_compare_str(qr_serie) != normalize_compare_str(tx_serie):
-        diferencias_criticas.append(f"serie QR={qr_serie} TEXTO={tx_serie}")
-
-    if qr_numero and tx_numero and normalize_compare_str(qr_numero) != normalize_compare_str(tx_numero):
-        diferencias_criticas.append(f"numero QR={qr_numero} TEXTO={tx_numero}")
-
-    # NO CRITICOS
-    if qr_fecha and tx_fecha and normalize_compare_str(qr_fecha) != normalize_compare_str(tx_fecha):
-        diferencias_no_criticas.append(f"fecha QR={qr_fecha} TEXTO={tx_fecha}")
-
-    if qr_importe and tx_importe and qr_importe != tx_importe:
-        diferencias_no_criticas.append(f"importe QR={qr_importe} TEXTO={tx_importe}")
-
-    if qr_igv and tx_igv and qr_igv != tx_igv:
-        diferencias_no_criticas.append(f"igv QR={qr_igv} TEXTO={tx_igv}")
-
-    return len(diferencias_criticas) == 0, diferencias_criticas, diferencias_no_criticas
 
 def is_factura_valida_produccion(
     fields: dict,
