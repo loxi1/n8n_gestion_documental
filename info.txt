@@ -1,381 +1,147 @@
-El flujo sí procesó bien las facturas, pero se detuvo al llegar a una guía de remisión.
-Qué pasó
-Este error es claro:
+
+    Buenísimo, aquí ya estamos entrando a nivel producción real con casuísticas SUNAT 👏
+y lo que te pasó NO es un bug, es una decisión de diseño que ahora hay que mejorar.
+🔍 QUÉ PASÓ REALMENTE
+Tu log lo dice clarísimo:
+Python
+{'tipo': 'guia_remision', 'serie': 'T073', 'numero': '0666763'}
+[DEBUG] factura_principal = None
+[WARN] correo_id=3 sin factura principal
+👉 El sistema sí reconoció correctamente el documento
+👉 Pero lo clasificó como guía de remisión (NO factura)
+🧠 ERROR DE EXPECTATIVA (NO DEL SISTEMA)
+Tú pensabas:
+“esa factura no fue clasificada”
+Pero en realidad: 👉 NO era factura 👉 Era una GUÍA DE REMISIÓN ELECTRÓNICA (GRE)
+🧾 CONFIRMACIÓN CON EL QR
+El QR que enviaste lo confirma 100%:
 Plain text
-NameError: name '_extract_guia_fields' is not defined
-Significa que en classifier.py tienes esta llamada:
-Python
-serie, numero = _extract_guia_fields(text_u, name_u)
-pero la función _extract_guia_fields() no existe o fue eliminada accidentalmente.
-Por eso:
-correo 10 factura FE65-0814011 sí pasó a pendientes_clasificados
-correo 11 guía T073-0666763 se quedó en inbox
-el script se cortó antes de procesarla
-Lo que está correcto
-Estas facturas están bien:
-Plain text
-pendientes_clasificados/2026/04/
-04-0001 FACTURA F001 00011006 ...
-04-0002 FACTURA FE65 0812829 ...
-04-0003 FACTURA F001 00011006 ...
-04-0004 FACTURA F010 00011002 ...
-04-0005 FACTURA FE65 0814011 ...
-La lógica de factura ya está funcionando.
-Qué falta corregir
-En app/core/classifier.py, agrega nuevamente esta función:
-Python
-def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
-    patrones = [
-        rf"\b({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-        rf"\bNRO\.?\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-        rf"\bN[°º]\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-    ]
+20538549071|09|T002|00280|0|2026-04-15|6|20565747356
+📌 Campo clave:
 
-    for fuente in (text_u, name_u):
-        for patron in patrones:
-            m = re.search(patron, fuente, re.IGNORECASE)
-            if m:
-                return m.group(1), m.group(2)
-
-    return None, None
-Debe ir cerca de esta función:
-Python
-def _extract_factura_fields(...)
-Además valida que arriba existan estas constantes
-Python
-GUIA_SERIE_RE = r"(?:T[A-Z0-9]{3}|GR[A-Z0-9]{2,3})"
-GUIA_NUMERO_RE = r"\d{1,8}"
-Después prueba
-Bash
-python -m py_compile core/classifier.py
-python procesar_pendientes.py
-Resultado esperado
-La guía del correo 11 debería dejar de romper el proceso. Como llega sola, sin factura principal asociada en el mismo correo, probablemente quede como:
-Plain text
-pendiente_asociacion
-o se moverá a pendientes_revision, según tu regla actual.
-Conclusión
-No falló la factura.
-Falló la clasificación de guía porque falta _extract_guia_fields() en classifier.py.
-
-
-El flujo sí procesó bien las facturas, pero se detuvo al llegar a una guía de remisión.
-Qué pasó
-Este error es claro:
-Plain text
-NameError: name '_extract_guia_fields' is not defined
-Significa que en classifier.py tienes esta llamada:
-Python
-serie, numero = _extract_guia_fields(text_u, name_u)
-pero la función _extract_guia_fields() no existe o fue eliminada accidentalmente.
-Por eso:
-correo 10 factura FE65-0814011 sí pasó a pendientes_clasificados
-correo 11 guía T073-0666763 se quedó en inbox
-el script se cortó antes de procesarla
-Lo que está correcto
-Estas facturas están bien:
-Plain text
-pendientes_clasificados/2026/04/
-04-0001 FACTURA F001 00011006 ...
-04-0002 FACTURA FE65 0812829 ...
-04-0003 FACTURA F001 00011006 ...
-04-0004 FACTURA F010 00011002 ...
-04-0005 FACTURA FE65 0814011 ...
-La lógica de factura ya está funcionando.
-Qué falta corregir
-En app/core/classifier.py, agrega nuevamente esta función:
-Python
-def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
-    patrones = [
-        rf"\b({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-        rf"\bNRO\.?\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-        rf"\bN[°º]\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-    ]
-
-    for fuente in (text_u, name_u):
-        for patron in patrones:
-            m = re.search(patron, fuente, re.IGNORECASE)
-            if m:
-                return m.group(1), m.group(2)
-
-    return None, None
-Debe ir cerca de esta función:
-Python
-def _extract_factura_fields(...)
-Además valida que arriba existan estas constantes
-Python
-GUIA_SERIE_RE = r"(?:T[A-Z0-9]{3}|GR[A-Z0-9]{2,3})"
-GUIA_NUMERO_RE = r"\d{1,8}"
-Después prueba
-Bash
-python -m py_compile core/classifier.py
-python procesar_pendientes.py
-Resultado esperado
-La guía del correo 11 debería dejar de romper el proceso. Como llega sola, sin factura principal asociada en el mismo correo, probablemente quede como:
-Plain text
-pendiente_asociacion
-o se moverá a pendientes_revision, según tu regla actual.
-Conclusión
-No falló la factura.
-Falló la clasificación de guía porque falta _extract_guia_fields() en classifier.py.
-
-Sí. Cambios puntuales:
-1) En qr_parser.py, ajusta parse_qr_payload()
-Para que soporte factura 01 y guía 09:
-Python
-def parse_qr_payload(qr_text: str | None) -> dict[str, Any] | None:
-    if not qr_text:
-        return None
-
-    raw = qr_text.strip().replace("\n", "").replace("\r", "")
-    parts = [p.strip() for p in raw.split("|")]
-
-    if len(parts) < 8:
-        return None
-
-    ruc_emisor = parts[0] or None
-    tipo_doc = parts[1] or None
-    serie = parts[2] or None
-    numero = parts[3] or None
-
-    tipo_documental = TIPO_DOC_MAP.get(tipo_doc)
-
-    if not ruc_emisor or not tipo_doc or not serie or not numero:
-        return None
-
-    # FACTURA / BOLETA / NC / ND
-    if tipo_doc in ("01", "03", "07", "08"):
-        if len(parts) < 9:
-            return None
-
-        return {
-            "ruc_emisor": ruc_emisor,
-            "tipo_doc_codigo": tipo_doc,
-            "tipo_documental": tipo_documental,
-            "serie": serie,
-            "numero": numero,
-            "igv": parts[4] or None,
-            "importe": parts[5] or None,
-            "fecha_emision": parts[6] or None,
-            "tipo_doc_adquirente": parts[7] or None,
-            "num_doc_adquirente": parts[8] or None,
-            "valor_resumen": parts[9] if len(parts) > 9 and parts[9] else None,
-            "valor_firma": parts[10] if len(parts) > 10 and parts[10] else None,
-            "qr_raw": raw,
-        }
-
-    # GUÍA DE REMISIÓN ELECTRÓNICA
-    if tipo_doc == "09":
-        return {
-            "ruc_emisor": ruc_emisor,
-            "tipo_doc_codigo": tipo_doc,
-            "tipo_documental": "guia_remision",
-            "serie": serie,
-            "numero": numero,
-            "igv": None,
-            "importe": None,
-            "fecha_emision": parts[5] if len(parts) > 5 else None,
-            "tipo_doc_adquirente": parts[6] if len(parts) > 6 else None,
-            "num_doc_adquirente": parts[7] if len(parts) > 7 else None,
-            "url_descarga": parts[8] if len(parts) > 8 else None,
-            "qr_raw": raw,
-        }
-
-    return None
-2) En enrich_document(), el QR debe pisar también guías
-Busca algo parecido a:
-Python
-if qr_data and qr_data.get("tipo_documental") == "factura":
-Cámbialo por:
-Python
-if qr_data and qr_data.get("tipo_documental") in ("factura", "guia_remision"):
-    fields["tipo_documental"] = qr_data.get("tipo_documental") or fields.get("tipo_documental")
-    fields["serie"] = qr_data.get("serie") or fields.get("serie")
-    fields["numero"] = qr_data.get("numero") or fields.get("numero")
-    fields["ruc"] = qr_data.get("ruc_emisor") or fields.get("ruc")
-    fields["fecha_emision"] = qr_data.get("fecha_emision") or fields.get("fecha_emision")
-    fields["importe"] = qr_data.get("importe") or fields.get("importe")
-    fields["igv"] = qr_data.get("igv") or fields.get("igv")
-3) Agrega is_guia_valida_produccion()
-Ponla cerca de is_factura_valida_produccion():
-Python
-def is_guia_valida_produccion(fields: dict, qr_data: dict | None) -> tuple[bool, list[str], list[str]]:
-    criticas: list[str] = []
-    advertencias: list[str] = []
-
-    tipo = fields.get("tipo_documental")
-    serie = fields.get("serie")
-    numero = fields.get("numero")
-    ruc = fields.get("ruc")
-    fecha = normalize_date(fields.get("fecha_emision"))
-
-    if qr_data and qr_data.get("tipo_doc_codigo") == "09":
-        qr_serie = qr_data.get("serie")
-        qr_numero = qr_data.get("numero")
-        qr_ruc = qr_data.get("ruc_emisor")
-        qr_fecha = normalize_date(qr_data.get("fecha_emision"))
-
-        if tipo and tipo != "guia_remision":
-            criticas.append(f"tipo texto={tipo} QR=guia_remision")
-
-        if serie and qr_serie and normalize_compare_str(serie) != normalize_compare_str(qr_serie):
-            criticas.append(f"serie texto={serie} QR={qr_serie}")
-
-        if numero and qr_numero and normalize_compare_str(numero) != normalize_compare_str(qr_numero):
-            criticas.append(f"numero texto={numero} QR={qr_numero}")
-
-        if ruc and qr_ruc and normalize_compare_str(ruc) != normalize_compare_str(qr_ruc):
-            advertencias.append(f"ruc texto={ruc} QR={qr_ruc}")
-
-        if fecha and qr_fecha and normalize_compare_str(fecha) != normalize_compare_str(qr_fecha):
-            advertencias.append(f"fecha texto={fecha} QR={qr_fecha}")
-
-        if not qr_ruc:
-            criticas.append("qr guia sin ruc_emisor")
-        if not qr_serie:
-            criticas.append("qr guia sin serie")
-        if not qr_numero:
-            criticas.append("qr guia sin numero")
-        if not qr_fecha:
-            criticas.append("qr guia sin fecha_emision")
-
-        return len(criticas) == 0, criticas, advertencias
-
-    if tipo == "guia_remision":
-        if not serie:
-            criticas.append("guia sin serie")
-        if not numero:
-            criticas.append("guia sin numero")
-        if not ruc:
-            criticas.append("guia sin ruc")
-        if not fecha:
-            criticas.append("guia sin fecha_emision")
-
-        return len(criticas) == 0, criticas, advertencias
-
-    criticas.append("tipo_documental no es guia_remision")
-    return False, criticas, advertencias
-4) Ajuste clave en process_correo()
-No cortes el proceso si no hay factura principal.
-Cambia esta lógica:
+|09|
+👉 Según SUNAT:
+Código
+Tipo
+01
+Factura
+03
+Boleta
+09
+Guía de Remisión
+👉 Entonces:
+✔ Es guía
+❌ NO es factura
+⚠️ POR ESO NO SE CLASIFICÓ
+Tu lógica actual dice:
 Python
 if not factura_principal:
-    mark_correo_result(...)
-    return
-Por esta lógica:
-Python
-hay_guia_valida = any(
-    d["fields"].get("tipo_documental") == "guia_remision"
-    and d.get("fecha_emision_date")
-    for d in enriched
-)
+    estado = "sin_factura_principal"
+👉 Y eso es correcto para:
+certificados
+adjuntos secundarios
+PERO ❌ NO para guías
+🚨 PROBLEMA REAL DE DISEÑO
+Tu sistema está pensado así:
 
-if not factura_principal and not hay_guia_valida:
-    print(f"[WARN] correo_id={items[0]['correo_id']} sin factura principal")
-    mark_correo_result(
-        correo_id=items[0]["correo_id"],
-        estado_correo="sin_factura_principal",
-        observacion="No se encontró factura principal ni guía válida en el correo.",
-    )
-    return
-5) Dentro del for doc in enriched, valida factura o guía
-Después de:
-Python
-fields = doc["fields"]
-tipo_documental = fields["tipo_documental"]
-qr_data = doc.get("qr_data")
-pon:
-Python
-es_documento_valido = True
-diferencias_criticas = []
-advertencias = []
+Factura = documento principal
+Otros = secundarios
+👉 Pero en la realidad:
 
-if tipo_documental == "factura":
-    es_documento_valido, diferencias_criticas, advertencias = is_factura_valida_produccion(fields, qr_data)
+Factura → documento contable
+Guía → documento logístico (igual de importante)
+👉 SON DOCUMENTOS INDEPENDIENTES
+🧠 SOLUCIÓN PROFESIONAL (IMPORTANTE)
+Debes separar lógica:
+🔥 Nueva regla de negocio
+Plain text
+FACTURA → se clasifica sola
+GUÍA → se clasifica sola (NO depende de factura)
+CERTIFICADO → depende de factura
+🛠️ CAMBIO QUE NECESITAS HACER
+En process_correo() cambia esto:
+❌ ACTUAL (mal para guías)
+Python
+if not factura_principal:
+    estado = "sin_factura_principal"
+✅ NUEVO (correcto)
+Python
+if doc["tipo"] == "factura":
+    # validar factura (tu lógica actual)
+    ...
 
-elif tipo_documental == "guia_remision":
-    es_documento_valido, diferencias_criticas, advertencias = is_guia_valida_produccion(fields, qr_data)
-6) Para fecha/grupo, usa factura si existe; si no, usa la propia guía
-Donde haces:
-Python
-correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
-deja esa parte solo si hay factura.
-Dentro del for, antes de crear el nombre final, define:
-Python
-fecha_base_doc = factura_principal.get("fecha_emision_date") if factura_principal else doc.get("fecha_emision_date")
-Y si no hay fecha:
-Python
-if not fecha_base_doc:
-    estado_documento = "revision_manual"
-    bucket = "pendientes_revision"
-    estado_archivo = "observado"
-Pero si sí hay fecha:
-Python
-correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_base_doc, prefijo="04")
-7) Regla de estado final
-Reemplaza la decisión de estado por esta:
-Python
-if tipo_documental == "otro":
-    estado_documento = "no_identificado"
-    bucket = "no_identificados"
-    estado_archivo = "observado"
-    total_no_identificados += 1
+elif doc["tipo"] == "guia_remision":
+    # validar guía independiente
+    es_valida = bool(doc["serie"] and doc["numero"] and doc["ruc"])
 
-elif tipo_documental in ("factura", "guia_remision", "adjunto_factura"):
-    if not es_documento_valido:
-        estado_documento = "revision_manual"
-        bucket = "pendientes_revision"
-        estado_archivo = "observado"
-        total_revision_manual += 1
-
-    elif DEV_FORCE_REVIEW_FACTURAS and tipo_documental in ("factura", "adjunto_factura"):
-        estado_documento = "revision_manual"
-        bucket = "pendientes_revision"
-        estado_archivo = "observado"
-        total_revision_manual += 1
-
+    if es_valida:
+        estado = "clasificado"
+        destino = "pendientes_clasificados"
     else:
-        estado_documento = "clasificado"
-        bucket = "pendientes_clasificados"
-        estado_archivo = "renombrado"
-        total_clasificados += 1
+        estado = "pendiente_revision"
 
-elif tipo_documental in ("certificado_calidad", "requerimiento_compra", "cotizacion"):
-    estado_documento = "pendiente_asociacion"
-    bucket = "pendientes_revision"
-    estado_archivo = "observado"
-    total_revision_manual += 1
+elif doc["tipo"] == "certificado_calidad":
+    if not factura_principal:
+        estado = "pendiente_asociacion"
+🧠 AHORA LO MÁS IMPORTANTE (TU IDEA 💡)
+usar QR como fuente principal
+👉 ESTÁS EN LO CORRECTO
+🧾 QR DE GUÍA (OFICIAL SUNAT)
+El formato es:
+Plain text
+RUC|TIPO|SERIE|NUMERO|0|FECHA|TIPO_DOC_RECEPTOR|DOC_RECEPTOR|URL
+Ejemplo:
+Plain text
+20538549071|09|T002|00280|0|2026-04-15|6|20565747356
+🚀 REGLA PRO QUE DEBES IMPLEMENTAR
+🔥 PRIORIDAD DE DATOS
+Plain text
+1. QR (SI EXISTE) → fuente principal
+2. TEXTO OCR → fallback
+🛠️ VALIDACIÓN PARA GUÍA
+Python
+if qr_data and qr_data.get("tipo_documental") == "guia_remision":
+    return {
+        "tipo_documental": "guia_remision",
+        "serie": qr_data.get("serie"),
+        "numero": qr_data.get("numero"),
+        "ruc": qr_data.get("ruc_emisor"),
+        "fecha_emision": qr_data.get("fecha_emision"),
+    }
+⚠️ OTRO ERROR QUE DETECTASTE (MUY BUENO)
+guías también tienen QR
+👉 EXACTO
+Entonces tu lógica actual está incompleta:
+Python
+if qr_data and qr_data.get("tipo_documental") == "factura":
+👉 DEBE SER:
+Python
+if qr_data:
+    tipo_qr = qr_data.get("tipo_documental")
 
-else:
-    estado_documento = "revision_manual"
-    bucket = "pendientes_revision"
-    estado_archivo = "observado"
-    total_revision_manual += 1
-Regla de negocio final
-Factura
-Clasifica sola si tiene QR válido o texto completo.
-Guía de remisión
-Clasifica sola si tiene QR válido o texto completo.
-Certificado de calidad
-No clasifica solo. Va a pendiente_asociacion.
-Guía sin factura
-Ya no debe quedar como error.
-Debe ir a:
+    if tipo_qr in ["factura", "guia_remision"]:
+        usar QR como fuente principal
+🧠 CONCLUSIÓN FINAL
+👉 No hubo error de detección
+👉 Hubo error de lógica de negocio
+🎯 RESUMEN CLARO
+✔ El documento SÍ es guía
+✔ QR lo confirma (tipo 09)
+✔ No debía clasificarse como factura
+✔ Tu sistema no contempla guías como principales
+🚀 SIGUIENTE NIVEL (RECOMENDADO)
+Si quieres dejar esto nivel empresa real, el flujo debe ser:
 Plain text
-pendientes_clasificados/YYYY/MM/
-si tiene:
-serie
-número
-ruc
-fecha
-Resultado esperado para tu archivo
-20370146994-09-T073-0666763.pdf.pdf
-Debe quedar como:
-Plain text
-04-0006 GUIA_REMISION T073 0666763 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
-en:
-Plain text
-pendientes_clasificados/2026/04/
-Y el certificado sigue bien en:
-Plain text
-pendientes_revision/2026/04/
+Correo →
+  → Factura → clasificar
+  → Guía → clasificar
+  → Certificado → asociar
+🔥 SI QUIERES
+Te armo:
+is_guia_valida_produccion()
+ajuste completo en process_correo()
+naming automático para guías:
+
+04-0006 GUIA T073 0666763 20538549071 PROVEEDOR.pdf
+asociación factura ↔ guía (por OC o cliente)
+Esto ya sería un sistema tipo ERP-lite 🔥
