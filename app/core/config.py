@@ -15,4 +15,5 @@ PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "postgres123")
 
 APISPERU_TOKEN = os.getenv("APISPERU_TOKEN", "")
-DEV_FORCE_REVIEW_FACTURAS = os.getenv("DEV_FORCE_REVIEW_FACTURAS", "1") == "1"
+
+DEV_FORCE_REVIEW_FACTURAS = os.getenv("DEV_FORCE_REVIEW_FACTURAS", 0)
