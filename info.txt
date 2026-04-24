@@ -1,29 +1,35 @@
-Esto es el debug:
-$ python -c "from core.config import DEV_FORCE_REVIEW_FACTURAS; print(DEV_FORCE_REVIEW_FACTURAS)"
+Ya encontré la causa más probable.
+Tu config.py del repo no tiene todavía esta línea:
+Python
+DEV_FORCE_REVIEW_FACTURAS = os.getenv("DEV_FORCE_REVIEW_FACTURAS", "1") == "1"
+En el raw actual solo llega hasta APISPERU_TOKEN y no aparece DEV_FORCE_REVIEW_FACTURAS. �
+GitHub
+Por eso en tu procesar_pendientes.py se ve importado DEV_FORCE_REVIEW_FACTURAS, y también se usa para decidir si manda a pendientes_revision. �
+GitHub +1
+Qué hacer
+En app/core/config.py, al final agrega:
+Python
+DEV_FORCE_REVIEW_FACTURAS = os.getenv("DEV_FORCE_REVIEW_FACTURAS", "1") == "1"
+Debe quedar algo así:
+Python
+APISPERU_TOKEN = os.getenv("APISPERU_TOKEN", "")
+
+DEV_FORCE_REVIEW_FACTURAS = os.getenv("DEV_FORCE_REVIEW_FACTURAS", "1") == "1"
+Luego ejecuta:
+Bash
+python -c "from core.config import DEV_FORCE_REVIEW_FACTURAS; print(DEV_FORCE_REVIEW_FACTURAS)"
+Debe salir:
+Plain text
 False
-(venv) 
-
-$ python procesar_pendientes.py
-[OK] correo=1 doc=1 tipo=factura grupo=04-0001 nombre=04-0001 FACTURA F001 00011006 20563293587 IMPORT_EXPORT_PACKING_PERU_S_A.pdf
-[INFO] procesando correo_id=2 documentos=1
-[DEBUG VALIDACION] {'doc': 1, 'tipo': 'factura', 'qr': True, 'DEV_FORCE_REVIEW_FACTURAS': True, 'es_factura_valida': True, 'diferencias_criticas': [], 'advertencias': []}
-
-[OK] correo=2 doc=2 tipo=factura grupo=04-0002 nombre=04-0002 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf
-[INFO] procesando correo_id=3 documentos=1
-[DEBUG VALIDACION] {'doc': 2, 'tipo': 'factura', 'qr': True, 'DEV_FORCE_REVIEW_FACTURAS': True, 'es_factura_valida': True, 'diferencias_criticas': [], 'advertencias': []}
-
-[OK] correo=3 doc=3 tipo=factura grupo=04-0003 nombre=04-0003 FACTURA F001 00011006 20563293587 IMPORT_EXPORT_PACKING_PERU_S_A.pdf
-[DEBUG VALIDACION] {'doc': 3, 'tipo': 'factura', 'qr': True, 'DEV_FORCE_REVIEW_FACTURAS': True, 'es_factura_valida': True, 'diferencias_criticas': [], 'advertencias': []}
-
-[DEBUG VALIDACION] {'doc': 4, 'tipo': 'factura', 'qr': True, 'DEV_FORCE_REVIEW_FACTURAS': True, 'es_factura_valida': True, 'diferencias_criticas': [], 'advertencias': []}
-[OK] correo=4 doc=4 tipo=factura grupo=04-0004 nombre=04-0004 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pdf
-
-$ ls -l ../storage/files/pendientes_revision/2026/04/
-total 324
--rw-r--r-- 1 BBTI 01 197121 71578 abr. 24 08:28 '04-0001 FACTURA F001 00011006 20563293587 IMPORT_EXPORT_PACKING_PERU_S_A.pdf'
--rw-r--r-- 1 BBTI 01 197121 93585 abr. 24 08:28 '04-0002 FACTURA FE65 0812829 20370146994 CORPORACION_ACEROS_AREQUIPA_S.pdf'
--rw-r--r-- 1 BBTI 01 197121 71578 abr. 24 08:28 '04-0003 FACTURA F001 00011006 20563293587 IMPORT_EXPORT_PACKING_PERU_S_A.pdf'
--rw-r--r-- 1 BBTI 01 197121 86071 abr. 24 08:28 '04-0004 FACTURA F010 00011002 20514753483 CORPORACION_PROMATISA_SOCIEDAD.pdf'
-(venv) 
-
-por favor revisar el repo: https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py aun sigue enviandose a pendientes_revision
+Y después:
+Bash
+python procesar_pendientes.py
+Importante
+Tu debug del script muestra:
+Plain text
+'DEV_FORCE_REVIEW_FACTURAS': True
+Eso significa que el script está tomando el flag como activo, por eso manda a pendientes_revision.
+Cuando quede en False, y la factura sea válida, debe ir a:
+Plain text
+pendientes_clasificados/2026/04/
+Tu process_correo() ya tiene la lógica correcta; el problema es la configuración que está llegando como True.
