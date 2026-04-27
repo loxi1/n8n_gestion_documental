@@ -242,10 +242,11 @@ total 672
 -rw-r--r-- 1 BBTI 01 197121 378460 Apr 27 15:34 '04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf'
 
 veo muchas incosistencias: una orde de compra no se proceso esta en pendientes_revision:04-0005 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf
-ocr_tmp: ocr_posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_2.pdf
-una guia de remision no se proceso de seguro por el salto de linea: GUIA DE REMISION
-ELECTRONICA que paso a clasificado pero no se borro pero esta con este nombre: 
-pendientes_clasificados: 04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
-no se borro de ocr_tmp: ocr_posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_3.pdf
+pendientes_clasificados: 04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf se repite en ocr_tmp: ocr_posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_3.pdf
 
+ocr_tmp: ocr_posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_2.pdf esta orden de compra ya seberia ser reconocida de manera natural 
 
+pendientes_revision: posible_documento_20260427203438941_69efb84d.050a0220.296f46.fdfb_mx.google._1.pdf quizas no paso por un salto de linea: GUIA DE REMISION
+ELECTRONICA
+
+ayudame a validar
