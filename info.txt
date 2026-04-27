@@ -1,3 +1,43 @@
-XEON: COD: 0434
-HP Z2 G8 WORKSTATION S/. 2500 + MONITOR HP 24” FHD
-ADICIONAR memoria RAM de 16GB
+El personal de soporte me dice que haga una compartiva entre los dos y me dicen porque elegir uno de otro porque segun su parecer es mejor el XEON COD: 0432. Me comenta a futuro pueden hacer procesarmiendo de archivos de autocat porque aca trabajan con planos
+
+HP WORKSTATION Z2 G8 + HP 24" FHD /
+Procesador Intel Xeon de Alta Gama / Intel Xeon
+W-1390 2.8Ghz / 8 Nucleos 16 Sub-Procesadores /
+Max. Turbo 5.2Ghz 165MB SmartCache / Memoria
+RAM 16GB DDR4 / SSD 512GB PCI M.2 / VIDEO
+DEDICADO NVIDIA QUADRO T1000 DE 4GB
+GDDR6 / 896 Núcleos CUDA / Interfaz de Memoria:
+128 bits / Conectores de Pantalla: 4x Mini
+DisplayPort / 03 USB 2.0 / 03 USB 3.1 Gen 1 / 04
+USB 3.1 Gen 2 / 01 USB Tipo C / 02 USB4 Gen 2x2 /
+02 Displayport / 01 LAN RJ-45 / 01 Salida para
+auriculares / 01 Conexion audifono/microfono / 10
+PCI Express x1 Gen 3 / Incluye Kit teclado y mouse
+USB + Monitor HP LED 24" / Modelo: HP Z24F G3 /
+Resolucion 1920x1080p FHD / Panel IPS / 04
+USB-A 3.2 Gen 1 / 01 HDMI 1.4 / 01 DisplayPort 1.2
+/ Producto Usado de Buena Calidad / GARANTIA
+01 AÑO / PRECIO OFERTA S/. 2,500
+
+
+HP Z4 G4 WORKSTATION S/. 2100
+MEMORIA 32GB DDR4
+XEON COD: 0432
+
+HP Z4 G4 WORKSTATION FULL TOWER / Especial para
+Diseño y Arquitectura / Intel XEON W-2223 3.6Ghz 4
+Nucleos / Max. Turbo 3.9Ghz 8.25MB Cache / 08
+Subprocesadores / Memoria RAM 32GB DDR4 ECC-R /
+Disco Sólido 512GB M.2 `+ HDD 1TB / VIDEO
+DEDICADO NVIDIA QUADRO P2200 DE 5GB GDDR5 /
+Interfaz de Memoria 160 Bits / Nucleos Nvidia Cuda
+1280 / Gb/s Ancho Banda 200 Gb/s / Conexion en
+Simultaneo x 4 DP 1.4 / Placa Madre Intel® C422 /
+Puertos frontales: 04 USB 3.1 Gen 1 / 01 Conexión
+para audífono/micrófono / 01 Lector de tarjetas /
+Puertos posteriores: 06 USB 3.1 Gen 1 / 02 Puertos
+LAN / 01 Salida de audio / 01 Entrada de audio / 02
+PS/2 / 02 PCI Express x4 / 01 Ranura PCI Express x8 /
+02 PCI Express x16 / Fuente Poder 750w / GARANTIA
+01 AÑO / Producto Usado de Buena Calidad A1 /
+PRECIO OFERTA S/. 2,100
