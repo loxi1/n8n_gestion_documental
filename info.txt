@@ -1,3 +1,171 @@
-orden de compra tiene siempre este titulo: Orden de Compra N*:007902 y lleva siempre en el contenido inferior de la factura: facturas@bbti.com.pe 
-https://i.ibb.co/B2f5CQWD/merge-correo-id.png
-https://i.ibb.co/rKCtHSZN/url.png
+Bien, esto ya es un análisis de comportamiento real del sistema, no de código aislado. Y te lo digo directo:
+👉 Tu sistema ya funciona, pero ahora estás entrando en la fase difícil:
+consistencia de reglas de negocio entre tipos de documento.
+Voy punto por punto sobre lo que detectaste.
+🔍 1. PROBLEMA: Guía clasificada como OTRO
+Bash
+04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+Pero en DB:
+SQL
+tipo_documental = guia_remision
+👉 Esto es CLAVE: El nombre final usa OTRO pero el tipo es guia_remision
+🧠 Causa
+Tu build_final_name() está usando mal el tipo:
+Python
+tipo_documental=tipo_documental
+Pero en algún punto antes lo estás sobrescribiendo o no estás pasando el correcto.
+✅ SOLUCIÓN
+En build_final_name() asegúrate de esto:
+Python
+tipo_str = {
+    "factura": "FACTURA",
+    "guia_remision": "GUIA",
+    "orden_compra": "OC",
+    "certificado_calidad": "CERT",
+}.get(tipo_documental, "OTRO")
+Y luego:
+Python
+nombre = f"{grupo_codigo} {tipo_str} ..."
+👉 Con eso:
+Bash
+❌ OTRO → ✅ GUIA
+🔍 2. ORDEN DE COMPRA NO RECONOCIDA
+Archivo:
+Bash
+ocr_posible_documento_..._2.pdf
+Nombre original:
+Bash
+ORDEN DE COMRA 007902.pdf.pdf
+👉 Aquí hay un error brutal:
+Bash
+COMRA ❌
+COMPRA ✅
+🧠 Tu regex actual:
+Python
+r"\bORDEN DE COMPRA\b"
+👉 No detecta "COMRA"
+✅ SOLUCIÓN REAL (OCR-proof)
+Cambia tu detección en classifier.py:
+Python
+if (
+    re.search(r"\bORDEN DE COM(?:P|R)A\b", text_u)
+    or re.search(r"\bORDEN DE COMRA\b", text_u)
+    or re.search(r"\bOC[- ]?\d{4,}\b", text_u)
+):
+    return "orden_compra"
+👉 Esto ya soporta errores OCR reales.
+🔍 3. GUÍA NO DETECTADA (salto de línea)
+Texto:
+Plain text
+GUIA DE REMISION
+ELECTRONICA
+🧠 Problema
+Tu regex probablemente busca:
+Python
+"GUIA DE REMISION ELECTRONICA"
+👉 Pero OCR lo separa en líneas.
+✅ SOLUCIÓN
+Cambia a:
+Python
+if (
+    re.search(r"GUIA\s+DE\s+REMISION\s+ELECTRONICA", text_u)
+    or re.search(r"GUIA DE REMISION", text_u)
+):
+    return "guia_remision"
+👉 \s+ soporta saltos de línea.
+🔍 4. DUPLICADOS EN OCR_TMP
+Bash
+ocr_tmp/
+  ocr_..._2.pdf
+  ocr_..._3.pdf
+👉 Esto es NORMAL por ahora, pero no debería quedarse.
+🧠 Problema
+Nunca limpias OCR temporal.
+✅ SOLUCIÓN
+Después de procesar cada documento:
+Python
+if OCR_TMP_DIR.exists():
+    try:
+        pdf_ocr_path.unlink(missing_ok=True)
+    except:
+        pass
+O mejor: 👉 limpiar por lote al final:
+Python
+import shutil
+shutil.rmtree(OCR_TMP_DIR, ignore_errors=True)
+OCR_TMP_DIR.mkdir(parents=True, exist_ok=True)
+🔍 5. ORDEN DE COMPRA EN pendientes_revision
+Bash
+04-0005 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf
+👉 Esto es CORRECTO (por ahora)
+🧠 Por qué
+Tu lógica dice:
+Python
+orden_compra → pendiente_asociacion
+👉 Porque no es documento principal.
+🧠 PERO aquí hay mejora
+Esa OC tiene número:
+Bash
+007902
+👉 puedes guardarla bien:
+Python
+elif doc_type == "orden_compra":
+    serie = "OC"
+    numero = m.group(1)
+🔍 6. INCONSISTENCIA REAL (la más importante)
+Tienes esto:
+Bash
+FACTURA → grupo 04-0004
+GUIA → grupo 04-0005
+👉 PERO SON DEL MISMO CORREO
+🧠 Problema
+Estás generando grupo por documento, no por correo.
+✅ SOLUCIÓN PRO
+Antes del loop:
+Python
+grupo_codigo_global = None
+
+if factura_principal:
+    grupo_codigo_global = generar_grupo(fecha_principal)
+
+elif hay_guia_valida:
+    grupo_codigo_global = generar_grupo(fecha_guia)
+Y dentro del loop:
+Python
+grupo_codigo = grupo_codigo_global
+👉 TODOS los documentos del correo comparten grupo.
+🧠 RESUMEN CLARO
+Problema
+Estado
+Solución
+GUIA aparece como OTRO
+❌
+fix build_final_name
+OC no detectada
+❌
+regex OCR-proof
+GUIA salto de línea
+❌
+usar \s+
+OCR_TMP lleno
+⚠️
+limpiar
+OC en revisión
+✔ correcto
+mejorar parse
+grupo inconsistente
+❌ CRÍTICO
+usar grupo global
+🚀 CONCLUSIÓN
+Tu sistema ya está en nivel:
+👉 80% producción real
+Lo que estás corrigiendo ahora es:
+👉 calidad de datos + consistencia documental
+🔥 SIGUIENTE NIVEL (si quieres)
+Te puedo armar:
+👉 asociación automática:
+factura ↔ guía ↔ OC
+por RUC + fecha + cliente
+👉 y eso ya es: 💀 nivel ERP automático completo
+Solo dime:
+"vamos con asociación automática"
