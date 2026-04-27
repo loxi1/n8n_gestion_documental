@@ -1,147 +1,327 @@
-
-    Buenísimo, aquí ya estamos entrando a nivel producción real con casuísticas SUNAT 👏
-y lo que te pasó NO es un bug, es una decisión de diseño que ahora hay que mejorar.
-🔍 QUÉ PASÓ REALMENTE
-Tu log lo dice clarísimo:
-Python
-{'tipo': 'guia_remision', 'serie': 'T073', 'numero': '0666763'}
-[DEBUG] factura_principal = None
-[WARN] correo_id=3 sin factura principal
-👉 El sistema sí reconoció correctamente el documento
-👉 Pero lo clasificó como guía de remisión (NO factura)
-🧠 ERROR DE EXPECTATIVA (NO DEL SISTEMA)
-Tú pensabas:
-“esa factura no fue clasificada”
-Pero en realidad: 👉 NO era factura 👉 Era una GUÍA DE REMISIÓN ELECTRÓNICA (GRE)
-🧾 CONFIRMACIÓN CON EL QR
-El QR que enviaste lo confirma 100%:
-Plain text
-20538549071|09|T002|00280|0|2026-04-15|6|20565747356
-📌 Campo clave:
-
-|09|
-👉 Según SUNAT:
-Código
-Tipo
-01
-Factura
-03
-Boleta
-09
-Guía de Remisión
-👉 Entonces:
-✔ Es guía
-❌ NO es factura
-⚠️ POR ESO NO SE CLASIFICÓ
-Tu lógica actual dice:
+Sí, ahora sí estoy viendo el código pegado actualizado. Mi conclusión: tu process_correo() todavía NO tiene los últimos cambios de guía independiente ni validación de producción.
+Lo que veo en tu archivo actual:
 Python
 if not factura_principal:
-    estado = "sin_factura_principal"
-👉 Y eso es correcto para:
-certificados
-adjuntos secundarios
-PERO ❌ NO para guías
-🚨 PROBLEMA REAL DE DISEÑO
-Tu sistema está pensado así:
-
-Factura = documento principal
-Otros = secundarios
-👉 Pero en la realidad:
-
-Factura → documento contable
-Guía → documento logístico (igual de importante)
-👉 SON DOCUMENTOS INDEPENDIENTES
-🧠 SOLUCIÓN PROFESIONAL (IMPORTANTE)
-Debes separar lógica:
-🔥 Nueva regla de negocio
-Plain text
-FACTURA → se clasifica sola
-GUÍA → se clasifica sola (NO depende de factura)
-CERTIFICADO → depende de factura
-🛠️ CAMBIO QUE NECESITAS HACER
-En process_correo() cambia esto:
-❌ ACTUAL (mal para guías)
-Python
-if not factura_principal:
-    estado = "sin_factura_principal"
-✅ NUEVO (correcto)
-Python
-if doc["tipo"] == "factura":
-    # validar factura (tu lógica actual)
     ...
-
-elif doc["tipo"] == "guia_remision":
-    # validar guía independiente
-    es_valida = bool(doc["serie"] and doc["numero"] and doc["ruc"])
-
-    if es_valida:
-        estado = "clasificado"
-        destino = "pendientes_clasificados"
-    else:
-        estado = "pendiente_revision"
-
-elif doc["tipo"] == "certificado_calidad":
-    if not factura_principal:
-        estado = "pendiente_asociacion"
-🧠 AHORA LO MÁS IMPORTANTE (TU IDEA 💡)
-usar QR como fuente principal
-👉 ESTÁS EN LO CORRECTO
-🧾 QR DE GUÍA (OFICIAL SUNAT)
-El formato es:
-Plain text
-RUC|TIPO|SERIE|NUMERO|0|FECHA|TIPO_DOC_RECEPTOR|DOC_RECEPTOR|URL
-Ejemplo:
-Plain text
-20538549071|09|T002|00280|0|2026-04-15|6|20565747356
-🚀 REGLA PRO QUE DEBES IMPLEMENTAR
-🔥 PRIORIDAD DE DATOS
-Plain text
-1. QR (SI EXISTE) → fuente principal
-2. TEXTO OCR → fallback
-🛠️ VALIDACIÓN PARA GUÍA
+    return
+Eso significa que si llega una guía sola, aunque sea válida, el flujo se corta y la manda a revisión.
+También veo que ya no está usando:
 Python
-if qr_data and qr_data.get("tipo_documental") == "guia_remision":
-    return {
-        "tipo_documental": "guia_remision",
-        "serie": qr_data.get("serie"),
-        "numero": qr_data.get("numero"),
-        "ruc": qr_data.get("ruc_emisor"),
-        "fecha_emision": qr_data.get("fecha_emision"),
-    }
-⚠️ OTRO ERROR QUE DETECTASTE (MUY BUENO)
-guías también tienen QR
-👉 EXACTO
-Entonces tu lógica actual está incompleta:
-Python
-if qr_data and qr_data.get("tipo_documental") == "factura":
-👉 DEBE SER:
-Python
-if qr_data:
-    tipo_qr = qr_data.get("tipo_documental")
-
-    if tipo_qr in ["factura", "guia_remision"]:
-        usar QR como fuente principal
-🧠 CONCLUSIÓN FINAL
-👉 No hubo error de detección
-👉 Hubo error de lógica de negocio
-🎯 RESUMEN CLARO
-✔ El documento SÍ es guía
-✔ QR lo confirma (tipo 09)
-✔ No debía clasificarse como factura
-✔ Tu sistema no contempla guías como principales
-🚀 SIGUIENTE NIVEL (RECOMENDADO)
-Si quieres dejar esto nivel empresa real, el flujo debe ser:
-Plain text
-Correo →
-  → Factura → clasificar
-  → Guía → clasificar
-  → Certificado → asociar
-🔥 SI QUIERES
-Te armo:
+is_factura_valida_produccion()
 is_guia_valida_produccion()
-ajuste completo en process_correo()
-naming automático para guías:
+DEV_FORCE_REVIEW_FACTURAS
+dentro de process_correo().
+Qué falta realmente
+Debes reemplazar el process_correo() actual por uno que soporte:
+factura principal
+guía independiente
+certificado/calidad como asociación
+validación de producción
+DEV_FORCE_REVIEW_FACTURAS
+contador revision_manual
+Función final process_correo()
+Copia y reemplaza tu función completa process_correo() por esta:
+Python
+def process_correo(items: list[dict]) -> None:
+    enriched = [enrich_document(x) for x in items]
 
-04-0006 GUIA T073 0666763 20538549071 PROVEEDOR.pdf
-asociación factura ↔ guía (por OC o cliente)
-Esto ya sería un sistema tipo ERP-lite 🔥
+    print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
+    for d in enriched:
+        print({
+            "documento_id": d["documento_id"],
+            "archivo": d["nombre_archivo_actual"],
+            "tipo": d["fields"]["tipo_documental"],
+            "serie": d["fields"]["serie"],
+            "numero": d["fields"]["numero"],
+            "ruc": d["fields"]["ruc"],
+            "oc": d["fields"].get("oc"),
+            "cliente_raw": d.get("cliente_raw"),
+            "cliente_match": d.get("cliente_match"),
+            "fecha": d.get("fecha_emision_norm"),
+            "qr": bool(d.get("qr_data")),
+        })
+
+    correo_id = items[0]["correo_id"]
+    factura_principal = select_factura_principal(enriched)
+    print("[DEBUG] factura_principal =", factura_principal)
+
+    hay_guia_valida = any(
+        d["fields"].get("tipo_documental") == "guia_remision"
+        and d.get("fecha_emision_date")
+        and d["fields"].get("serie")
+        and d["fields"].get("numero")
+        and d["fields"].get("ruc")
+        for d in enriched
+    )
+
+    if not factura_principal and not hay_guia_valida:
+        print(f"[WARN] correo_id={correo_id} sin factura principal ni guía válida")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="pendiente_asociacion",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="sin_documento_principal",
+            observacion="No se encontró factura principal ni guía válida en el correo.",
+        )
+        return
+
+    fecha_principal = factura_principal.get("fecha_emision_date") if factura_principal else None
+
+    if factura_principal and not fecha_principal:
+        print(f"[WARN] correo_id={correo_id} factura sin fecha")
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="revision_manual",
+            bucket="pendientes_revision",
+        )
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="factura_sin_fecha",
+            observacion="La factura principal no tiene fecha de emisión reconocible.",
+        )
+        return
+
+    cliente_match = factura_principal.get("cliente_match") if factura_principal else None
+    cliente_destino_id = cliente_match["id"] if cliente_match else None
+
+    ruta_windows_final = None
+    if cliente_match and fecha_principal:
+        ruta_windows_final = build_windows_target_path(
+            cliente_match["ruta_windows"],
+            fecha_principal,
+        )
+
+    documento_principal_id = factura_principal["documento_id"] if factura_principal else None
+
+    total_docs = len(enriched)
+    total_clasificados = 0
+    total_no_identificados = 0
+    total_adjuntos_factura = 0
+    total_revision_manual = 0
+
+    ultimo_grupo_codigo = None
+
+    for doc in enriched:
+        fields = doc["fields"]
+        tipo_documental = fields["tipo_documental"]
+        qr_data = doc.get("qr_data")
+
+        es_documento_valido = True
+        diferencias_criticas: list[str] = []
+        advertencias: list[str] = []
+
+        if tipo_documental == "factura":
+            es_documento_valido, diferencias_criticas, advertencias = is_factura_valida_produccion(
+                fields,
+                qr_data,
+            )
+
+        elif tipo_documental == "guia_remision":
+            es_documento_valido, diferencias_criticas, advertencias = is_guia_valida_produccion(
+                fields,
+                qr_data,
+            )
+
+        ruc_emisor = fields["ruc"]
+        razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
+
+        proveedor = get_or_create_proveedor(ruc_emisor, razon_social_emisor)
+        proveedor_id = proveedor["id"] if proveedor else None
+
+        if proveedor and proveedor.get("nombre"):
+            razon_social_emisor = proveedor["nombre"]
+
+        es_principal = (
+            doc["documento_id"] == documento_principal_id
+            if documento_principal_id
+            else tipo_documental in ("factura", "guia_remision")
+        )
+
+        documento_principal_ref = None if es_principal else documento_principal_id
+
+        cliente_id_final = (
+            doc["cliente_match"]["id"]
+            if doc.get("cliente_match")
+            else cliente_destino_id
+        )
+
+        if (
+            factura_principal
+            and tipo_documental == "factura"
+            and not fields["serie"]
+            and not fields["numero"]
+            and ruc_emisor
+            and factura_principal["fields"]["ruc"] == ruc_emisor
+        ):
+            tipo_documental = "adjunto_factura"
+            total_adjuntos_factura += 1
+            print(f"[DEBUG] doc={doc['documento_id']} reclasificado a ADJUNTO_FACTURA")
+
+        fecha_base_doc = fecha_principal if fecha_principal else doc.get("fecha_emision_date")
+
+        if not fecha_base_doc:
+            estado_documento = "revision_manual"
+            bucket = "pendientes_revision"
+            estado_archivo = "observado"
+            total_revision_manual += 1
+            grupo_codigo = None
+            correlativo_mes = None
+            year = doc.get("fecha_emision_date").year if doc.get("fecha_emision_date") else datetime.now().year
+            month = doc.get("fecha_emision_date").month if doc.get("fecha_emision_date") else datetime.now().month
+        else:
+            correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_base_doc, prefijo="04")
+            ultimo_grupo_codigo = grupo_codigo
+            year = fecha_base_doc.year
+            month = fecha_base_doc.month
+
+            if tipo_documental == "otro":
+                estado_documento = "no_identificado"
+                bucket = "no_identificados"
+                estado_archivo = "observado"
+                total_no_identificados += 1
+
+            elif tipo_documental in ("factura", "guia_remision", "adjunto_factura"):
+                if not es_documento_valido:
+                    estado_documento = "revision_manual"
+                    bucket = "pendientes_revision"
+                    estado_archivo = "observado"
+                    total_revision_manual += 1
+
+                elif DEV_FORCE_REVIEW_FACTURAS and tipo_documental in ("factura", "adjunto_factura"):
+                    estado_documento = "revision_manual"
+                    bucket = "pendientes_revision"
+                    estado_archivo = "observado"
+                    total_revision_manual += 1
+
+                else:
+                    estado_documento = "clasificado"
+                    bucket = "pendientes_clasificados"
+                    estado_archivo = "renombrado"
+                    total_clasificados += 1
+
+            elif tipo_documental in ("certificado_calidad", "requerimiento_compra", "cotizacion"):
+                estado_documento = "pendiente_asociacion"
+                bucket = "pendientes_revision"
+                estado_archivo = "observado"
+                total_revision_manual += 1
+
+            else:
+                estado_documento = "revision_manual"
+                bucket = "pendientes_revision"
+                estado_archivo = "observado"
+                total_revision_manual += 1
+
+        nombre_final = build_final_name(
+            grupo_codigo=grupo_codigo or "SIN-GRUPO",
+            tipo_documental=tipo_documental,
+            serie=fields["serie"],
+            numero=fields["numero"],
+            ruc_emisor=ruc_emisor,
+            razon_social_emisor=razon_social_emisor,
+            fallback_name=doc["nombre_archivo_actual"],
+        )
+
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+        destino_relativo = f"{bucket}/{year}/{month:02d}/{nombre_final}"
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+            move_file(pdf_path, destino_abs)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO,
+                {
+                    "proveedor_id": proveedor_id,
+                    "cliente_destino_id": cliente_id_final,
+                    "tipo_documental": tipo_documental,
+                    "serie": fields["serie"],
+                    "numero": fields["numero"],
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social_emisor,
+                    "fecha_emision": doc["fecha_emision_norm"],
+                    "importe": normalize_amount(fields["importe"]),
+                    "igv": normalize_amount(fields.get("igv")),
+                    "estado_documento": estado_documento,
+                    "grupo_codigo": grupo_codigo,
+                    "correlativo_mes": correlativo_mes,
+                    "es_principal": es_principal,
+                    "documento_principal_id": documento_principal_ref,
+                    "nombre_final": nombre_final,
+                    "ruta_windows_final": ruta_windows_final,
+                    "documento_id": doc["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": nombre_final,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": estado_archivo,
+                    "archivo_id": doc["archivo_id"],
+                },
+            )
+
+        print({
+            "doc": doc["documento_id"],
+            "tipo": tipo_documental,
+            "qr": bool(qr_data),
+            "DEV_FORCE_REVIEW_FACTURAS": DEV_FORCE_REVIEW_FACTURAS,
+            "es_documento_valido": es_documento_valido,
+            "diferencias_criticas": diferencias_criticas,
+            "advertencias": advertencias,
+            "estado_documento": estado_documento,
+            "bucket": bucket,
+        })
+
+        if diferencias_criticas:
+            print(
+                f"[WARN] doc={doc['documento_id']} diferencias críticas: "
+                + " | ".join(diferencias_criticas)
+            )
+
+        if advertencias:
+            print(
+                f"[INFO] doc={doc['documento_id']} advertencias: "
+                + " | ".join(advertencias)
+            )
+
+        print(
+            f"[OK] correo={doc['correo_id']} "
+            f"doc={doc['documento_id']} "
+            f"tipo={tipo_documental} "
+            f"grupo={grupo_codigo} "
+            f"nombre={nombre_final}"
+        )
+
+    observacion = (
+        f"Procesado correctamente. "
+        f"Documentos: {total_docs}, "
+        f"clasificados: {total_clasificados}, "
+        f"revision_manual: {total_revision_manual}, "
+        f"no_identificados: {total_no_identificados}, "
+        f"adjuntos_factura: {total_adjuntos_factura}, "
+        f"grupo: {ultimo_grupo_codigo}."
+    )
+
+    estado_correo = "procesado"
+    if total_no_identificados > 0 or total_revision_manual > 0:
+        estado_correo = "procesado_con_observaciones"
+
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=True,
+        estado_correo=estado_correo,
+        observacion=observacion,
+    )
+También confirma que tengas estas dos funciones definidas antes de process_correo():
+Python
+is_factura_valida_produccion(...)
+is_guia_valida_produccion(...)
+Conclusión: tu archivo pegado todavía usa lógica antigua; con esta función ya queda preparada para clasificar guías electrónicas válidas sin depender de una factura principal.
