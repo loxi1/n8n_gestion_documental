@@ -124,7 +124,14 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
         if qr_data:
             break
 
-    if qr_data and qr_data.get("tipo_documental") == "factura":
+    if qr_data and qr_data.get("tipo_documental") in ("factura", "guia_remision"):
+        fields["tipo_documental"] = qr_data.get("tipo_documental") or fields.get("tipo_documental")
+        fields["serie"] = qr_data.get("serie") or fields.get("serie")
+        fields["numero"] = qr_data.get("numero") or fields.get("numero")
+        fields["ruc"] = qr_data.get("ruc_emisor") or fields.get("ruc")
+        fields["fecha_emision"] = qr_data.get("fecha_emision") or fields.get("fecha_emision")
+        fields["importe"] = qr_data.get("importe") or fields.get("importe")
+        fields["igv"] = qr_data.get("igv") or fields.get("igv")
         return {
             "tipo_documental": "factura",
             "serie": qr_data.get("serie"),

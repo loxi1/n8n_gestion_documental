@@ -481,9 +481,15 @@ def process_correo(items: list[dict]) -> None:
     print("[DEBUG] factura_principal =", factura_principal)
 
     correo_id = items[0]["correo_id"]
+    
+    hay_guia_valida = any(
+        d["fields"].get("tipo_documental") == "guia_remision"
+        and d.get("fecha_emision_date")
+        for d in enriched
+    )
 
-    if not factura_principal:
-        print(f"[WARN] correo_id={correo_id} sin factura principal")
+    if not factura_principal and not hay_guia_valida:
+        print(f"[WARN] correo_id={correo_id} sin factura principal ni guía válida")
         mark_documents_as_review(
             items=enriched,
             estado_documento="pendiente_asociacion",
@@ -492,8 +498,8 @@ def process_correo(items: list[dict]) -> None:
         update_correo_estado(
             correo_id=correo_id,
             procesado=False,
-            estado_correo="sin_factura_principal",
-            observacion="No se encontró factura principal en el correo.",
+            estado_correo="sin_documento_principal",
+            observacion="No se encontró factura principal ni guía válida en el correo.",
         )
         return
 
@@ -513,7 +519,12 @@ def process_correo(items: list[dict]) -> None:
         )
         return
 
-    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_principal, prefijo="04")
+    correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_base_doc, prefijo="04")
+
+    if not fecha_base_doc:
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+        estado_archivo = "observado"
 
     cliente_match = factura_principal.get("cliente_match")
     cliente_destino_id = cliente_match["id"] if cliente_match else None
@@ -534,14 +545,15 @@ def process_correo(items: list[dict]) -> None:
     total_revision_manual = 0
 
     for doc in enriched:
-        fields = doc["fields"]
-        tipo_documental = fields["tipo_documental"]
-        qr_data = doc.get("qr_data")
+        es_documento_valido = True
+        diferencias_criticas = []
+        advertencias = []
 
-        es_factura_valida, diferencias_criticas, advertencias = is_factura_valida_produccion(
-            fields,
-            qr_data,
-        )
+        if tipo_documental == "factura":
+            es_documento_valido, diferencias_criticas, advertencias = is_factura_valida_produccion(fields, qr_data)
+
+        elif tipo_documental == "guia_remision":
+            es_documento_valido, diferencias_criticas, advertencias = is_guia_valida_produccion(fields, qr_data)
 
         ruc_emisor = fields["ruc"]
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
@@ -588,28 +600,36 @@ def process_correo(items: list[dict]) -> None:
             estado_archivo = "observado"
             total_no_identificados += 1
 
-        elif tipo_documental in ("factura", "adjunto_factura"):
-            if not es_factura_valida:
+        elif tipo_documental in ("factura", "guia_remision", "adjunto_factura"):
+            if not es_documento_valido:
                 estado_documento = "revision_manual"
                 bucket = "pendientes_revision"
                 estado_archivo = "observado"
                 total_revision_manual += 1
-            elif DEV_FORCE_REVIEW_FACTURAS:
+
+            elif DEV_FORCE_REVIEW_FACTURAS and tipo_documental in ("factura", "adjunto_factura"):
                 estado_documento = "revision_manual"
                 bucket = "pendientes_revision"
                 estado_archivo = "observado"
                 total_revision_manual += 1
+
             else:
                 estado_documento = "clasificado"
                 bucket = "pendientes_clasificados"
                 estado_archivo = "renombrado"
                 total_clasificados += 1
 
+        elif tipo_documental in ("certificado_calidad", "requerimiento_compra", "cotizacion"):
+            estado_documento = "pendiente_asociacion"
+            bucket = "pendientes_revision"
+            estado_archivo = "observado"
+            total_revision_manual += 1
+
         else:
-            estado_documento = "clasificado"
-            bucket = "pendientes_clasificados"
-            estado_archivo = "renombrado"
-            total_clasificados += 1
+            estado_documento = "revision_manual"
+            bucket = "pendientes_revision"
+            estado_archivo = "observado"
+            total_revision_manual += 1
 
         pdf_path = resolve_absolute_path(doc["ruta_temporal"])
         year = pdf_path.parent.parent.name
@@ -734,24 +754,10 @@ def normalize_compare_amount(value: str | None) -> str:
     return raw or ""
 
 
-def is_factura_valida_produccion(
+def is_guia_valida_produccion(
     fields: dict,
     qr_data: dict | None,
 ) -> tuple[bool, list[str], list[str]]:
-    """
-    Valida si una factura puede pasar a clasificado en modo producción.
-
-    Retorna:
-    - es_valida
-    - diferencias_criticas
-    - advertencias
-
-    Regla:
-    - Si hay QR válido tipo 01, el QR manda.
-    - Si no hay QR, se exige texto completo.
-    - RUC textual diferente al QR es advertencia, no bloqueo.
-    """
-
     criticas: list[str] = []
     advertencias: list[str] = []
 
@@ -761,59 +767,51 @@ def is_factura_valida_produccion(
     ruc = fields.get("ruc")
     fecha = normalize_date(fields.get("fecha_emision"))
 
-    # Ruta A: factura con QR válido
-    if qr_data and qr_data.get("tipo_doc_codigo") == "01":
+    if qr_data and qr_data.get("tipo_doc_codigo") == "09":
         qr_serie = qr_data.get("serie")
         qr_numero = qr_data.get("numero")
         qr_ruc = qr_data.get("ruc_emisor")
         qr_fecha = normalize_date(qr_data.get("fecha_emision"))
 
-        # El tipo sí puede bloquear si contradice claramente al QR
-        if tipo and normalize_compare_str(tipo) not in ("FACTURA", "ADJUNTO_FACTURA"):
-            criticas.append(f"tipo texto={tipo} QR=factura")
+        if tipo and normalize_compare_str(tipo) != "GUIA_REMISION":
+            criticas.append(f"tipo texto={tipo} QR=guia_remision")
 
-        # Serie y número sí son críticos
         if serie and qr_serie and normalize_compare_str(serie) != normalize_compare_str(qr_serie):
             criticas.append(f"serie texto={serie} QR={qr_serie}")
 
         if numero and qr_numero and normalize_compare_str(numero) != normalize_compare_str(qr_numero):
             criticas.append(f"numero texto={numero} QR={qr_numero}")
 
-        # RUC textual NO bloquea, porque puede ser RUC cliente leído por OCR
         if ruc and qr_ruc and normalize_compare_str(ruc) != normalize_compare_str(qr_ruc):
             advertencias.append(f"ruc texto={ruc} QR={qr_ruc}")
 
-        # Fecha textual NO bloquea si hay QR
         if fecha and qr_fecha and normalize_compare_str(fecha) != normalize_compare_str(qr_fecha):
             advertencias.append(f"fecha texto={fecha} QR={qr_fecha}")
 
-        # Mínimos obligatorios del QR
         if not qr_ruc:
-            criticas.append("qr sin ruc_emisor")
+            criticas.append("qr guia sin ruc_emisor")
         if not qr_serie:
-            criticas.append("qr sin serie")
+            criticas.append("qr guia sin serie")
         if not qr_numero:
-            criticas.append("qr sin numero")
+            criticas.append("qr guia sin numero")
         if not qr_fecha:
-            criticas.append("qr sin fecha_emision")
+            criticas.append("qr guia sin fecha_emision")
 
         return len(criticas) == 0, criticas, advertencias
 
-    # Ruta B: factura sin QR, debe venir completa por texto/PDF/OCR
-    if tipo == "factura":
+    if tipo == "guia_remision":
         if not serie:
-            criticas.append("texto sin serie")
+            criticas.append("guia sin serie")
         if not numero:
-            criticas.append("texto sin numero")
+            criticas.append("guia sin numero")
         if not ruc:
-            criticas.append("texto sin ruc")
+            criticas.append("guia sin ruc")
         if not fecha:
-            criticas.append("texto sin fecha_emision")
+            criticas.append("guia sin fecha_emision")
 
         return len(criticas) == 0, criticas, advertencias
 
-    # No es factura principal válida
-    criticas.append(f"tipo_documental no es factura: {tipo}")
+    criticas.append(f"tipo_documental no es guia_remision: {tipo}")
     return False, criticas, advertencias
 
 if __name__ == "__main__":
