@@ -165,7 +165,7 @@ def parse_iso_date(value: str | None) -> date | None:
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
-def normalize_amount(value: str | None) -> str | None:
+def normalize_amount(value: str | None) -> float | None:
     if not value:
         return None
 
@@ -184,7 +184,11 @@ def normalize_amount(value: str | None) -> str | None:
             raw = raw.replace(",", "")
 
     raw = re.sub(r"[^0-9.\-]", "", raw)
-    return raw or None
+
+    try:
+        return float(raw)
+    except:
+        return None
 
 
 def run_ocr(input_pdf: Path, output_pdf: Path) -> bool:
