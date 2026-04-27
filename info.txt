@@ -169,3 +169,77 @@ por RUC + fecha + cliente
 👉 y eso ya es: 💀 nivel ERP automático completo
 Solo dime:
 "vamos con asociación automática"
+
+
+Perfecto. Entonces la Orden de Compra ya tiene una regla fuerte y estable.
+Regla para detectar OC
+Debe reconocerse si aparece:
+Plain text
+Orden de Compra N*:007902
+o variantes OCR:
+Plain text
+ORDEN DE COMPRA N°:007902
+ORDEN DE COMPRA N*:007902
+ORDEN DE COMRA N*:007902
+ORDEN COMPRA: 007902
+En classifier.py, mejora la parte de orden_compra así:
+Python
+# Orden de compra real
+if (
+    re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s*N[°º*:]?\s*:?\s*\d{4,}\b", text_u)
+    or re.search(r"\bORDEN\s+COMPRA\s*:?\s*\d{4,}\b", text_u)
+    or re.search(r"\bOC[- ]?\d{4,}\b", name_u)
+    or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b", name_u)
+):
+    return "orden_compra"
+Y en extract_basic_fields() para extraer el número:
+Python
+elif doc_type == "orden_compra":
+    m = re.search(
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s*N[°º*:]?\s*:?\s*([0-9]{4,})\b",
+        text_u,
+        re.IGNORECASE,
+    )
+
+    if not m:
+        m = re.search(r"\bORDEN\s+COMPRA\s*:?\s*([0-9]{4,})\b", text_u, re.IGNORECASE)
+
+    if not m:
+        m = re.search(r"\bOC[- ]?([0-9]{4,})\b", text_u, re.IGNORECASE)
+
+    if m:
+        serie = "OC"
+        numero = m.group(1)
+Regla extra con facturas@bbti.com.pe
+Si en el PDF aparece:
+Plain text
+facturas@bbti.com.pe
+eso te sirve como señal fuerte de que el documento pertenece a BBTI, pero no necesariamente define el tipo documental.
+Úsalo para reforzar cliente destino:
+Python
+if "FACTURAS@BBTI.COM.PE" in text_u:
+    cliente_raw = "BBTI S.A.C."
+No lo usaría para decir que es factura u OC, solo para asociar cliente.
+Regla de negocio recomendada
+Para un correo con:
+factura
+orden de compra
+guía
+Debe pasar esto:
+Plain text
+Todos comparten el mismo grupo_codigo
+La factura es principal
+La OC y guía quedan asociadas a la factura
+Ejemplo correcto:
+Plain text
+04-0005 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0005 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+04-0005 GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+La inconsistencia que viste:
+Plain text
+04-0005 OTRO ...
+debería corregirse con:
+mejorar detección de OC
+mejorar build_final_name() para que guia_remision no salga como OTRO
+usar un solo grupo_codigo por correo cuando hay factura principal
+Ese es el camino correcto.
