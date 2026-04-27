@@ -1,43 +1,251 @@
-El personal de soporte me dice que haga una compartiva entre los dos y me dicen porque elegir uno de otro porque segun su parecer es mejor el XEON COD: 0432. Me comenta a futuro pueden hacer procesarmiendo de archivos de autocat porque aca trabajan con planos
+gestiondocumental=# SELECT * FROM archivos ORDER BY id DESC;
+ id | documento_id | correo_id |             nombre_archivo_original             |                               nombre_archivo_actual
+                       | extension |    mime_type    | tamano_bytes | hash_sha256 |                                          ruta_temporal
+                                      | ruta_final | es_principal | estado_archivo |         creado_en          |       actualizado_en
+----+--------------+-----------+-------------------------------------------------+-------------------------------------------------------------
+-----------------------+-----------+-----------------+--------------+-------------+------------------------------------------------------------
+--------------------------------------+------------+--------------+----------------+----------------------------+----------------------------
+  7 |            7 |         5 | GUIA T002-00280 FIRMADO.pdf                     | posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvX
+VFr4TU1i5qHAC2mZ_3.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260427203438941_CAFtAZZBx
+3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_3.pdf |            | t            | descargado     | 2026-04-27 15:34:39.249436 | 2026-04-27 15:34:39.249436
+  6 |            6 |         5 | ORDEN DE COMRA 007902.pdf.pdf                   | posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvX
+VFr4TU1i5qHAC2mZ_2.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260427203438941_CAFtAZZBx
+3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_2.pdf |            | t            | descargado     | 2026-04-27 15:34:39.249436 | 2026-04-27 15:34:39.249436
+  5 |            5 |         5 | F F002-00000254.pdf                             | posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvX
+VFr4TU1i5qHAC2mZ_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260427203438941_CAFtAZZBx
+3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_1.pdf |            | t            | descargado     | 2026-04-27 15:34:39.249436 | 2026-04-27 15:34:39.249436
+  4 |            4 |         4 | 20100291551-09-T010-00057913_FormatoImpreso.pdf | posible_documento_20260427203438941_69efb84d.050a0220.296f46
+.fdfb_mx.google._1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260427203438941_69efb84d.
+050a0220.296f46.fdfb_mx.google._1.pdf |            | t            | descargado     | 2026-04-27 15:34:39.249436 | 2026-04-27 15:34:39.249436
+  3 |            3 |         3 | 20100291551-01-F010-00056103_FormatoImpreso.pdf | posible_documento_20260427203438940_69efb7dc.b00a0220.3c9c69
+.004d_mx.google._1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260427203438940_69efb7dc.
+b00a0220.3c9c69.004d_mx.google._1.pdf |            | t            | descargado     | 2026-04-27 15:34:39.249436 | 2026-04-27 15:34:39.249436
+  2 |            2 |         2 | 20100084172-01-F231-0101641.pdf                 | posible_documento_20260427181215433_a9f121bc58fe600bd50276ef
+754d8fb1_localho_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260427181215433_a9f121bc5
+8fe600bd50276ef754d8fb1_localho_1.pdf |            | t            | descargado     | 2026-04-27 13:12:15.687207 | 2026-04-27 13:12:15.687207
+  1 |            1 |         1 | 20100084172-01-F231-0101640.pdf                 | posible_documento_20260427181215431_99b9be458a4609fd0fb0266b
+2546be1f_localho_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_20260427181215431_99b9be458
+a4609fd0fb0266b2546be1f_localho_1.pdf |            | t            | descargado     | 2026-04-27 13:12:15.687207 | 2026-04-27 13:12:15.687207
+(7 rows)
 
-HP WORKSTATION Z2 G8 + HP 24" FHD /
-Procesador Intel Xeon de Alta Gama / Intel Xeon
-W-1390 2.8Ghz / 8 Nucleos 16 Sub-Procesadores /
-Max. Turbo 5.2Ghz 165MB SmartCache / Memoria
-RAM 16GB DDR4 / SSD 512GB PCI M.2 / VIDEO
-DEDICADO NVIDIA QUADRO T1000 DE 4GB
-GDDR6 / 896 Núcleos CUDA / Interfaz de Memoria:
-128 bits / Conectores de Pantalla: 4x Mini
-DisplayPort / 03 USB 2.0 / 03 USB 3.1 Gen 1 / 04
-USB 3.1 Gen 2 / 01 USB Tipo C / 02 USB4 Gen 2x2 /
-02 Displayport / 01 LAN RJ-45 / 01 Salida para
-auriculares / 01 Conexion audifono/microfono / 10
-PCI Express x1 Gen 3 / Incluye Kit teclado y mouse
-USB + Monitor HP LED 24" / Modelo: HP Z24F G3 /
-Resolucion 1920x1080p FHD / Panel IPS / 04
-USB-A 3.2 Gen 1 / 01 HDMI 1.4 / 01 DisplayPort 1.2
-/ Producto Usado de Buena Calidad / GARANTIA
-01 AÑO / PRECIO OFERTA S/. 2,500
+
+gestiondocumental=# SELECT * FROM documentos ORDER BY id DESC;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero | ruc | razon_social | fecha_emision | fecha_vencimiento | moneda
+| importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion           |         creado_en          |
+      actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_principal_id | nombre_final | ruta_
+windows_final
+----+-----------+--------------+-----------------+----------+-------+--------+-----+--------------+---------------+-------------------+--------
++---------+-----+----------------+-------+------------------+------------------+--------------------------------+----------------------------+-
+---------------------------+--------------------+--------------+-----------------+--------------+------------------------+--------------+------
+--------------
+  7 |         5 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-27 15:34:39.20489  |
+2026-04-27 15:34:39.20489  |                    |              |                 | f            |                        |              |
+  6 |         5 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-27 15:34:39.20489  |
+2026-04-27 15:34:39.20489  |                    |              |                 | f            |                        |              |
+  5 |         5 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-27 15:34:39.20489  |
+2026-04-27 15:34:39.20489  |                    |              |                 | f            |                        |              |
+  4 |         4 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-27 15:34:39.20489  |
+2026-04-27 15:34:39.20489  |                    |              |                 | f            |                        |              |
+  3 |         3 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-27 15:34:39.20489  |
+2026-04-27 15:34:39.20489  |                    |              |                 | f            |                        |              |
+  2 |         2 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-27 13:12:15.636336 |
+2026-04-27 13:12:15.636336 |                    |              |                 | f            |                        |              |
+  1 |         1 |              |                 |          |       |        |     |              |               |                   |
+|         |     |                |       |                  | pendiente        | Documento descargado desde n8n | 2026-04-27 13:12:15.636336 |
+2026-04-27 13:12:15.636336 |                    |              |                 | f            |                        |              |
+(7 rows)
 
 
-HP Z4 G4 WORKSTATION S/. 2100
-MEMORIA 32GB DDR4
-XEON COD: 0432
+gestiondocumental=# SELECT * FROM correos_ingresados ORDER BY id DESC;
+ id | origen | proveedor_correo |                              message_id                              | thread_id | remitente_nombre |
+ remitente_email          | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                               asunto
+                    | cuerpo_texto | cuerpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado | estado_correo | canti
+dad_adjuntos | observacion |         creado_en          |       actualizado_en
+----+--------+------------------+----------------------------------------------------------------------+-----------+------------------+--------
+--------------------------+----------+-------------------+-----------------+------------------+------------------------------------------------
+--------------------+--------------+-------------+---------------------+----------------------------+-------+-----------+---------------+------
+-------------+-------------+----------------------------+----------------------------
+  5 | correo | imap             | <CAFtAZZBx3aCM-cq9Ait+EvXVFr4TU1i5qHAC2mZKu7ATWH3TqQ@mail.gmail.com> |           |                  | anibal.
+cayetano@gmail.com        |          |                   |                 |                  | cav
+                    |              |             | 2026-04-27 20:34:08 | 2026-04-27 15:34:38.992678 | f     | f         | descargado    |
+           1 |             | 2026-04-27 15:34:38.992678 | 2026-04-27 15:34:38.992678
+  4 | correo | imap             | <69efb84d.050a0220.296f46.fdfb@mx.google.com>                        |           |                  | factura
+cion.ventas@dartel.com.pe |          |                   |                 |                  | GuÝa de Remisi¾n Aprobada: T010-00057913
+                    |              |             | 2026-04-27 19:26:05 | 2026-04-27 15:34:38.992678 | f     | f         | descargado    |
+           1 |             | 2026-04-27 15:34:38.992678 | 2026-04-27 15:34:38.992678
+  3 | correo | imap             | <69efb7dc.b00a0220.3c9c69.004d@mx.google.com>                        |           |                  | factura
+cion.ventas@dartel.com.pe |          |                   |                 |                  | Factura Aprobada: F010-00056103
+                    |              |             | 2026-04-27 19:24:12 | 2026-04-27 15:34:38.992678 | f     | f         | descargado    |
+           1 |             | 2026-04-27 15:34:38.992678 | 2026-04-27 15:34:38.992678
+  2 | correo | imap             | <a9f121bc58fe600bd50276ef754d8fb1@localhost.localdomain>             |           |                  | efactur
+a@promelsa.com.pe         |          |                   |                 |                  | PRD: PROMOTORES ELECTRICOS S A - Doc: 201000841
+72-01-F231-0101641. |              |             | 2026-04-27 17:37:35 | 2026-04-27 13:12:15.512129 | f     | f         | descargado    |
+           1 |             | 2026-04-27 13:12:15.512129 | 2026-04-27 13:12:15.512129
+  1 | correo | imap             | <99b9be458a4609fd0fb0266b2546be1f@localhost.localdomain>             |           |                  | efactur
+a@promelsa.com.pe         |          |                   |                 |                  | PRD: PROMOTORES ELECTRICOS S A - Doc: 201000841
+72-01-F231-0101640. |              |             | 2026-04-27 17:37:20 | 2026-04-27 13:12:15.512129 | f     | f         | descargado    |
+           1 |             | 2026-04-27 13:12:15.512129 | 2026-04-27 13:12:15.512129
+(5 rows)
 
-HP Z4 G4 WORKSTATION FULL TOWER / Especial para
-Diseño y Arquitectura / Intel XEON W-2223 3.6Ghz 4
-Nucleos / Max. Turbo 3.9Ghz 8.25MB Cache / 08
-Subprocesadores / Memoria RAM 32GB DDR4 ECC-R /
-Disco Sólido 512GB M.2 `+ HDD 1TB / VIDEO
-DEDICADO NVIDIA QUADRO P2200 DE 5GB GDDR5 /
-Interfaz de Memoria 160 Bits / Nucleos Nvidia Cuda
-1280 / Gb/s Ancho Banda 200 Gb/s / Conexion en
-Simultaneo x 4 DP 1.4 / Placa Madre Intel® C422 /
-Puertos frontales: 04 USB 3.1 Gen 1 / 01 Conexión
-para audífono/micrófono / 01 Lector de tarjetas /
-Puertos posteriores: 06 USB 3.1 Gen 1 / 02 Puertos
-LAN / 01 Salida de audio / 01 Entrada de audio / 02
-PS/2 / 02 PCI Express x4 / 01 Ranura PCI Express x8 /
-02 PCI Express x16 / Fuente Poder 750w / GARANTIA
-01 AÑO / Producto Usado de Buena Calidad A1 /
-PRECIO OFERTA S/. 2,100
+
+gestiondocumental=#
+
+despues:
+gestiondocumental=# SELECT * FROM correos_ingresados ORDER BY id DESC;
+ id | origen | proveedor_correo |                              message_id                              | thread_id | remitente_nombre |
+ remitente_email          | reply_to | destinatario_para | destinatario_cc | destinatario_cco |                               asunto
+                    | cuerpo_texto | cuerpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado |        estado_correo
+       | cantidad_adjuntos |                                                              observacion
+                     |         creado_en          |       actualizado_en
+----+--------+------------------+----------------------------------------------------------------------+-----------+------------------+--------
+--------------------------+----------+-------------------+-----------------+------------------+------------------------------------------------
+--------------------+--------------+-------------+---------------------+----------------------------+-------+-----------+----------------------
+-------+-------------------+-------------------------------------------------------------------------------------------------------------------
+---------------------+----------------------------+----------------------------
+  5 | correo | imap             | <CAFtAZZBx3aCM-cq9Ait+EvXVFr4TU1i5qHAC2mZKu7ATWH3TqQ@mail.gmail.com> |           |                  | anibal.
+cayetano@gmail.com        |          |                   |                 |                  | cav
+                    |              |             | 2026-04-27 20:34:08 | 2026-04-27 15:34:38.992678 | f     | t         | procesado_con_observa
+ciones |                 1 | Procesado correctamente. Documentos: 3, clasificados: 2, revision_manual: 1, no_identificados: 0, adjuntos_factura
+: 0, grupo: 04-0005. | 2026-04-27 15:34:38.992678 | 2026-04-27 15:38:12.874104
+  4 | correo | imap             | <69efb84d.050a0220.296f46.fdfb@mx.google.com>                        |           |                  | factura
+cion.ventas@dartel.com.pe |          |                   |                 |                  | GuÝa de Remisi¾n Aprobada: T010-00057913
+                    |              |             | 2026-04-27 19:26:05 | 2026-04-27 15:34:38.992678 | f     | f         | sin_documento_princip
+al     |                 1 | No se encontr¾ factura principal ni guÝa vßlida en el correo.
+                     | 2026-04-27 15:34:38.992678 | 2026-04-27 15:36:58.450363
+  3 | correo | imap             | <69efb7dc.b00a0220.3c9c69.004d@mx.google.com>                        |           |                  | factura
+cion.ventas@dartel.com.pe |          |                   |                 |                  | Factura Aprobada: F010-00056103
+                    |              |             | 2026-04-27 19:24:12 | 2026-04-27 15:34:38.992678 | f     | t         | procesado
+       |                 1 | Procesado correctamente. Documentos: 1, clasificados: 1, revision_manual: 0, no_identificados: 0, adjuntos_factura
+: 0, grupo: 04-0003. | 2026-04-27 15:34:38.992678 | 2026-04-27 15:36:44.197424
+  2 | correo | imap             | <a9f121bc58fe600bd50276ef754d8fb1@localhost.localdomain>             |           |                  | efactur
+a@promelsa.com.pe         |          |                   |                 |                  | PRD: PROMOTORES ELECTRICOS S A - Doc: 201000841
+72-01-F231-0101641. |              |             | 2026-04-27 17:37:35 | 2026-04-27 13:12:15.512129 | f     | t         | procesado
+       |                 1 | Procesado correctamente. Documentos: 1, clasificados: 1, revision_manual: 0, no_identificados: 0, adjuntos_factura
+: 0, grupo: 04-0002. | 2026-04-27 13:12:15.512129 | 2026-04-27 15:36:29.464589
+  1 | correo | imap             | <99b9be458a4609fd0fb0266b2546be1f@localhost.localdomain>             |           |                  | efactur
+a@promelsa.com.pe         |          |                   |                 |                  | PRD: PROMOTORES ELECTRICOS S A - Doc: 201000841
+72-01-F231-0101640. |              |             | 2026-04-27 17:37:20 | 2026-04-27 13:12:15.512129 | f     | t         | procesado
+       |                 1 | Procesado correctamente. Documentos: 1, clasificados: 1, revision_manual: 0, no_identificados: 0, adjuntos_factura
+: 0, grupo: 04-0001. | 2026-04-27 13:12:15.512129 | 2026-04-27 15:36:12.045899
+(5 rows)
+gestiondocumental=# SELECT * FROM documentos ORDER BY id DESC;
+ id | correo_id | proveedor_id |   tipo_documental   | tipo_doc | serie |  numero  |     ruc     |       razon_social        | fecha_emision |
+fecha_vencimiento | moneda | importe |  igv   | base_imponible | saldo | clave_documental |   estado_documento   |          observacion
+   |         creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal | documento_p
+rincipal_id |                              nombre_final                              |            ruta_windows_final
+----+-----------+--------------+---------------------+----------+-------+----------+-------------+---------------------------+---------------+-
+------------------+--------+---------+--------+----------------+-------+------------------+----------------------+-----------------------------
+---+----------------------------+----------------------------+--------------------+--------------+-----------------+--------------+------------
+------------+------------------------------------------------------------------------+------------------------------------------
+  7 |         5 |         1457 | guia_remision       |          | T002  | 00280    | 20538549071 | OMEGA POWER S.A.C.        | 2026-04-15    |
+                  |        |         |        |                |       |                  | clasificado          | Documento descargado desde n
+8n | 2026-04-27 15:34:39.20489  | 2026-04-27 15:38:12.844889 |                  2 | 04-0005      |               5 | f            |
+          5 | 04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf              | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  6 |         5 |         1457 | certificado_calidad |          |       |          | 20538549071 | OMEGA POWER S.A.C.        |               |
+                  |        |  377.08 |        |                |       |                  | pendiente_asociacion | Documento descargado desde n
+8n | 2026-04-27 15:34:39.20489  | 2026-04-27 15:38:12.77824  |                  2 | 04-0005      |               5 | f            |
+          5 | 04-0005 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf                         | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  5 |         5 |         1457 | factura             |          | F002  | 00000254 | 20538549071 | OMEGA POWER S.A.C.        | 2026-04-16    |
+                  |        |  444.95 |  67.87 |                |       |                  | clasificado          | Documento descargado desde n
+8n | 2026-04-27 15:34:39.20489  | 2026-04-27 15:38:12.699763 |                  2 | 04-0004      |               4 | t            |
+            | 04-0004 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf        | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  4 |         4 |          775 | guia_remision       |          | T010  | 00057913 | 20100291551 | SEIN S.R.L.               |               |
+                  |        |         |        |                |       |                  | pendiente_asociacion | Documento descargado desde n
+8n | 2026-04-27 15:34:39.20489  | 2026-04-27 15:36:58.424549 |                    |              |                 | f            |
+            |                                                                        |
+  3 |         3 |          775 | factura             |          | F010  | 00056103 | 20100291551 | SEIN S.R.L.               | 2026-04-27    |
+                  |        |  404.28 |  61.67 |                |       |                  | clasificado          | Documento descargado desde n
+8n | 2026-04-27 15:34:39.20489  | 2026-04-27 15:36:44.167322 |                    | 04-0003      |               3 | t            |
+            | 04-0003 FACTURA F010 00056103 20100291551 SEIN_S_R_L.pdf               |
+  2 |         2 |          754 | factura             |          | F231  | 0101641  | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-27    |
+                  |        |  966.67 | 147.46 |                |       |                  | clasificado          | Documento descargado desde n
+8n | 2026-04-27 13:12:15.636336 | 2026-04-27 15:36:29.43973  |                  2 | 04-0002      |               2 | t            |
+            | 04-0002 FACTURA F231 0101641 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  1 |         1 |          754 | factura             |          | F231  | 0101640  | 20100084172 | PROMOTORES ELECTRICOS S A | 2026-04-27    |
+                  |        |  135.16 |  20.62 |                |       |                  | clasificado          | Documento descargado desde n
+8n | 2026-04-27 13:12:15.636336 | 2026-04-27 15:36:12.017668 |                  2 | 04-0001      |               1 | t            |
+            | 04-0001 FACTURA F231 0101640 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf | \\\\servidor\\documentos\\BBTI SAC\ABRIL
+(7 rows)
+
+
+gestiondocumental=# SELECT * FROM archivos ORDER BY id DESC;
+ id | documento_id | correo_id |             nombre_archivo_original             |                               nombre_archivo_actual
+                       | extension |    mime_type    | tamano_bytes | hash_sha256 |                                                 ruta_tempor
+al                                                  | ruta_final | es_principal | estado_archivo |         creado_en          |       actualiza
+do_en
+----+--------------+-----------+-------------------------------------------------+-------------------------------------------------------------
+-----------------------+-----------+-----------------+--------------+-------------+------------------------------------------------------------
+----------------------------------------------------+------------+--------------+----------------+----------------------------+----------------
+------------
+  7 |            7 |         5 | GUIA T002-00280 FIRMADO.pdf                     | 04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+                       | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0005 OTRO T002 00280 205
+38549071 OMEGA_POWER_S_A_C.pdf                      |            | t            | renombrado     | 2026-04-27 15:34:39.249436 | 2026-04-27 15:3
+8:12.844889
+  6 |            6 |         5 | ORDEN DE COMRA 007902.pdf.pdf                   | 04-0005 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf
+                       | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/04-0005 OTRO 20538549071 OMEGA_
+POWER_S_A_C.pdf                                     |            | t            | observado      | 2026-04-27 15:34:39.249436 | 2026-04-27 15:3
+8:12.77824
+  5 |            5 |         5 | F F002-00000254.pdf                             | 04-0004 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.
+pdf                    | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0004 FACTURA F002 000002
+54 20538549071 OMEGA_POWER_S_A_C.pdf                |            | t            | renombrado     | 2026-04-27 15:34:39.249436 | 2026-04-27 15:3
+8:12.699763
+  4 |            4 |         4 | 20100291551-09-T010-00057913_FormatoImpreso.pdf | posible_documento_20260427203438941_69efb84d.050a0220.296f46
+.fdfb_mx.google._1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_documento_2026042720343
+8941_69efb84d.050a0220.296f46.fdfb_mx.google._1.pdf |            | t            | observado      | 2026-04-27 15:34:39.249436 | 2026-04-27 15:3
+6:58.424549
+  3 |            3 |         3 | 20100291551-01-F010-00056103_FormatoImpreso.pdf | 04-0003 FACTURA F010 00056103 20100291551 SEIN_S_R_L.pdf
+                       | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0003 FACTURA F010 000561
+03 20100291551 SEIN_S_R_L.pdf                       |            | t            | renombrado     | 2026-04-27 15:34:39.249436 | 2026-04-27 15:3
+6:44.167322
+  2 |            2 |         2 | 20100084172-01-F231-0101641.pdf                 | 04-0002 FACTURA F231 0101641 20100084172 PROMOTORES_ELECTRIC
+OS_S_A.pdf             | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0002 FACTURA F231 010164
+1 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf         |            | t            | renombrado     | 2026-04-27 13:12:15.687207 | 2026-04-27 15:3
+6:29.43973
+  1 |            1 |         1 | 20100084172-01-F231-0101640.pdf                 | 04-0001 FACTURA F231 0101640 20100084172 PROMOTORES_ELECTRIC
+OS_S_A.pdf             | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0001 FACTURA F231 010164
+0 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf         |            | t            | renombrado     | 2026-04-27 13:12:15.687207 | 2026-04-27 15:3
+6:12.017668
+(7 rows)
+
+
+gestiondocumental=#
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/inbox/2026/04/
+total 0
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/ocr_tmp/2026/04/
+total 2992
+-rw-r--r-- 1 BBTI 01 197121 1560109 Apr 24 11:18 ocr_posible_documento_20260424154314565_ADR510000016187943000AB56143BB971FD18FF2_1.pdf
+-rw-r--r-- 1 BBTI 01 197121 1067144 Apr 27 15:37 ocr_posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_2.pdf
+-rw-r--r-- 1 BBTI 01 197121  430403 Apr 27 15:38 ocr_posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_3.pdf
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_revision/2026/04/
+total 828
+-rw-r--r-- 1 BBTI 01 197121 764541 Apr 27 15:34 '04-0005 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf'
+-rw-r--r-- 1 BBTI 01 197121  78122 Apr 27 15:34  posible_documento_20260427203438941_69efb84d.050a0220.296f46.fdfb_mx.google._1.pdf
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/pendientes_clasificados/2026/04/
+total 672
+-rw-r--r-- 1 BBTI 01 197121  60483 Apr 27 13:12 '04-0001 FACTURA F231 0101640 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  60478 Apr 27 13:12 '04-0002 FACTURA F231 0101641 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf'
+-rw-r--r-- 1 BBTI 01 197121  79081 Apr 27 15:34 '04-0003 FACTURA F010 00056103 20100291551 SEIN_S_R_L.pdf'
+-rw-r--r-- 1 BBTI 01 197121  99927 Apr 27 15:34 '04-0004 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf'
+-rw-r--r-- 1 BBTI 01 197121 378460 Apr 27 15:34 '04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf'
+
+veo muchas incosistencias: una orde de compra no se proceso esta en pendientes_revision:04-0005 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf
+ocr_tmp: ocr_posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_2.pdf
+una guia de remision no se proceso de seguro por el salto de linea: GUIA DE REMISION
+ELECTRONICA que paso a clasificado pero no se borro pero esta con este nombre: 
+pendientes_clasificados: 04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+no se borro de ocr_tmp: ocr_posible_documento_20260427203438941_CAFtAZZBx3aCM-cq9Ait_EvXVFr4TU1i5qHAC2mZ_3.pdf
+
+
