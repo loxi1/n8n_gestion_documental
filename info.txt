@@ -1,245 +1,414 @@
-Bien, esto ya es un análisis de comportamiento real del sistema, no de código aislado. Y te lo digo directo:
-👉 Tu sistema ya funciona, pero ahora estás entrando en la fase difícil:
-consistencia de reglas de negocio entre tipos de documento.
-Voy punto por punto sobre lo que detectaste.
-🔍 1. PROBLEMA: Guía clasificada como OTRO
-Bash
-04-0005 OTRO T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
-Pero en DB:
-SQL
-tipo_documental = guia_remision
-👉 Esto es CLAVE: El nombre final usa OTRO pero el tipo es guia_remision
-🧠 Causa
-Tu build_final_name() está usando mal el tipo:
-Python
-tipo_documental=tipo_documental
-Pero en algún punto antes lo estás sobrescribiendo o no estás pasando el correcto.
-✅ SOLUCIÓN
-En build_final_name() asegúrate de esto:
-Python
-tipo_str = {
-    "factura": "FACTURA",
-    "guia_remision": "GUIA",
-    "orden_compra": "OC",
-    "certificado_calidad": "CERT",
-}.get(tipo_documental, "OTRO")
-Y luego:
-Python
-nombre = f"{grupo_codigo} {tipo_str} ..."
-👉 Con eso:
-Bash
-❌ OTRO → ✅ GUIA
-🔍 2. ORDEN DE COMPRA NO RECONOCIDA
-Archivo:
-Bash
-ocr_posible_documento_..._2.pdf
-Nombre original:
-Bash
-ORDEN DE COMRA 007902.pdf.pdf
-👉 Aquí hay un error brutal:
-Bash
-COMRA ❌
-COMPRA ✅
-🧠 Tu regex actual:
-Python
-r"\bORDEN DE COMPRA\b"
-👉 No detecta "COMRA"
-✅ SOLUCIÓN REAL (OCR-proof)
-Cambia tu detección en classifier.py:
-Python
-if (
-    re.search(r"\bORDEN DE COM(?:P|R)A\b", text_u)
-    or re.search(r"\bORDEN DE COMRA\b", text_u)
-    or re.search(r"\bOC[- ]?\d{4,}\b", text_u)
-):
-    return "orden_compra"
-👉 Esto ya soporta errores OCR reales.
-🔍 3. GUÍA NO DETECTADA (salto de línea)
-Texto:
-Plain text
-GUIA DE REMISION
-ELECTRONICA
-🧠 Problema
-Tu regex probablemente busca:
-Python
-"GUIA DE REMISION ELECTRONICA"
-👉 Pero OCR lo separa en líneas.
-✅ SOLUCIÓN
-Cambia a:
-Python
-if (
-    re.search(r"GUIA\s+DE\s+REMISION\s+ELECTRONICA", text_u)
-    or re.search(r"GUIA DE REMISION", text_u)
-):
-    return "guia_remision"
-👉 \s+ soporta saltos de línea.
-🔍 4. DUPLICADOS EN OCR_TMP
-Bash
-ocr_tmp/
-  ocr_..._2.pdf
-  ocr_..._3.pdf
-👉 Esto es NORMAL por ahora, pero no debería quedarse.
-🧠 Problema
-Nunca limpias OCR temporal.
-✅ SOLUCIÓN
-Después de procesar cada documento:
-Python
-if OCR_TMP_DIR.exists():
-    try:
-        pdf_ocr_path.unlink(missing_ok=True)
-    except:
-        pass
-O mejor: 👉 limpiar por lote al final:
-Python
+mostrar los codigo finales:
+file_manger.py
+from __future__ import annotations
+
+import re
 import shutil
-shutil.rmtree(OCR_TMP_DIR, ignore_errors=True)
-OCR_TMP_DIR.mkdir(parents=True, exist_ok=True)
-🔍 5. ORDEN DE COMPRA EN pendientes_revision
-Bash
-04-0005 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf
-👉 Esto es CORRECTO (por ahora)
-🧠 Por qué
-Tu lógica dice:
-Python
-orden_compra → pendiente_asociacion
-👉 Porque no es documento principal.
-🧠 PERO aquí hay mejora
-Esa OC tiene número:
-Bash
-007902
-👉 puedes guardarla bien:
-Python
-elif doc_type == "orden_compra":
-    serie = "OC"
-    numero = m.group(1)
-🔍 6. INCONSISTENCIA REAL (la más importante)
-Tienes esto:
-Bash
-FACTURA → grupo 04-0004
-GUIA → grupo 04-0005
-👉 PERO SON DEL MISMO CORREO
-🧠 Problema
-Estás generando grupo por documento, no por correo.
-✅ SOLUCIÓN PRO
-Antes del loop:
-Python
-grupo_codigo_global = None
-
-if factura_principal:
-    grupo_codigo_global = generar_grupo(fecha_principal)
-
-elif hay_guia_valida:
-    grupo_codigo_global = generar_grupo(fecha_guia)
-Y dentro del loop:
-Python
-grupo_codigo = grupo_codigo_global
-👉 TODOS los documentos del correo comparten grupo.
-🧠 RESUMEN CLARO
-Problema
-Estado
-Solución
-GUIA aparece como OTRO
-❌
-fix build_final_name
-OC no detectada
-❌
-regex OCR-proof
-GUIA salto de línea
-❌
-usar \s+
-OCR_TMP lleno
-⚠️
-limpiar
-OC en revisión
-✔ correcto
-mejorar parse
-grupo inconsistente
-❌ CRÍTICO
-usar grupo global
-🚀 CONCLUSIÓN
-Tu sistema ya está en nivel:
-👉 80% producción real
-Lo que estás corrigiendo ahora es:
-👉 calidad de datos + consistencia documental
-🔥 SIGUIENTE NIVEL (si quieres)
-Te puedo armar:
-👉 asociación automática:
-factura ↔ guía ↔ OC
-por RUC + fecha + cliente
-👉 y eso ya es: 💀 nivel ERP automático completo
-Solo dime:
-"vamos con asociación automática"
+import unicodedata
+from pathlib import Path
 
 
-Perfecto. Entonces la Orden de Compra ya tiene una regla fuerte y estable.
-Regla para detectar OC
-Debe reconocerse si aparece:
-Plain text
-Orden de Compra N*:007902
-o variantes OCR:
-Plain text
-ORDEN DE COMPRA N°:007902
-ORDEN DE COMPRA N*:007902
-ORDEN DE COMRA N*:007902
-ORDEN COMPRA: 007902
-En classifier.py, mejora la parte de orden_compra así:
-Python
-# Orden de compra real
-if (
-    re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s*N[°º*:]?\s*:?\s*\d{4,}\b", text_u)
-    or re.search(r"\bORDEN\s+COMPRA\s*:?\s*\d{4,}\b", text_u)
-    or re.search(r"\bOC[- ]?\d{4,}\b", name_u)
-    or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b", name_u)
-):
-    return "orden_compra"
-Y en extract_basic_fields() para extraer el número:
-Python
-elif doc_type == "orden_compra":
-    m = re.search(
-        r"\bORDEN\s+DE\s+COM(?:P|R)A\s*N[°º*:]?\s*:?\s*([0-9]{4,})\b",
-        text_u,
-        re.IGNORECASE,
-    )
+def sanitize_filename(value: str) -> str:
+    """
+    Limpieza general para nombres de archivo:
+    - quita tildes
+    - elimina caracteres inválidos de Windows
+    - compacta espacios
+    """
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r'[<>:"/\\|?*]+', " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
 
-    if not m:
-        m = re.search(r"\bORDEN\s+COMPRA\s*:?\s*([0-9]{4,})\b", text_u, re.IGNORECASE)
 
-    if not m:
-        m = re.search(r"\bOC[- ]?([0-9]{4,})\b", text_u, re.IGNORECASE)
+def normalize_token(value: str | None) -> str:
+    """
+    Normaliza un bloque interno del nombre:
+    - limpia caracteres
+    - cambia espacios por guion bajo
+    """
+    if not value:
+        return ""
 
-    if m:
-        serie = "OC"
-        numero = m.group(1)
-Regla extra con facturas@bbti.com.pe
-Si en el PDF aparece:
-Plain text
-facturas@bbti.com.pe
-eso te sirve como señal fuerte de que el documento pertenece a BBTI, pero no necesariamente define el tipo documental.
-Úsalo para reforzar cliente destino:
-Python
-if "FACTURAS@BBTI.COM.PE" in text_u:
-    cliente_raw = "BBTI S.A.C."
-No lo usaría para decir que es factura u OC, solo para asociar cliente.
-Regla de negocio recomendada
-Para un correo con:
-factura
-orden de compra
-guía
-Debe pasar esto:
-Plain text
-Todos comparten el mismo grupo_codigo
-La factura es principal
-La OC y guía quedan asociadas a la factura
-Ejemplo correcto:
-Plain text
-04-0005 FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
-04-0005 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
-04-0005 GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
-La inconsistencia que viste:
-Plain text
-04-0005 OTRO ...
-debería corregirse con:
-mejorar detección de OC
-mejorar build_final_name() para que guia_remision no salga como OTRO
-usar un solo grupo_codigo por correo cuando hay factura principal
-Ese es el camino correcto.
+    value = sanitize_filename(value)
+    value = value.replace(".", " ")
+    value = re.sub(r"\s+", " ", value).strip()
+    value = value.replace(" ", "_")
+    return value
+
+
+def build_final_name(
+    grupo_codigo: str,
+    tipo_documental: str,
+    serie: str | None,
+    numero: str | None,
+    ruc_emisor: str | None,
+    razon_social_emisor: str | None,
+    fallback_name: str,
+) -> str:
+    ext = Path(fallback_name).suffix.lower() or ".pdf"
+
+    tipo_map = {
+        "factura": "FACTURA",
+        "adjunto_factura": "ADJUNTO_FACTURA",
+        "guia": "GUIA",
+        "orden_compra": "ORDEN_COMPRA",
+        "requerimiento_compra": "REQUERIMIENTO_COMPRA",
+        "nota_credito": "NOTA_CREDITO",
+        "otro": "OTRO",
+    }
+
+    tipo_txt = tipo_map.get(tipo_documental, "OTRO")
+    serie_txt = normalize_token(serie)
+    numero_txt = normalize_token(numero)
+    ruc_txt = normalize_token(ruc_emisor)
+    razon_txt = normalize_token(razon_social_emisor) or "SIN_RAZON_SOCIAL"
+
+    parts: list[str] = [grupo_codigo, tipo_txt]
+
+    if tipo_documental in ["factura", "guia"]:
+        if serie_txt:
+            parts.append(serie_txt)
+        if numero_txt:
+            parts.append(numero_txt)
+
+    elif tipo_documental in ["orden_compra", "requerimiento_compra", "nota_credito"]:
+        if numero_txt:
+            parts.append(numero_txt)
+
+    elif tipo_documental == "adjunto_factura":
+        # no agrega serie/numero si no existen
+        pass
+
+    else:
+        if serie_txt:
+            parts.append(serie_txt)
+        if numero_txt:
+            parts.append(numero_txt)
+
+    if ruc_txt:
+        parts.append(ruc_txt)
+
+    parts.append(razon_txt)
+
+    return " ".join(parts) + ext
+
+
+def move_file(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(destination))
+
+classifier.py
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from core.text_utils import normalize_text
+from core.qr_parser import extract_qr_candidates, parse_qr_payload
+
+
+FACTURA_SERIE_RE = r"F[A-Z0-9]{3}"
+FACTURA_NUMERO_RE = r"\d{1,8}"
+
+GUIA_SERIE_RE = r"(?:T[A-Z0-9]{3}|GR[A-Z0-9]{2,3})"
+GUIA_NUMERO_RE = r"\d{1,8}"
+
+
+# =========================
+# UTILIDAD IMPORTANTE
+# =========================
+def clean_number(value: str | None) -> float | None:
+    if not value:
+        return None
+    value = value.replace(",", "").strip()
+    try:
+        return float(value)
+    except:
+        return None
+
+
+# =========================
+# DETECCION TIPO DOCUMENTO
+# =========================
+def detect_tipo_documental(text: str, file_name: str) -> str:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
+
+    # 0. QR manda
+    for candidate in extract_qr_candidates(text):
+        qr = parse_qr_payload(candidate)
+        if qr and qr.get("tipo_documental") == "factura":
+            return "factura"
+
+    # 1. Certificado
+    if (
+        "CERTIFICADO DE CALIDAD" in text_u
+        or "CERT. DE CALIDAD" in text_u
+        or "CERTIFICADO" in name_u
+    ):
+        return "certificado_calidad"
+
+    # 2. Factura por nombre fuerte
+    if (
+        re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
+    ):
+        return "factura"
+
+    # 3. Guía
+    if (
+        re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
+    ):
+        return "guia_remision"
+
+    # 4. Factura por texto
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u)
+    ):
+        return "factura"
+
+    # 5. Guía por texto
+    if (
+        "GUIA REMISION ELECTRONICA" in text_u
+        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u)
+    ):
+        return "guia_remision"
+
+    # 6. Orden de compra REAL
+    if (
+        re.search(r"\bORDEN DE COMPRA\s*N(?:RO)?[°º:\s-]*\d{4,}\b", text_u)
+        or re.search(r"\bOC[- ]?\d{4,}\b", text_u)
+    ):
+        return "orden_compra"
+
+    return "otro"
+
+
+# =========================
+# EXTRACCION FACTURA
+# =========================
+def _extract_factura_fields(text_u: str, name_u: str):
+    patrones = [
+        rf"\b({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
+        rf"\bNRO\s*({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
+    ]
+    for fuente in (text_u, name_u):
+        for patron in patrones:
+            m = re.search(patron, fuente, re.IGNORECASE)
+            if m:
+                return m.group(1), m.group(2)
+    return None, None
+
+
+# =========================
+# EXTRACCION PRINCIPAL
+# =========================
+def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
+    doc_type = detect_tipo_documental(text, file_name)
+
+    ruc = None
+    serie = None
+    numero = None
+    fecha_emision = None
+    importe = None
+    oc = None
+    qr_data = None
+
+    # 1. QR primero
+    for candidate in extract_qr_candidates(text):
+        qr_data = parse_qr_payload(candidate)
+        if qr_data:
+            break
+
+    if qr_data and qr_data.get("tipo_documental") in ("factura", "guia_remision"):
+        fields["tipo_documental"] = qr_data.get("tipo_documental") or fields.get("tipo_documental")
+        fields["serie"] = qr_data.get("serie") or fields.get("serie")
+        fields["numero"] = qr_data.get("numero") or fields.get("numero")
+        fields["ruc"] = qr_data.get("ruc_emisor") or fields.get("ruc")
+        fields["fecha_emision"] = qr_data.get("fecha_emision") or fields.get("fecha_emision")
+        fields["importe"] = qr_data.get("importe") or fields.get("importe")
+        fields["igv"] = qr_data.get("igv") or fields.get("igv")
+        return {
+            "tipo_documental": "factura",
+            "serie": qr_data.get("serie"),
+            "numero": qr_data.get("numero"),
+            "ruc": qr_data.get("ruc_emisor"),
+            "fecha_emision": qr_data.get("fecha_emision"),
+            "importe": qr_data.get("importe"),
+            "igv": qr_data.get("igv"),
+            "oc": None,
+            "qr_data": qr_data,
+        }
+
+    # 2. Serie / número
+    if doc_type == "factura":
+        serie, numero = _extract_factura_fields(text_u, name_u)
+
+    elif doc_type == "guia_remision":
+        serie, numero = _extract_guia_fields(text_u, name_u)
+
+    elif doc_type == "orden_compra":
+        m = re.search(
+            r"\bORDEN DE COM(?:P|R)A\s*N(?:RO)?[°º:\s-]*([0-9]{4,})\b",
+            text_u,
+            re.IGNORECASE,
+        )
+        if not m:
+            m = re.search(r"\bOC[- ]?([0-9]{4,})\b", text_u, re.IGNORECASE)
+        if m:
+            serie = "OC"
+            numero = m.group(1)
+
+    elif doc_type == "requerimiento_compra":
+        m = re.search(r"\bREQ[- ]?(\d{3,})\b", text_u, re.IGNORECASE)
+        if not m:
+            m = re.search(
+                r"\bREQUERIMIENTO(?: DE COMPRA)?\s*[:\-]?\s*([0-9]{3,})\b",
+                text_u,
+                re.IGNORECASE,
+            )
+        if m:
+            serie = "REQ"
+            numero = m.group(1)
+
+    # 3. RUC
+    # 3.1 Para factura, intentar sacar el RUC emisor desde el bloque cercano a FACTURA
+    if doc_type == "factura":
+        patrones_ruc_factura = [
+            r"FACTURA ELECTRONICA.{0,300}?R\.?U\.?C\.?(?:\s*NRO|\s*N)?[:\s]*([0-9]{11})",
+            r"R\.?U\.?C\.?(?:\s*NRO|\s*N)?[:\s]*([0-9]{11}).{0,300}?FACTURA ELECTRONICA",
+        ]
+        for patron in patrones_ruc_factura:
+            m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+            if m:
+                ruc = m.group(1)
+                break
+
+    # 3.2 Si el nombre del archivo tiene el formato completo con RUC, usarlo
+    if not ruc and doc_type == "factura":
+        m = re.search(
+            rf"\b(\d{{11}})-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b",
+            name_u,
+            re.IGNORECASE,
+        )
+        if m:
+            ruc = m.group(1)
+
+    # 3.3 Fallback general
+    if not ruc:
+        for patron in [
+            r"\bRUC[:\s]*([0-9]{11})\b",
+            r"\bR\.?U\.?C\.?\s*(?:NRO|N)?[:\s]*([0-9]{11})\b",
+            r"\bREG\.?\s*UNICO DE CONTRIBUYENTES[:\s]*([0-9]{11})\b",
+        ]:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                ruc = m.group(1)
+                break
+
+    # 4. Fecha de emisión
+
+    # 4.1 Misma línea
+    for patron in [
+        r"\bFECHA DE EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bFECHA DE EMISION[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2})\b",
+        r"\bFECHA DE EMISION[:\s]*([0-9]{1,2}-[A-Z]{3}-[0-9]{4})\b",
+        r"\bF\.?\s*EMISION[:\s]*([0-9]{2}/[0-9]{2}/[0-9]{4})\b",
+        r"\bF\.?\s*EMISION[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2})\b",
+        r"\bF\.?\s*EMISION[:\s]*([0-9]{1,2}-[A-Z]{3}-[0-9]{4})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            fecha_emision = m.group(1)
+            break
+
+    # 4.2 Etiqueta y fecha separadas por salto de línea o espacios
+    if not fecha_emision:
+        for patron in [
+            r"FECHA DE EMISION\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+            r"FECHA DE EMISION\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
+            r"FECHA DE EMISION\s*[:\-]?\s*([0-9]{1,2}-[A-Z]{3}-[0-9]{4})",
+            r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+            r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
+            r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{1,2}-[A-Z]{3}-[0-9]{4})",
+        ]:
+            m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+            if m:
+                fecha_emision = m.group(1)
+                break
+
+    # 4.3 Fallback contextual para factura
+    if not fecha_emision and doc_type == "factura" and serie and numero:
+        m_fact = re.search(
+            rf"FACTURA ELECTRONICA.*?{serie}-{numero}",
+            text_u,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m_fact:
+            start = max(0, m_fact.start() - 400)
+            end = min(len(text_u), m_fact.end() + 400)
+            window = text_u[start:end]
+
+            fechas = re.findall(
+                r"\b([0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}-[A-Z]{3}-[0-9]{4}|[0-9]{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+[0-9]{4})\b",
+                window,
+            )
+            if fechas:
+                fecha_emision = fechas[0]
+
+    # 5. OC referencial
+    for patron in [
+        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bOC[:\s]*([0-9]{4,})\b",
+        r"\bORDEN COMPRA[:\s]*([0-9]{4,})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            oc = m.group(1)
+            break
+
+    # 6. Importe
+    for patron in [
+        r"\bTOTAL\s*\(USD \$\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
+        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
+        r"\bTOTAL A PAGAR[:\s]*([0-9][0-9,.\s]*)\b",
+        r"\bIMPORTE TOTAL[:\sA-Z$/.]*([0-9][0-9,.\s]*)\b",
+        r"\bTOTAL\s*S/\s*([0-9][0-9,.\s]*)\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE)
+        if m:
+            importe = m.group(1).strip()
+            break
+
+    return {
+        "tipo_documental": doc_type,
+        "serie": serie,
+        "numero": numero,
+        "ruc": ruc,
+        "fecha_emision": fecha_emision,
+        "importe": importe,
+        "igv": None,
+        "oc": oc,
+        "qr_data": qr_data,
+    }
+
+def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
+    patrones = [
+        rf"\b({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+        rf"\bNRO\.?\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+        rf"\bN[°º]\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
+    ]
+
+    for fuente in (text_u, name_u):
+        for patron in patrones:
+            m = re.search(patron, fuente, re.IGNORECASE)
+            if m:
+                return m.group(1), m.group(2)
+
+    return None, None
