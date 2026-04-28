@@ -1,11 +1,60 @@
-Este archivo:  esta en pendientes_revision:
-04-0003 ORDEN_COMPRA 20538549071 OMEGA_POWER_S_A_C.pdf es una orden de compra se pone el R.U.C. : 20538549071 pero debe ser el numero correlativo: 007902
+Sí, ya se ve el problema exacto.
+Tu documento fue detectado bien:
+Plain text
+tipo = orden_compra
+ruc = 20538549071
+oc = 007902
+Pero quedó mal el nombre porque:
+Plain text
+serie = None
+numero = None
+Entonces build_final_name() no tiene número para poner y genera:
+Plain text
+04-0003 ORDEN_COMPRA 20538549071 OMEGA_POWER_S_A_C.pdf
+Debe usar el oc como número.
+Corrección en classifier.py
+Dentro de extract_basic_fields(), al final de la sección donde detectas oc, agrega esto antes del return final:
+Python
+# Si el documento es orden de compra y se detectó OC,
+    # usar ese valor como serie/numero principal del documento.
+    if doc_type == "orden_compra" and oc and not numero:
+        serie = "OC"
+        numero = oc
+Debe ir después de este bloque:
+Python
+# 5. OC referencial dentro de factura/guía
+    for patron in [
+        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bN[°º]\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bOC[:\s]*([0-9]{4,})\b",
+        r"\bORDEN\s+COMPRA[:\s]*([0-9]{4,})\b",
+        r"\bORDEN\s+DE\s+COMPRA\s+N\b.*?:\s*([0-9]{4,})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+        if m:
+            oc = m.group(1)
+            break
+Quedaría así:
+Python
+# 5. OC referencial dentro de factura/guía
+    for patron in [
+        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bN[°º]\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bOC[:\s]*([0-9]{4,})\b",
+        r"\bORDEN\s+COMPRA[:\s]*([0-9]{4,})\b",
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*([0-9]{4,})\b",
+    ]:
+        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+        if m:
+            oc = m.group(1)
+            break
 
-[INFO] procesando correo_id=3 documentos=3
-[DEBUG] correo_id=3 enriquecidos:
-{'documento_id': 3, 'archivo': 'posible_documento_20260427221139708_CAFtAZZDpWLtYaypYZ4he9yOdBy_S9ayjxCq0uO2_1.pdf', 'tipo': 'orden_compra', 'serie': None, 'numero': None, 'ruc': '20538549071', 'oc': '007902', 'cliente_raw': None, 'cliente_match': None, 'fecha': None, 'qr': False}
-
-$ ls -l ../storage/files/pendientes_revision/2026/04/
-total 748
--rw-r--r-- 1 BBTI 01 197121 764541 abr. 28 11:31 '04-0003 ORDEN_COMPRA 20538549071 OMEGA_POWER_S_A_C.pdf'
-(venv) 
+    if doc_type == "orden_compra" and oc and not numero:
+        serie = "OC"
+        numero = oc
+Resultado esperado
+Después de reprocesar, debe quedar:
+Plain text
+04-0003 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+Importante
+Tu detección ya está bien. El error no es que no reconozca la OC; el error es que el número 007902 quedó en oc, pero no pasó a `numero
