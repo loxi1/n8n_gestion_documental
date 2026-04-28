@@ -118,10 +118,11 @@ def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | No
 
 def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
+        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bN[°º]\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bOC[:\s]*([0-9]{4,})\b",
+        r"\bORDEN\s+COMPRA[:\s]*([0-9]{4,})\b",
         r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*([0-9]{4,})\b",
-        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\s*[°º*:]?\s*:?\s*([0-9]{4,})\b",
-        r"\bORDEN\s+COMPRA\s*:?\s*([0-9]{4,})\b",
-        r"\bOC[- ]?([0-9]{4,})\b",
     ]
 
     for fuente in (text_u, name_u):
