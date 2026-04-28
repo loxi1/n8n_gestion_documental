@@ -1,18 +1,58 @@
-La guia de remision esta en pendientes_clasificados:
-04-0004 GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
-pero tambien esta en ocr_tmp:
-ocr_posible_documento_20260427221139708_CAFtAZZDpWLtYaypYZ4he9yOdBy_S9ayjxCq0uO2_3.pdf
+Sí, aquí hay 2 ajustes claros:
+1) ocr_tmp duplicado no es error
+El archivo queda ahí porque el OCR genera una copia temporal para leer mejor el PDF. Si el documento ya fue procesado y movido a pendientes_clasificados o pendientes_revision, ese OCR temporal ya no sirve.
+Agrega una limpieza al final de cada documento procesado en process_correo():
+Python
+ocr_output_path = doc.get("ocr_output_path")
+if ocr_output_path:
+    try:
+        Path(ocr_output_path).unlink(missing_ok=True)
+    except Exception as e:
+        print(f"[WARN] no se pudo eliminar OCR temporal: {ocr_output_path} -> {e}")
+Ponlo después del move_file(...) y después de actualizar BD, antes del [OK].
+2) La OC se está detectando como certificado
+Tu regla de certificado está ganando antes que la regla de orden de compra. Debes detectar orden_compra antes que certificado_calidad.
+En classifier.py, en detect_tipo_documental(), mueve la detección de OC antes del certificado.
+Usa esta regla:
+Python
+# 1. Orden de compra fuerte
+if (
+    re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\s*[:°º*]?\s*([0-9]{4,})\b", text_u)
+    or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*([0-9]{4,})\b", text_u, re.DOTALL)
+    or re.search(r"\bORDEN\s+COMPRA\s*:?\s*([0-9]{4,})\b", text_u)
+    or "FACTURAS@BBTI.COM.PE" in text_u
+    or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b", name_u)
+):
+    return "orden_compra"
 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ ls -l ../storage/files/ocr_tmp/2026/04/
-total 1468
--rw-r--r-- 1 BBTI 01 197121 1067144 abr. 27 17:13 ocr_posible_documento_20260427221139708_CAFtAZZDpWLtYaypYZ4he9yOdBy_S9ayjxCq0uO2_1.pdf
--rw-r--r-- 1 BBTI 01 197121  430403 abr. 27 17:13 ocr_posible_documento_20260427221139708_CAFtAZZDpWLtYaypYZ4he9yOdBy_S9ayjxCq0uO2_3.pdf
-(venv) 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
-$ ls -l ../storage/files/pendientes_revision/2026/04/
-total 748
--rw-r--r-- 1 BBTI 01 197121 764541 abr. 27 17:11 '04-0003 CERTIFICADO_CALIDAD 20538549071 OMEGA_POWER_S_A_C.pdf'
-(venv) 
-al parecer cambia la validacion de comprobar un orde de compra: Orden de Compra N°:007902 pero cuando copio ° sale un * asi que mejo se compara antes del ° y despues del miso es decir buscar: Orden de Compra N y :007902 ademas de buscar facturas@bbti.com.pe 
-el documento esta en pendientes_revision: 04-0003 CERTIFICADO_CALIDAD 20538549071 OMEGA_POWER_S_A_C.pdf se puso CERTIFICADO_CALIDAD cuando es ORDEN DE COMPRA ademas tambien esta en ocr_tmp: ocr_posible_documento_20260427221139708_CAFtAZZDpWLtYaypYZ4he9yOdBy_S9ayjxCq0uO2_1.pdf
+# 2. Certificado
+if (
+    "CERTIFICADO DE CALIDAD" in text_u
+    or "CERT. DE CALIDAD" in text_u
+    or "CERTIFICADO" in name_u
+):
+    return "certificado_calidad"
+Y en extract_basic_fields(), para orden_compra, cambia a:
+Python
+elif doc_type == "orden_compra":
+    patrones_oc = [
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\s*[:°º*]?\s*([0-9]{4,})\b",
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*([0-9]{4,})\b",
+        r"\bORDEN\s+COMPRA\s*:?\s*([0-9]{4,})\b",
+        r"\bOC[- ]?([0-9]{4,})\b",
+    ]
+
+    for patron in patrones_oc:
+        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+        if m:
+            serie = "OC"
+            numero = m.group(1)
+            break
+Resultado esperado
+La OC debería quedar así:
+Plain text
+04-0003 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+y no como:
+Plain text
+04-0003 CERTIFICADO_CALIDAD ...
+Además, ocr_tmp debería quedar limpio después de procesar.
