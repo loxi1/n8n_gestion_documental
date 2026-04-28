@@ -651,17 +651,10 @@ def process_correo(items: list[dict]) -> None:
         diferencias_criticas: list[str] = []
         advertencias: list[str] = []
 
-        if tipo_documental == "factura":
-            es_documento_valido, diferencias_criticas, advertencias = is_factura_valida_produccion(
-                fields,
-                qr_data,
-            )
-
-        elif tipo_documental == "guia_remision":
-            es_documento_valido, diferencias_criticas, advertencias = is_guia_valida_produccion(
-                fields,
-                qr_data,
-            )
+        es_documento_valido, diferencias_criticas, advertencias = is_documento_valido_produccion(
+            fields,
+            qr_data,
+        )
 
         ruc_emisor = fields["ruc"]
         razon_social_emisor = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
@@ -721,7 +714,7 @@ def process_correo(items: list[dict]) -> None:
                 estado_archivo = "observado"
                 total_no_identificados += 1
 
-            elif tipo_documental in ("factura", "guia_remision", "adjunto_factura"):
+            elif tipo_documental in ("factura", "guia_remision", "orden_compra", "adjunto_factura"):
                 if not es_documento_valido:
                     estado_documento = "revision_manual"
                     bucket = "pendientes_revision"
@@ -733,6 +726,12 @@ def process_correo(items: list[dict]) -> None:
                     bucket = "pendientes_revision"
                     estado_archivo = "observado"
                     total_revision_manual += 1
+
+                elif tipo_documental == "orden_compra":
+                   estado_documento = "clasificado"
+                    bucket = "pendientes_clasificados"
+                    estado_archivo = "renombrado"
+                    total_clasificados += 1
 
                 else:
                     estado_documento = "clasificado"
@@ -950,6 +949,20 @@ def is_guia_valida_produccion(
 
     criticas.append(f"tipo_documental no es guia_remision: {tipo}")
     return False, criticas, advertencias
+
+def is_documento_valido_produccion(fields, qr_data):
+    tipo = fields.get("tipo_documental")
+
+    if tipo == "factura":
+        return is_factura_valida_produccion(fields, qr_data)
+
+    if tipo == "guia_remision":
+        return fields.get("serie") and fields.get("numero") and fields.get("ruc"), [], []
+
+    if tipo == "orden_compra":
+        return fields.get("numero") is not None, [], []
+
+    return False, [], []
 
 if __name__ == "__main__":
     main()
