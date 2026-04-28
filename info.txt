@@ -1,3 +1,11 @@
 Este archivo:  esta en pendientes_revision:
 04-0003 ORDEN_COMPRA 20538549071 OMEGA_POWER_S_A_C.pdf es una orden de compra se pone el R.U.C. : 20538549071 pero debe ser el numero correlativo: 007902
 
+[INFO] procesando correo_id=3 documentos=3
+[DEBUG] correo_id=3 enriquecidos:
+{'documento_id': 3, 'archivo': 'posible_documento_20260427221139708_CAFtAZZDpWLtYaypYZ4he9yOdBy_S9ayjxCq0uO2_1.pdf', 'tipo': 'orden_compra', 'serie': None, 'numero': None, 'ruc': '20538549071', 'oc': '007902', 'cliente_raw': None, 'cliente_match': None, 'fecha': None, 'qr': False}
+
+$ ls -l ../storage/files/pendientes_revision/2026/04/
+total 748
+-rw-r--r-- 1 BBTI 01 197121 764541 abr. 28 11:31 '04-0003 ORDEN_COMPRA 20538549071 OMEGA_POWER_S_A_C.pdf'
+(venv) 
