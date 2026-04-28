@@ -7,12 +7,6 @@ from pathlib import Path
 
 
 def sanitize_filename(value: str) -> str:
-    """
-    Limpieza general para nombres de archivo:
-    - quita tildes
-    - elimina caracteres inválidos de Windows
-    - compacta espacios
-    """
     value = unicodedata.normalize("NFKD", value)
     value = "".join(ch for ch in value if not unicodedata.combining(ch))
     value = re.sub(r'[<>:"/\\|?*]+', " ", value)
@@ -21,15 +15,10 @@ def sanitize_filename(value: str) -> str:
 
 
 def normalize_token(value: str | None) -> str:
-    """
-    Normaliza un bloque interno del nombre:
-    - limpia caracteres
-    - cambia espacios por guion bajo
-    """
     if not value:
         return ""
 
-    value = sanitize_filename(value)
+    value = sanitize_filename(str(value))
     value = value.replace(".", " ")
     value = re.sub(r"\s+", " ", value).strip()
     value = value.replace(" ", "_")
@@ -50,10 +39,13 @@ def build_final_name(
     tipo_map = {
         "factura": "FACTURA",
         "adjunto_factura": "ADJUNTO_FACTURA",
-        "guia": "GUIA",
+        "guia_remision": "GUIA_REMISION",
         "orden_compra": "ORDEN_COMPRA",
         "requerimiento_compra": "REQUERIMIENTO_COMPRA",
+        "cotizacion": "COTIZACION",
+        "certificado_calidad": "CERTIFICADO_CALIDAD",
         "nota_credito": "NOTA_CREDITO",
+        "nota_debito": "NOTA_DEBITO",
         "otro": "OTRO",
     }
 
@@ -65,18 +57,28 @@ def build_final_name(
 
     parts: list[str] = [grupo_codigo, tipo_txt]
 
-    if tipo_documental in ["factura", "guia"]:
+    if tipo_documental in (
+        "factura",
+        "guia_remision",
+        "nota_credito",
+        "nota_debito",
+    ):
         if serie_txt:
             parts.append(serie_txt)
         if numero_txt:
             parts.append(numero_txt)
 
-    elif tipo_documental in ["orden_compra", "requerimiento_compra", "nota_credito"]:
+    elif tipo_documental in (
+        "orden_compra",
+        "requerimiento_compra",
+        "cotizacion",
+    ):
+        if serie_txt:
+            parts.append(serie_txt)
         if numero_txt:
             parts.append(numero_txt)
 
     elif tipo_documental == "adjunto_factura":
-        # no agrega serie/numero si no existen
         pass
 
     else:
