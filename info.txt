@@ -1,103 +1,107 @@
-Ya vi claramente qué está pasando — y no es un problema de extracción, es de regla de negocio en process_correo(), no en classifier.py.
-Tu sistema está funcionando así (y está bien estructurado):
-👉 Detecta 3 documentos:
-factura ✅ (principal)
-guía ✅
-orden de compra ⚠️
-👉 Pero luego marca la OC como revision_manual, aunque:
-Tiene número (007902)
-Tiene RUC
-Tiene proveedor
-Está correctamente clasificada
-🔥 PROBLEMA REAL
-Mira esto:
-Plain text
-estado_documento: revision_manual
-No viene del extractor → viene de esta lógica en process_correo():
-👉 Seguramente tienes algo así:
+Sí. En process_correo() el cambio principal es que ya no debes validar solo factura/guía por separado, sino usar tu función nueva:
+Python
+is_documento_valido_produccion(fields, qr_data)
+1. Dentro del for doc in enriched, reemplaza esto
+Python
+es_documento_valido = True
+diferencias_criticas = []
+advertencias = []
+
+if tipo_documental == "factura":
+    es_documento_valido, diferencias_criticas, advertencias = is_factura_valida_produccion(
+        fields,
+        qr_data,
+    )
+
+elif tipo_documental == "guia_remision":
+    es_documento_valido, diferencias_criticas, advertencias = is_guia_valida_produccion(
+        fields,
+        qr_data,
+    )
+por esto:
+Python
+es_documento_valido, diferencias_criticas, advertencias = is_documento_valido_produccion(
+    fields,
+    qr_data,
+)
+2. En la decisión de estado, incluye orden_compra
+Busca algo parecido a:
+Python
+elif tipo_documental in ("factura", "guia_remision", "adjunto_factura"):
+Déjalo así:
+Python
+elif tipo_documental in ("factura", "guia_remision", "orden_compra", "adjunto_factura"):
+3. La regla de estado debe quedar así
+Python
+if tipo_documental == "otro":
+    estado_documento = "no_identificado"
+    bucket = "no_identificados"
+    estado_archivo = "observado"
+    total_no_identificados += 1
+
+elif tipo_documental in ("factura", "guia_remision", "orden_compra", "adjunto_factura"):
+    if not es_documento_valido:
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+        estado_archivo = "observado"
+        total_revision_manual += 1
+
+    elif DEV_FORCE_REVIEW_FACTURAS and tipo_documental in ("factura", "adjunto_factura"):
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+        estado_archivo = "observado"
+        total_revision_manual += 1
+
+    elif tipo_documental == "orden_compra":
+        estado_documento = "pendiente_asociacion"
+        bucket = "pendientes_revision"
+        estado_archivo = "observado"
+        total_revision_manual += 1
+
+    else:
+        estado_documento = "clasificado"
+        bucket = "pendientes_clasificados"
+        estado_archivo = "renombrado"
+        total_clasificados += 1
+
+elif tipo_documental in ("certificado_calidad", "requerimiento_compra", "cotizacion"):
+    estado_documento = "pendiente_asociacion"
+    bucket = "pendientes_revision"
+    estado_archivo = "observado"
+    total_revision_manual += 1
+
+else:
+    estado_documento = "revision_manual"
+    bucket = "pendientes_revision"
+    estado_archivo = "observado"
+    total_revision_manual += 1
+4. Resultado esperado para OC
+Con tu función:
 Python
 if tipo == "orden_compra":
-    estado = "revision_manual"
-o indirectamente:
+    return fields.get("numero") is not None, [], []
+y con classifier.py ya llenando:
 Python
-if not es_documento_valido:
-    estado = "revision_manual"
-Y tu función de validación NO considera OC como válida.
-✅ SOLUCIÓN (nivel producción real)
-Tienes que tratar la OC como documento válido.
-✔️ 1. Ajustar validación
-Tu función tipo:
-Python
-is_factura_valida_produccion(...)
-NO sirve para OC.
-👉 Crea lógica separada:
-Python
-def is_documento_valido_produccion(fields, qr_data):
-    tipo = fields.get("tipo_documental")
-
-    if tipo == "factura":
-        return is_factura_valida_produccion(fields, qr_data)
-
-    if tipo == "guia_remision":
-        return fields.get("serie") and fields.get("numero") and fields.get("ruc"), [], []
-
-    if tipo == "orden_compra":
-        return fields.get("numero") is not None, [], []
-
-    return False, [], []
-✔️ 2. Cambiar process_correo()
-Busca donde haces esto:
-Python
-es_documento_valido, diferencias_criticas, advertencias = is_factura_valida_produccion(...)
-🚨 ERROR: estás usando validación de factura para todo
-🔧 CAMBIAR POR:
-Python
-es_documento_valido, diferencias_criticas, advertencias = is_documento_valido_produccion(fields, qr_data)
-✔️ 3. Resultado esperado
-Después del cambio:
-ANTES ❌
+serie = "OC"
+numero = "007902"
+el nombre debe salir así:
 Plain text
-04-0003 ORDEN_COMPRA 20538549071 OMEGA...
-estado = revision_manual
-DESPUÉS ✅
+04-0003 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+y debe quedar en:
 Plain text
-04-0003 ORDEN_COMPRA OC 007902 20538549071 OMEGA...
-estado = clasificado
-🧠 POR QUÉ PASABA
-Porque tu sistema estaba diseñado así:
-Documento
-Validación
-factura
-estricta (QR + campos)
-guía
-semi
-orden compra
-❌ no considerada
-Entonces todo lo que no era factura → terminaba en revisión.
-🚀 BONUS (muy importante)
-Tu sistema ya está en nivel PRO real:
-✔ QR manda
-✔ fallback texto
-✔ multi-documento por correo
-✔ agrupación correcta
-✔ nombres consistentes
-Solo te faltaba esto:
-👉 tratar cada tipo documental con su propia regla de negocio
-⚠️ EXTRA (te lo adelanto)
-Más adelante deberías tener:
+pendientes_revision/2026/04/
+porque una OC no es documento final, sino documento para asociar.
+Ojo importante
+Si quieres que la OC también vaya a pendientes_clasificados, cambia este bloque:
 Python
-RULES = {
-    "factura": validar_factura,
-    "guia_remision": validar_guia,
-    "orden_compra": validar_oc,
-    "certificado_calidad": validar_certificado,
-}
-Eso evita estos problemas en el futuro.
-✅ CONCLUSIÓN
-Tu sistema NO falló en detección.
-Falló aquí:
-👉 Validación = estaba pensada solo para facturas
-Si quieres, siguiente paso te dejo esto ya armado:
-👉 engine_validacion.py (arquitectura limpia tipo microservicio)
-👉 listo para API + n8n + producción
-Y ahí sí ya estás en nivel empresa real sin intervención humana.
+elif tipo_documental == "orden_compra":
+    estado_documento = "pendiente_asociacion"
+    bucket = "pendientes_revision"
+por:
+Python
+elif tipo_documental == "orden_compra":
+    estado_documento = "clasificado"
+    bucket = "pendientes_clasificados"
+    estado_archivo = "renombrado"
+    total_clasificados += 1
+Pero mi recomendación: OC en pendientes_revision / pendiente_asociacion hasta implementar asociación automática entre correos.
