@@ -118,11 +118,13 @@ def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | No
 
 def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*([0-9]{4,})\b",
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\s*[°º*:]?\s*:?\s*([0-9]{4,})\b",
+        r"\bORDEN\s+COMPRA\s*:?\s*([0-9]{4,})\b",
         r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
         r"\bN[°º]\s*OC[:\s]*([0-9]{4,})\b",
         r"\bOC[:\s]*([0-9]{4,})\b",
-        r"\bORDEN\s+COMPRA[:\s]*([0-9]{4,})\b",
-        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*([0-9]{4,})\b",
+        r"\bOC[- ]?([0-9]{4,})\b",
     ]
 
     for fuente in (text_u, name_u):
@@ -166,7 +168,7 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
             "qr_data": qr_data,
         }
 
-    # 2. Serie / número
+    # 2. Serie / número principal
     if doc_type == "factura":
         serie, numero = _extract_factura_fields(text_u, name_u)
 
@@ -188,7 +190,6 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
                 ruc = m.group(1)
                 break
 
-    # RUC desde nombre archivo completo
     if not ruc and doc_type == "factura":
         m = re.search(
             rf"\b(\d{{11}})-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b",
@@ -235,18 +236,14 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
             fecha_emision = m.group(1)
             break
 
-    # 5. OC referencial dentro de factura/guía
-    for patron in [
-        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
-        r"\bN[°º]\s*OC[:\s]*([0-9]{4,})\b",
-        r"\bOC[:\s]*([0-9]{4,})\b",
-        r"\bORDEN\s+COMPRA[:\s]*([0-9]{4,})\b",
-        r"\bORDEN\s+DE\s+COMPRA\s+N\b.*?:\s*([0-9]{4,})\b",
-    ]:
-        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
-        if m:
-            oc = m.group(1)
-            break
+    # 5. OC referencial dentro de factura/guía o como dato principal de OC
+    _, oc_detectada = _extract_oc_fields(text_u, name_u)
+    if oc_detectada:
+        oc = oc_detectada
+
+    if doc_type == "orden_compra" and oc and not numero:
+        serie = "OC"
+        numero = oc
 
     # 6. Importe
     for patron in [
