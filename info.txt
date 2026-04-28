@@ -56,3 +56,60 @@ y no como:
 Plain text
 04-0003 CERTIFICADO_CALIDAD ...
 Además, ocr_tmp debería quedar limpio después de procesar.
+
+
+No se rompe, pero sí queda incompleto si cada documento llega en correos separados.
+Hoy tu lógica asocia mejor cuando vienen en el mismo correo:
+Plain text
+correo 1: factura + OC + guía  ✅ grupo único
+Pero si llegan separados:
+Plain text
+correo 1: OC
+correo 2: factura
+correo 3: guía
+entonces puede pasar esto:
+la factura se clasifica normal
+la guía se clasifica normal
+la OC puede quedar en pendiente_asociacion
+no necesariamente quedan unidos en el mismo grupo_codigo
+Regla de negocio recomendada
+Debes agregar una segunda fase: asociación posterior.
+Claves para asociar documentos separados
+OC número
+factura trae OC: 007902
+orden compra trae OC 007902
+guía a veces trae pedido/OC
+RUC proveedor
+factura y guía del proveedor
+OC puede tener proveedor
+cliente destino
+BBTI, CIMA, etc.
+fecha cercana
+por ejemplo ±15 o ±30 días
+Lógica ideal
+Cuando llega una OC sola:
+Plain text
+estado_documento = pendiente_asociacion
+Cuando luego llega factura con oc = 007902:
+Plain text
+buscar OC pendiente con numero 007902
+asignarle mismo grupo_codigo
+documento_principal_id = factura.id
+mover/renombrar OC con el grupo de la factura
+Cuando llega guía sola:
+Plain text
+si tiene factura relacionada → asociar
+si no → clasificar como guía independiente o pendiente_asociacion según política
+Mi recomendación
+No lo fuerces todo en process_correo().
+Haz luego una función aparte:
+Python
+asociar_documentos_pendientes()
+que corra al final del script y busque:
+Plain text
+OC pendientes ↔ facturas por número OC
+guías pendientes ↔ facturas por ruc + fecha + cliente
+certificados ↔ facturas por ruc + número factura si aparece
+Conclusión
+No se rompe.
+Pero para que quede perfecto, necesitas una etapa de vinculación posterior entre correos.
