@@ -1,6 +1,49 @@
-POr favor validar porque el archivo orde_compra no coloca el numero correlativo coloca un ruc
-se hicieron todo los cambios pero no cambia el nombre en prendientes_revicion:
-04-0007 ORDEN_COMPRA 20538549071 OMEGA_POWER_S_A_C.pdf
-verificar los archivos:
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/classifier.py
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py
+El problema está en classifier.py: el GitHub todavía tiene la versión vieja. Ahí la OC se detecta con regex limitado y no existe _extract_oc_fields(); por eso numero queda None y el nombre sale sin 007902. �
+GitHub
+Cambios necesarios
+En classifier.py, reemplaza la parte de OC por esto:
+Python
+def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
+    patrones = [
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*([0-9]{4,})\b",
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\s*[°º*:]?\s*:?\s*([0-9]{4,})\b",
+        r"\bORDEN\s+COMPRA\s*:?\s*([0-9]{4,})\b",
+        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bN[°º]\s*OC[:\s]*([0-9]{4,})\b",
+        r"\bOC[:\s]*([0-9]{4,})\b",
+        r"\bOC[- ]?([0-9]{4,})\b",
+    ]
+
+    for fuente in (text_u, name_u):
+        for patron in patrones:
+            m = re.search(patron, fuente, re.IGNORECASE | re.DOTALL)
+            if m:
+                return "OC", m.group(1)
+
+    return None, None
+Y dentro de extract_basic_fields() asegúrate de tener:
+Python
+elif doc_type == "orden_compra":
+    serie, numero = _extract_oc_fields(text_u, name_u)
+Luego, después del bloque de “OC referencial”, agrega:
+Python
+if doc_type == "orden_compra" and oc and not numero:
+        serie = "OC"
+        numero = oc
+También corrige detección OC
+En detect_tipo_documental(), la OC debe ir antes de certificado y con estas variantes:
+Python
+if (
+    re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*\d{4,}", text_u, re.IGNORECASE | re.DOTALL)
+    or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\s*[°º*:]?\s*:?\s*\d{4,}", text_u, re.IGNORECASE)
+    or re.search(r"\bORDEN\s+COMPRA\s*:?\s*\d{4,}", text_u, re.IGNORECASE)
+    or re.search(r"\bOC[- ]?\d{4,}", text_u, re.IGNORECASE)
+    or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b", name_u, re.IGNORECASE)
+    or "FACTURAS@BBTI.COM.PE" in text_u
+):
+    return "orden_compra"
+Resultado esperado
+Después de reprocesar, debe quedar así:
+Plain text
+04-0007 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+Ahora está saliendo sin 007902 porque en la BD numero está llegando vacío.
