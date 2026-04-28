@@ -768,6 +768,13 @@ def process_correo(items: list[dict]) -> None:
 
         if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
             move_file(pdf_path, destino_abs)
+        
+        ocr_output_path = doc.get("ocr_output_path")
+        if ocr_output_path:
+            try:
+                Path(ocr_output_path).unlink(missing_ok=True)
+            except Exception as e:
+                print(f"[WARN] no se pudo eliminar OCR temporal: {ocr_output_path} -> {e}")
 
         with get_cursor(commit=True) as (_, cur):
             cur.execute(
