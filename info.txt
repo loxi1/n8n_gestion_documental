@@ -1,32 +1,17 @@
-Sí. Tu classifier.py está casi bien. Agrega este cambio para que la OC tome bien el RUC aunque venga con salto de línea.
-1. Agrega esta función
-Ponla debajo de _extract_oc_fields():
-Python
-def _extract_oc_ruc(text_u: str) -> str | None:
-    patrones = [
-        r"SEÑOR\(ES\)\s*:\s*.*?R\.?U\.?C\.?\s*:\s*([0-9]{11})",
-        r"SENOR\(ES\)\s*:\s*.*?R\.?U\.?C\.?\s*:\s*([0-9]{11})",
-        r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})",
-        r"\bRUC\s*:\s*[\r\n\s]*([0-9]{11})",
-    ]
-
-    for patron in patrones:
-        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
-        if m:
-            return m.group(1)
-
-    return None
-2. En extract_basic_fields(), antes del fallback general de RUC
-Busca esta parte:
-Python
-if not ruc:
-    for patron in [
-Y justo antes agrega:
-Python
-if not ruc and doc_type == "orden_compra":
+validar si es asi:
+    if not ruc and doc_type == "orden_compra":
         ruc = _extract_oc_ruc(text_u)
-Queda así:
-Python
+
+    if not ruc:
+        for patron in [
+            r"\bRUC[:\s]*([0-9]{11})\b",
+            r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
+            r"\bREG\.?\s*UNICO\s+DE\s+CONTRIBUYENTES[:\s]*([0-9]{11})\b",
+        ]:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                ruc = m.group(1)
+                break
 if not ruc and doc_type == "orden_compra":
         ruc = _extract_oc_ruc(text_u)
 

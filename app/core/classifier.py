@@ -129,6 +129,22 @@ def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None
     return None, None
 
 
+def _extract_oc_ruc(text_u: str) -> str | None:
+    patrones = [
+        r"SEÑOR\(ES\)\s*:\s*.*?R\.?U\.?C\.?\s*:\s*([0-9]{11})",
+        r"SENOR\(ES\)\s*:\s*.*?R\.?U\.?C\.?\s*:\s*([0-9]{11})",
+        r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})",
+        r"\bRUC\s*:\s*[\r\n\s]*([0-9]{11})",
+    ]
+
+    for patron in patrones:
+        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+        if m:
+            return m.group(1)
+
+    return None
+
+
 def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     text_u = normalize_text(text)
     name_u = normalize_text(file_name)
@@ -170,13 +186,6 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
 
     elif doc_type == "orden_compra":
         serie, numero = _extract_oc_fields(text_u, name_u)
-    
-    if doc_type == "orden_compra":
-        print("====== DEBUG OC ======")
-        print("TEXT:", text_u[:500])
-        print("NAME:", name_u)
-        print("SERIE:", serie)
-        print("NUMERO:", numero)
 
     # 3. RUC emisor / proveedor
     if doc_type == "factura":
@@ -207,11 +216,14 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
         )
         if m:
             ruc = m.group(1)
+    
+    if not ruc and doc_type == "orden_compra":
+        ruc = _extract_oc_ruc(text_u)
 
     if not ruc:
         for patron in [
             r"\bRUC[:\s]*([0-9]{11})\b",
-            r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
+            r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})\b",r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
             r"\bREG\.?\s*UNICO\s+DE\s+CONTRIBUYENTES[:\s]*([0-9]{11})\b",
         ]:
             m = re.search(patron, text_u, re.IGNORECASE)
