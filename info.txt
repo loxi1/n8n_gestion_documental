@@ -175,4 +175,39 @@ OS_S_A.pdf                | .pdf      | application/pdf |              |        
 58.564203 | 2026-04-29 15:54:28.851962
 (12 rows)
 
+{'documento_id': 1, 'archivo': 'posible_documento_20260429181453386_CAFtAZZBEhLRmC_4Z_Szr54Z1fV68YsEwDA1FfYZ_1.pdf', 'tipo': 'guia_remision', 'serie': 'T002', 'numero': '00280', 'ruc': '20538549071', 'oc': '007902', 'cliente_raw': 'CARGA BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-15', 'qr': True}
+{'documento_id': 2, 'archivo': 'posible_documento_20260429181453386_CAFtAZZBEhLRmC_4Z_Szr54Z1fV68YsEwDA1FfYZ_2.pdf', 'tipo': 'factura', 'serie': 'F002', 'numero': '00000254', 'ruc': '20538549071', 'oc': None, 'cliente_raw': 'BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-16', 'qr': True}
+{'documento_id': 3, 'archivo': 'posible_documento_20260429181453386_CAFtAZZBEhLRmC_4Z_Szr54Z1fV68YsEwDA1FfYZ_3.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': '20538549071', 'oc': '007902', 'cliente_raw': None, 'cliente_match': None, 'fecha': None, 'qr': False}
+[DEBUG] factura_principal = {'documento_id': 2, 'correo_id': 1, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 2, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260429181453386_CAFtAZZBEhLRmC_4Z_Szr54Z1fV68YsEwDA1FfYZ_2.pdf', 'nombre_archivo_actual': 'posible_documento_20260429181453386_CAFtAZZBEhLRmC_4Z_Szr54Z1fV68YsEwDA1FfYZ_2.pdf', 'nombre_archivo_original': 'F F002-00000254.pdf'
+...
+[OK] correo=1 doc=1 tipo=guia_remision estado=clasificado grupo=04-0001 nombre=BBTI GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+[OK] correo=1 doc=2 tipo=factura estado=clasificado grupo=04-0001 nombre=BBTI FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+[OK] correo=1 doc=3 tipo=otro estado=no_identificado grupo=04-0001 nombre=04-0001 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf
+...
+{'documento_id': 4, 'archivo': 'posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_1.pdf', 'tipo': 'guia_remision', 'serie': 'T064', 'numero': '8629', 'ruc': '20251549835', 'oc': None, 'cliente_raw': '312007007. 12.80', 'cliente_match': None, 'fecha': None, 'qr': False}
+{'documento_id': 5, 'archivo': 'posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None, 'qr': False}
+{'documento_id': 6, 'archivo': 'posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_3.pdf', 'tipo': 'factura', 'serie': 'F142', 'numero': '00006521', 'ruc': '20251549835', 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None, 'qr': False}
+[DEBUG] factura_principal = {'documento_id': 6, 'correo_id': 4, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 6, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_3.pdf',
+...
+[WARN] correo_id=4 factura sin fecha
+[INFO] procesando correo_id=7 documentos=3
+[DEBUG] correo_id=7 enriquecidos:
+{'documento_id': 7, 'archivo': 'posible_documento_20260429181453387_CAFtAZZB_d_cm_CJfCvF9yyzttqCduCsA3pqn2Pj_1.pdf', 'tipo': 'guia_remision', 'serie': 'T002', 'numero': '00291', 'ruc': '20538549071', 'oc': '007914', 'cliente_raw': 'CARGA BBTIS.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI'}, 'fecha': '2026-04-17', 'qr': True}
+{'documento_id': 8, 'archivo': 'posible_documento_20260429181453387_CAFtAZZB_d_cm_CJfCvF9yyzttqCduCsA3pqn2Pj_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None, 'qr': False}
+{'documento_id': 9, 'archivo': 'posible_documento_20260429181453387_CAFtAZZB_d_cm_CJfCvF9yyzttqCduCsA3pqn2Pj_3.pdf', 'tipo': 'factura', 'serie': 'F002', 'numero': '00000277', 'ruc': '20538549071', 'oc': None, 'cliente_raw': 'BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-22', 'qr': True}
+[DEBUG] factura_principal = {'documento_id': 9, 'correo_id': 7, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 9, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260429181453387_CAFtAZZB_d_cm_CJfCvF9yyzttqCduCsA3pqn2Pj_3.pdf', 'nombre_archivo_actual': 'posible_documento_20260429181453387_CAFtAZZB_d_cm_CJfCvF9yyzttqCduCsA3pqn2Pj_3.pdf', 'nombre_archivo_original': 'F F002-00000277.pdf',
+...
+[OK] correo=7 doc=7 tipo=guia_remision estado=clasificado grupo=04-0002 nombre=BBTI GUIA_REMISION T002 00291 20538549071 OMEGA_POWER_S_A_C.pdf
+[OK] correo=7 doc=8 tipo=otro estado=no_identificado grupo=04-0002 nombre=04-0002 OTRO SIN_RAZON_SOCIAL.pdf
+[OK] correo=7 doc=9 tipo=factura estado=clasificado grupo=04-0002 nombre=BBTI FACTURA F002 00000277 20538549071 OMEGA_POWER_S_A_C.pdf
+[INFO] procesando correo_id=10 documentos=3
+[DEBUG] correo_id=10 enriquecidos:
+{'documento_id': 10, 'archivo': 'posible_documento_20260429181453387_CAFtAZZBUhGwbPfoAw7aFXtNHoaTmZmbNd8DmLBJ_1.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101493', 'ruc': '20100084172', 'oc': '007886', 'cliente_raw': '4000019957 - BBTI S.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI S.A.C.'}, 'fecha': '2026-04-15', 'qr': True}
+{'documento_id': 11, 'archivo': 'posible_documento_20260429181453387_CAFtAZZBUhGwbPfoAw7aFXtNHoaTmZmbNd8DmLBJ_2.pdf', 'tipo': 'otro', 'serie': None, 'numero': None, 'ruc': None, 'oc': None, 'cliente_raw': None, 'cliente_match': None, 'fecha': None, 'qr': False}
+{'documento_id': 12, 'archivo': 'posible_documento_20260429181453387_CAFtAZZBUhGwbPfoAw7aFXtNHoaTmZmbNd8DmLBJ_3.pdf', 'tipo': 'factura', 'serie': 'F231', 'numero': '0101493', 'ruc': '20100084172', 'oc': None, 'cliente_raw': '4000019957 - BBTIS.A.C.', 'cliente_match': {'id': 2, 'nombre_oficial': 'BBTI S.A.C.', 'abreviatura': 'BBTI', 'ruta_windows': '\\\\\\\\servidor\\\\documentos\\\\BBTI SAC', 'alias': 'BBTI'}, 'fecha': '2026-04-15', 'qr': True}
+[DEBUG] factura_principal = {'documento_id': 10, 'correo_id': 10, 'proveedor_id': None, 'tipo_documental': None, 'serie': None, 'numero': None, 'ruc': None, 'razon_social': None, 'fecha_emision': None, 'estado_documento': 'pendiente', 'archivo_id': 10, 'ruta_temporal': 'inbox/2026/04/posible_documento_20260429181453387_CAFtAZZBUhGwbPfoAw7aFXtNHoaTmZmbNd8DmLBJ_1.pdf'
+...
+[OK] correo=10 doc=10 tipo=factura estado=clasificado grupo=04-0003 nombre=BBTI FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
+[OK] correo=10 doc=11 tipo=otro estado=no_identificado grupo=04-0003 nombre=04-0003 OTRO SIN_RAZON_SOCIAL.pdf
+[OK] correo=10 doc=12 tipo=factura estado=clasificado grupo=04-0003 nombre=BBTI FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
 
