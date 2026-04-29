@@ -62,3 +62,20 @@ TEXT: => E BBTI S.A.C. SE = TI S.0,6, 20565747356CAL.6 MZA. D LOTE. 13 URB. INDU
 NAME: ORDEN DE COMRA 007902.PDF.PDF
 SERIE: OC
 NUMERO: 007902
+
+todo los archivos parason a clasificado pero existen algunos errores tales como:
+R.U.C.  : 
+20251549835 
+asi se muestra con salto de linea cuando se copia R.U.C:  20251549835 en la base datos: select nombre from proveedores where ruc='20251549835' si existen registros
+$ ls -ld storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007934\ SIN_RAZON_SOCIAL.pdf
+-rw-r--r-- 1 BBTI 01 197121 76677 Apr 29 17:34 'storage/files/pendientes_clasificados/2026/04/04-0002 ORDEN_COMPRA OC 007934 SIN_RAZON_SOCIAL.pdf'
+
+R.U.C.  :
+20538549071
+$ ls -ld storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
+-rw-r--r-- 1 BBTI 01 197121 78247 Apr 29 17:34 'storage/files/pendientes_clasificados/2026/04/04-0002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf'
+
+este R.U.C. : 20538549071
+$ ls -ld storage/files/pendientes_clasificados/2026/04/04-0001\ ORDEN_COMPRA\ OC\ 007902\ 20538549071\ OMEGA_POWER_S_A_C.pdf
+-rw-r--r-- 1 BBTI 01 197121 764541 Apr 29 17:34 'storage/files/pendientes_clasificados/2026/04/04-0001 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf'
+A este ultimo lo noto sospechoso
