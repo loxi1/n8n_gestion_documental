@@ -34,6 +34,8 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
         if qr and qr.get("tipo_documental"):
             return qr.get("tipo_documental")
 
+    patron_oc = r"\b(ORDEN\s+DE\s+COM[PR]A(\s+N)?|ORDEN\s+COMPRA|OC[:\s-]*)\b.{0,80}?[0-9]{4,}"
+    
     # 1. Orden de compra FUERTE antes que certificado
     if (
         re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
