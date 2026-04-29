@@ -36,10 +36,10 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
 
     # 1. Orden de compra FUERTE antes que certificado
     if (
-        re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*\d{4,}", text_u, re.IGNORECASE | re.DOTALL)
-        or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\s*[°º*:]?\s*:?\s*\d{4,}", text_u, re.IGNORECASE)
-        or re.search(r"\bORDEN\s+COMPRA\s*:?\s*\d{4,}", text_u, re.IGNORECASE)
-        or re.search(r"\bOC[- ]?\d{4,}", text_u, re.IGNORECASE)
+        re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
+        or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
+        or re.search(r"\bORDEN\s+COMPRA\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
+        or re.search(r"\bOC[:\s-]*[0-9]{4,}", text_u, re.IGNORECASE)
         or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b", name_u, re.IGNORECASE)
         or "FACTURAS@BBTI.COM.PE" in text_u
     ):
@@ -118,13 +118,17 @@ def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | No
 
 def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
-        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.*?:\s*([0-9]{4,})\b",
-        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\s*[°º*:]?\s*:?\s*([0-9]{4,})\b",
-        r"\bORDEN\s+COMPRA\s*:?\s*([0-9]{4,})\b",
-        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
-        r"\bN[°º]\s*OC[:\s]*([0-9]{4,})\b",
-        r"\bOC[:\s]*([0-9]{4,})\b",
-        r"\bOC[- ]?([0-9]{4,})\b",
+        # Orden de Compra N°:007902 / N*:007902 / N : 007902 / N 007902
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.{0,40}?([0-9]{4,})\b",
+
+        # Orden de Compra: 007902
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\b.{0,40}?([0-9]{4,})\b",
+
+        # Orden Compra: 007902
+        r"\bORDEN\s+COMPRA\b.{0,40}?([0-9]{4,})\b",
+
+        # OC: 007902 / OC-007902
+        r"\bOC[:\s-]*([0-9]{4,})\b",
     ]
 
     for fuente in (text_u, name_u):
