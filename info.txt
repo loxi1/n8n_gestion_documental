@@ -1,69 +1,50 @@
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ pdfinfo storage/files/pendientes_clasificados/2026/04/04-0001\ ORDEN_COMPRA\ OC\ 007902\ 20538549071\ OMEGA_POWER_S_A_C.pdf
-Creator:         Nitro Pro 10  (10. 5. 9. 9)
-Producer:        Nitro Pro 10  (10. 5. 9. 9)
-CreationDate:    Wed Apr 15 15:53:52 2026 Hora est. PacÝfico, SudamÚrica
-ModDate:         Wed Apr 15 15:53:56 2026 Hora est. PacÝfico, SudamÚrica
-Custom Metadata: no
-Metadata Stream: yes
-Tagged:          no
-UserProperties:  no
-Suspects:        no
-Form:            none
-JavaScript:      no
-Pages:           1
-Encrypted:       no
-Page size:       595.32 x 841.92 pts (A4)
-Page rot:        0
-File size:       764541 bytes
-Optimized:       no
-PDF version:     1.4
+Sí, el debug muestra dos cosas:
+La OC ya se detecta, pero estás ejecutando _extract_oc_fields() también para facturas/guías, por eso ves SERIE: OC en documentos que no son OC. Eso no debe usarse para cambiar tipo_documental, solo para guardar oc referencial.
+Las OC con SIN_RAZON_SOCIAL fallan porque el RUC del proveedor viene con salto de línea:
+Plain text
+R.U.C. :
+20251549835
+o
+Plain text
+R.U.C. :
+20538549071
+1. Corrige extracción de RUC para OC
+En classifier.py, antes del fallback general de RUC, agrega:
+Python
+if not ruc and doc_type == "orden_compra":
+    patrones_ruc_oc = [
+        r"SEÑOR\(ES\)\s*:\s*.+?\bR\.?U\.?C\.?\s*:\s*([0-9]{11})",
+        r"SENOR\(ES\)\s*:\s*.+?\bR\.?U\.?C\.?\s*:\s*([0-9]{11})",
+        r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})",
+    ]
 
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ pdffonts storage/files/pendientes_clasificados/2026/04/04-0001\ ORDEN_COMPRA\ OC\ 007902\ 20538549071\ OMEGA_POWER_S_A_C.pdf
-name                                 type              encoding         emb sub uni object ID
------------------------------------- ----------------- ---------------- --- --- --- ---------
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ pdfimages -list storage/files/pendientes_clasificados/2026/04/04-0001\ ORDEN_COMPRA\ OC\ 007902\ 20538549071\ OMEGA_POWER_S_A_C.pdf
-page   num  type   width height color comp bpc  enc interp  object ID x-ppi y-ppi size ratio
---------------------------------------------------------------------------------------------
-   1     0 image     254    66  rgb     3   8  jpeg   no         6  0   149   148 4888B 9.7%
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ pdfinfo storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
-Title:           Crystal Reports ActiveX Designer - OCBBTI.RPT
-Author:          PRODUCCION 03
-Creator:         Nitro Pro 12 (12.3.0.240)
-Producer:        Nitro Pro 12 (12.3.0.240)
-CreationDate:    Fri Apr 17 10:20:55 2026 Hora est. PacÝfico, SudamÚrica
-ModDate:         Fri Apr 17 10:20:56 2026 Hora est. PacÝfico, SudamÚrica
-Custom Metadata: no
-Metadata Stream: yes
-Tagged:          no
-UserProperties:  no
-Suspects:        no
-Form:            none
-JavaScript:      no
-Pages:           1
-Encrypted:       no
-Page size:       595.22 x 842 pts (A4)
-Page rot:        0
-File size:       78247 bytes
-Optimized:       no
-PDF version:     1.4
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ pdffonts storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
-name                                 type              encoding         emb sub uni object ID
------------------------------------- ----------------- ---------------- --- --- --- ---------
-VMOYJE+Calibri                       TrueType          WinAnsi          yes yes yes     13  0
-LEEISK+Arial,Bold                    TrueType          WinAnsi          yes yes yes      8  0
-WLPWXE+Arial                         TrueType          WinAnsi          yes yes yes     10  0
-
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ pdfimages -list storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
-page   num  type   width height color comp bpc  enc interp  object ID x-ppi y-ppi size ratio
---------------------------------------------------------------------------------------------
-   1     0 image     300    68  rgb     3   8  jpeg   no        12  0   176   155 4743B 7.8%
-
+    for patron in patrones_ruc_oc:
+        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+        if m:
+            ruc = m.group(1)
+            break
+Con eso deberían salir:
+Plain text
+04-0002 ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE...
+04-0002 ORDEN_COMPRA OC 007914 20538549071 OMEGA_POWER_S_A_C.pdf
+2. Evita que facturas/guías muestren SERIE: OC
+En extract_basic_fields(), deja esto así:
+Python
+if doc_type == "orden_compra":
+    serie, numero = _extract_oc_fields(text_u, name_u)
+else:
+    _, oc_detectada = _extract_oc_fields(text_u, name_u)
+    if oc_detectada:
+        oc = oc_detectada
+No hagas:
+Python
+serie, numero = _extract_oc_fields(...)
+para facturas o guías.
+3. Sobre el archivo sospechoso 007902
+Sí, ese archivo es distinto: el PDF no tiene texto extraíble y parece una imagen incrustada, mientras que el 007914 sí tiene texto digital normal. El contenido visual del 007902 muestra “Orden de Compra N°:007902”, pero al no tener texto real es compatible con un PDF rasterizado/escaneado/impreso a PDF. Eso no prueba edición, pero sí es motivo para marcarlo como “revisión visual”. �
+04-0001 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+La OC 007914 sí aparece como texto digital extraíble con “Orden de Compra Nº:007914”, por eso es más confiable para extracción automática. �
+04-0002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf
+Mi recomendación: si pdf_text viene vacío y solo se procesa por OCR, clasifícalo, pero agrega una observación tipo:
+Plain text
+Documento rasterizado: validar visualmente.
