@@ -1,94 +1,190 @@
-Aquí tienes el bloque final para reemplazar en classifier.py.
-Python
-def normalize_email_like(text: str) -> str:
-    return re.sub(r"\s+", "", text).upper()
+Se sigue viendo los errores:
+$ ls -ld storage/files/pendientes_revision/2026/04/posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf
+-rw-r--r-- 1 BBTI 01 197121 76677 Apr 29 17:06 storage/files/pendientes_revision/2026/04/posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf
+
+$ ls -ls storage/files/no_identificados/2026/04/
+total 748
+748 -rw-r--r-- 1 BBTI 01 197121 764541 Apr 29 17:06 '04-0001 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf'
+
+las unicas que pasaron son estas:
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -ld storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
+-rw-r--r-- 1 BBTI 01 197121 78247 Apr 29 17:06 'storage/files/pendientes_clasificados/2026/04/04-0002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf'
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -ld storage/files/pendientes_clasificados/2026/04/04-0003\ ORDEN_COMPRA\ OC\ 007886\ SIN_RAZON_SOCIAL.pdf
+-rw-r--r-- 1 BBTI 01 197121 76340 Apr 29 17:06 'storage/files/pendientes_clasificados/2026/04/04-0003 ORDEN_COMPRA OC 007886 SIN_RAZON_SOCIAL.pdf'
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+
+gestiondocumental=# select * from correos_ingresados;
+ id | origen | proveedor_correo |                              message_id                              | thread_id | remitente_
+nombre |      remitente_email      | reply_to | destinatario_para | destinatario_cc | destinatario_cco | asunto  | cuerpo_texto
+ | cuerpo_html |    fecha_correo     |      fecha_recepcion       | leido | procesado |        estado_correo        | cantidad_
+adjuntos |                                                              observacion
+                   |         creado_en          |       actualizado_en
+----+--------+------------------+----------------------------------------------------------------------+-----------+-----------
+-------+---------------------------+----------+-------------------+-----------------+------------------+---------+-------------
+-+-------------+---------------------+----------------------------+-------+-----------+-----------------------------+----------
+---------+---------------------------------------------------------------------------------------------------------------------
+-------------------+----------------------------+----------------------------
+  1 | correo | imap             | <CAFtAZZBEhLRmC=4Z+Szr54Z1fV68YsEwDA1FfYZOJrJhiBvm8w@mail.gmail.com> |           |
+       | anibal.cayetano@gmail.com |          |                   |                 |                  | correos |
+ |             | 2026-04-29 18:01:02 | 2026-04-29 17:06:36.590695 | f     | t         | procesado_con_observaciones |
+       1 | Procesado correctamente. Documentos: 3, clasificados: 2, revision_manual: 0, no_identificados: 1, adjuntos_factura:
+0, grupo: 04-0001. | 2026-04-29 17:06:36.590695 | 2026-04-29 17:09:08.872733
+  4 | correo | imap             | <CAFtAZZAcQWR4=iJ+KuO5kW9wJMBUJDmkFkeyAO67Pwfmrmh3MA@mail.gmail.com> |           |
+       | anibal.cayetano@gmail.com |          |                   |                 |                  | fact 2  |
+ |             | 2026-04-29 18:06:45 | 2026-04-29 17:06:36.590695 | f     | f         | factura_sin_fecha           |
+       1 | La factura principal no tiene fecha de emisi¾n reconocible.
+                   | 2026-04-29 17:06:36.590695 | 2026-04-29 17:10:04.098867
+  7 | correo | imap             | <CAFtAZZB+d+cm=CJfCvF9yyzttqCduCsA3pqn2PjtwtXwYSP9MA@mail.gmail.com> |           |
+       | anibal.cayetano@gmail.com |          |                   |                 |                  | facy 3  |
+ |             | 2026-04-29 18:08:34 | 2026-04-29 17:06:36.590695 | f     | t         | procesado                   |
+       1 | Procesado correctamente. Documentos: 3, clasificados: 3, revision_manual: 0, no_identificados: 0, adjuntos_factura:
+0, grupo: 04-0002. | 2026-04-29 17:06:36.590695 | 2026-04-29 17:10:51.419856
+ 10 | correo | imap             | <CAFtAZZBUhGwbPfoAw7aFXtNHoaTmZmbNd8DmLBJgWVK+ZeFHXg@mail.gmail.com> |           |
+       | anibal.cayetano@gmail.com |          |                   |                 |                  | afas    |
+ |             | 2026-04-29 18:12:51 | 2026-04-29 17:06:36.590695 | f     | t         | procesado                   |
+       1 | Procesado correctamente. Documentos: 3, clasificados: 3, revision_manual: 0, no_identificados: 0, adjuntos_factura:
+0, grupo: 04-0003. | 2026-04-29 17:06:36.590695 | 2026-04-29 17:11:46.69037
+(4 rows)
+
+gestiondocumental=# select * from documentos;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie |  numero  |     ruc     |          razon_social          |
+ fecha_emision | fecha_vencimiento | moneda | importe |  igv  | base_imponible | saldo | clave_documental | estado_documento |
+         observacion           |         creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo |
+correlativo_mes | es_principal | documento_principal_id |                            nombre_final                             |
+            ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+----------+-------------+--------------------------------+
+---------------+-------------------+--------+---------+-------+----------------+-------+------------------+------------------+-
+-------------------------------+----------------------------+----------------------------+--------------------+--------------+-
+----------------+--------------+------------------------+---------------------------------------------------------------------+
+------------------------------------------
+  1 |         1 |         1457 | guia_remision   |          | T002  | 00280    | 20538549071 | OMEGA POWER S.A.C.             |
+ 2026-04-15    |                   |        |         |       |                |       |                  | clasificado      |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:09:08.711598 |                  2 | 04-0001      |
+              1 | f            |                      2 | BBTI GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf     |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  2 |         1 |         1457 | factura         |          | F002  | 00000254 | 20538549071 | OMEGA POWER S.A.C.             |
+ 2026-04-16    |                   |        |  444.95 | 67.87 |                |       |                  | clasificado      |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:09:08.783016 |                  2 | 04-0001      |
+              1 | t            |                        | BBTI FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf        |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  3 |         1 |         1457 | otro            |          |       |          | 20538549071 | OMEGA POWER S.A.C.             |
+               |                   |        |  377.08 |       |                |       |                  | no_identificado  |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:09:08.844273 |                  2 | 04-0001      |
+              1 | f            |                      2 | 04-0001 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf                      |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  4 |         4 |          898 | guia_remision   |          | T064  | 8629     | 20251549835 | ELECTRO ENCHUFE SOCIEDAD ANONI |
+               |                   |        |         |       |                |       |                  | revision_manual  |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:10:03.998742 |                    |              |
+                | f            |                        |                                                                     |
+
+  5 |         4 |              | orden_compra    |          | OC    | 007934   |             | SIN_RAZON_SOCIAL               |
+               |                   |        |         |       |                |       |                  | revision_manual  |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:10:04.0253   |                    |              |
+                | f            |                        |                                                                     |
+
+  6 |         4 |          898 | factura         |          | F142  | 00006521 | 20251549835 | ELECTRO ENCHUFE SOCIEDAD ANONI |
+               |                   |        |    0.00 |       |                |       |                  | revision_manual  |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:10:04.072135 |                    |              |
+                | f            |                        |                                                                     |
+
+  7 |         7 |         1457 | guia_remision   |          | T002  | 00291    | 20538549071 | OMEGA POWER S.A.C.             |
+ 2026-04-17    |                   |        |         |       |                |       |                  | clasificado      |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:10:51.281215 |                  2 | 04-0002      |
+              2 | f            |                      9 | BBTI GUIA_REMISION T002 00291 20538549071 OMEGA_POWER_S_A_C.pdf     |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  8 |         7 |              | orden_compra    |          | OC    | 007914   |             | SIN_RAZON_SOCIAL               |
+               |                   |        |         |       |                |       |                  | clasificado      |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:10:51.311526 |                  2 | 04-0002      |
+              2 | f            |                      9 | 04-0002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf                 |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+  9 |         7 |         1457 | factura         |          | F002  | 00000277 | 20538549071 | OMEGA POWER S.A.C.             |
+ 2026-04-22    |                   |        |  453.12 | 69.12 |                |       |                  | clasificado      |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:10:51.387552 |                  2 | 04-0002      |
+              2 | t            |                        | BBTI FACTURA F002 00000277 20538549071 OMEGA_POWER_S_A_C.pdf        |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+ 10 |        10 |          754 | factura         |          | F231  | 0101493  | 20100084172 | PROMOTORES ELECTRICOS S A      |
+ 2026-04-15    |                   |        |  555.70 | 84.77 |                |       |                  | clasificado      |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:11:46.548849 |                  2 | 04-0003      |
+              3 | t            |                        | BBTI FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+ 11 |        10 |              | orden_compra    |          | OC    | 007886   |             | SIN_RAZON_SOCIAL               |
+               |                   |        |         |       |                |       |                  | clasificado      |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:11:46.594112 |                  2 | 04-0003      |
+              3 | f            |                     10 | 04-0003 ORDEN_COMPRA OC 007886 SIN_RAZON_SOCIAL.pdf                 |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+ 12 |        10 |          754 | factura         |          | F231  | 0101493  | 20100084172 | PROMOTORES ELECTRICOS S A      |
+ 2026-04-15    |                   |        |  555.70 | 84.77 |                |       |                  | clasificado      |
+Documento descargado desde n8n | 2026-04-29 17:06:43.624299 | 2026-04-29 17:11:46.662628 |                  2 | 04-0003      |
+              3 | f            |                     10 | BBTI FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf |
+ \\\\servidor\\documentos\\BBTI SAC\ABRIL
+(12 rows)
+
+gestiondocumental=# select * from archivos;;
+ id | documento_id | correo_id |        nombre_archivo_original         |                               nombre_archivo_actual
+                              | extension |    mime_type    | tamano_bytes | hash_sha256 |
+            ruta_temporal                                                  | ruta_final | es_principal | estado_archivo |
+   creado_en          |       actualizado_en
+----+--------------+-----------+----------------------------------------+------------------------------------------------------
+------------------------------+-----------+-----------------+--------------+-------------+-------------------------------------
+---------------------------------------------------------------------------+------------+--------------+----------------+------
+----------------------+----------------------------
+  1 |            1 |         1 | GUIA T002-00280 FIRMADO.pdf            | BBTI GUIA_REMISION T002 00280 20538549071 OMEGA_POWER
+_S_A_C.pdf                    | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/BBTI
+ GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf                |            | t            | renombrado     | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:09:08.711598
+  2 |            2 |         1 | F F002-00000254.pdf                    | BBTI FACTURA F002 00000254 20538549071 OMEGA_POWER_S_
+A_C.pdf                       | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/BBTI
+ FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf                   |            | t            | renombrado     | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:09:08.783016
+  3 |            3 |         1 | ORDEN DE COMRA 007902.pdf.pdf          | 04-0001 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf
+                              | .pdf      | application/pdf |              |             | no_identificados/2026/04/04-0001 OTR
+O 20538549071 OMEGA_POWER_S_A_C.pdf                                        |            | t            | observado      | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:09:08.844273
+  4 |            4 |         4 | 20251549835-09-T064-8629.pdf           | posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_
+KuO5kW9wJMBUJDmkFkeyAO6_1.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_
+documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_1.pdf |            | t            | observado      | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:10:03.998742
+  5 |            5 |         4 | OCBBTI N░ 007934 (ELECTRO ENCHUFE).pdf | posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_
+KuO5kW9wJMBUJDmkFkeyAO6_2.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_
+documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf |            | t            | observado      | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:10:04.0253
+  6 |            6 |         4 | 20251549835-01-F142-00006521.pdf       | posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_
+KuO5kW9wJMBUJDmkFkeyAO6_3.pdf | .pdf      | application/pdf |              |             | pendientes_revision/2026/04/posible_
+documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_3.pdf |            | t            | observado      | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:10:04.072135
+  7 |            7 |         7 | GUIA T002-00291 FIRMADO.pdf            | BBTI GUIA_REMISION T002 00291 20538549071 OMEGA_POWER
+_S_A_C.pdf                    | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/BBTI
+ GUIA_REMISION T002 00291 20538549071 OMEGA_POWER_S_A_C.pdf                |            | t            | renombrado     | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:10:51.281215
+  8 |            8 |         7 | OCBBTI N░ 007914 (OMEGA).pdf           | 04-0002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf
+                              | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0
+002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf                            |            | t            | renombrado     | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:10:51.311526
+  9 |            9 |         7 | F F002-00000277.pdf                    | BBTI FACTURA F002 00000277 20538549071 OMEGA_POWER_S_
+A_C.pdf                       | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/BBTI
+ FACTURA F002 00000277 20538549071 OMEGA_POWER_S_A_C.pdf                   |            | t            | renombrado     | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:10:51.387552
+ 10 |           10 |        10 | 20100084172-01-F231-0101493.pdf        | BBTI FACTURA F231 0101493 20100084172 PROMOTORES_ELEC
+TRICOS_S_A.pdf                | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/BBTI
+ FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf            |            | t            | renombrado     | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:11:46.548849
+ 11 |           11 |        10 | 007886.pdf                             | 04-0003 ORDEN_COMPRA OC 007886 SIN_RAZON_SOCIAL.pdf
+                              | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/04-0
+003 ORDEN_COMPRA OC 007886 SIN_RAZON_SOCIAL.pdf                            |            | t            | renombrado     | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:11:46.594112
+ 12 |           12 |        10 | F231-00101493.pdf                      | BBTI FACTURA F231 0101493 20100084172 PROMOTORES_ELEC
+TRICOS_S_A.pdf                | .pdf      | application/pdf |              |             | pendientes_clasificados/2026/04/BBTI
+ FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf            |            | t            | renombrado     | 2026-
+04-29 17:06:49.860566 | 2026-04-29 17:11:46.662628
+(12 rows)
+
+si deseas puedes ver el repo ahi estan los pdf en mension y quizas valida algo.
 
 
-def detect_tipo_documental(text: str, file_name: str) -> str:
-    text_u = normalize_text(text)
-    name_u = normalize_text(file_name)
-    text_email_u = normalize_email_like(text_u)
-
-    # 0. QR manda para factura/guía
-    for candidate in extract_qr_candidates(text):
-        qr = parse_qr_payload(candidate)
-        if qr and qr.get("tipo_documental"):
-            return qr.get("tipo_documental")
-
-    # 1. Orden de compra BBTI / consorcios
-    patron_oc = (
-        r"\b("
-        r"ORDEN\s+DE\s+COM(?:PRA|RA)"
-        r"|ORDEN\s+COMPRA"
-        r"|OC\s*BBTI"
-        r"|OC[:\s-]*"
-        r")\b.{0,120}?[0-9]{4,}"
-    )
-
-    if (
-        (
-            re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
-            or re.search(r"\bORDEN\s+DE\s+COM(?:PRA|RA)\b", name_u, re.IGNORECASE)
-            or re.search(r"\bOC\s*BBTI\b", name_u, re.IGNORECASE)
-            or re.search(r"^\d{4,}\.PDF$", name_u, re.IGNORECASE)
-        )
-        and "FACTURAS@BBTI.COM.PE" in text_email_u
-    ):
-        return "orden_compra"
-
-    # 2. Factura por nombre
-    if (
-        re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
-        or re.search(rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
-    ):
-        return "factura"
-
-    # 3. Guía por nombre
-    if (
-        re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
-        or re.search(rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
-    ):
-        return "guia_remision"
-
-    # 4. Factura por texto
-    if (
-        "FACTURA ELECTRONICA" in text_u
-        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u)
-    ):
-        return "factura"
-
-    # 5. Guía por texto
-    if (
-        re.search(r"GUIA\s+(DE\s+)?REMISION\s+ELECTRONICA", text_u, re.IGNORECASE)
-        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u)
-    ):
-        return "guia_remision"
-
-    return "otro"
+dime si te ayudo hacer un debug:
 
 
-def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
-    patrones = [
-        r"ORDEN\s+DE\s+COM(?:PRA|RA).*?([0-9]{4,})",
-        r"ORDEN\s+COMPRA.*?([0-9]{4,})",
-        r"OC\s*BBTI.*?([0-9]{4,})",
-        r"\bOC[:\s-]*([0-9]{4,})\b",
-    ]
-
-    for fuente in (text_u, name_u):
-        for patron in patrones:
-            m = re.search(patron, fuente, re.IGNORECASE | re.DOTALL)
-            if m:
-                return "OC", m.group(1)
-
-    return None, None
-Y confirma que en extract_basic_fields() tengas esto:
-Python
-elif doc_type == "orden_compra":
-    serie, numero = _extract_oc_fields(text_u, name_u)
-Con esto debe reconocer casos como:
-Plain text
-Orden de Compra Nº:007914
-Orden de Compra N°:007902
-facturas @ bbti . com . pe
-OCBBTI N░ 007934

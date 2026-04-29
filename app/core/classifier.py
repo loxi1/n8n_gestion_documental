@@ -27,18 +27,20 @@ def clean_number(value: str | None) -> float | None:
 def detect_tipo_documental(text: str, file_name: str) -> str:
     text_u = normalize_text(text)
     name_u = normalize_text(file_name)
+    text_email_u = normalize_email_like(text_u)
 
-    # 0. QR manda
+    # 0. QR manda para factura/guía
     for candidate in extract_qr_candidates(text):
         qr = parse_qr_payload(candidate)
         if qr and qr.get("tipo_documental"):
             return qr.get("tipo_documental")
 
+    # 1. Orden de compra BBTI / consorcios
     patron_oc = (
         r"\b("
-        r"ORDEN\s+DE\s+COM(?:PRA|RA)(\s+N)?"
+        r"ORDEN\s+DE\s+COM(?:PRA|RA)"
         r"|ORDEN\s+COMPRA"
-        r"|OC\s*BBTI\s*N?"
+        r"|OC\s*BBTI"
         r"|OC[:\s-]*"
         r")\b.{0,120}?[0-9]{4,}"
     )
@@ -47,38 +49,35 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
         (
             re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
             or re.search(r"\bORDEN\s+DE\s+COM(?:PRA|RA)\b", name_u, re.IGNORECASE)
-            or re.search(r"\bOC\s*BBTI\s*N?.{0,40}?[0-9]{4,}", name_u, re.IGNORECASE | re.DOTALL)
+            or re.search(r"\bOC\s*BBTI\b", name_u, re.IGNORECASE)
             or re.search(r"^\d{4,}\.PDF$", name_u, re.IGNORECASE)
         )
-        and (
-            "FACTURAS@BBTI.COM.PE" in text_u.upper()
-            or "OCBBTI" in name_u.replace(" ", "").upper()
-        )
+        and "FACTURAS@BBTI.COM.PE" in text_email_u
     ):
         return "orden_compra"
 
-    # 3. Factura por nombre
+    # 2. Factura por nombre
     if (
         re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
         or re.search(rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
     ):
         return "factura"
 
-    # 4. Guía por nombre
+    # 3. Guía por nombre
     if (
         re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
         or re.search(rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
     ):
         return "guia_remision"
 
-    # 5. Factura por texto
+    # 4. Factura por texto
     if (
         "FACTURA ELECTRONICA" in text_u
         or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u)
     ):
         return "factura"
 
-    # 6. Guía por texto, soporta salto de línea
+    # 5. Guía por texto
     if (
         re.search(r"GUIA\s+(DE\s+)?REMISION\s+ELECTRONICA", text_u, re.IGNORECASE)
         or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u)
@@ -87,6 +86,8 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
 
     return "otro"
 
+def normalize_email_like(text: str) -> str:
+    return re.sub(r"\s+", "", text).upper()
 
 def _extract_factura_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
@@ -122,10 +123,9 @@ def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | No
 
 def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
-        r"\bORDEN\s+DE\s+COM(?:PRA|RA)\s+N\b.{0,80}?([0-9]{4,})\b",
-        r"\bORDEN\s+DE\s+COM(?:PRA|RA)\b.{0,80}?([0-9]{4,})\b",
-        r"\bORDEN\s+COMPRA\b.{0,80}?([0-9]{4,})\b",
-        r"\bOC\s*BBTI\s*N?.{0,80}?([0-9]{4,})\b",
+        r"ORDEN\s+DE\s+COM(?:PRA|RA).*?([0-9]{4,})",
+        r"ORDEN\s+COMPRA.*?([0-9]{4,})",
+        r"OC\s*BBTI.*?([0-9]{4,})",
         r"\bOC[:\s-]*([0-9]{4,})\b",
     ]
 
@@ -134,12 +134,6 @@ def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None
             m = re.search(patron, fuente, re.IGNORECASE | re.DOTALL)
             if m:
                 return "OC", m.group(1)
-
-    # fallback: archivo tipo 007886.pdf
-    if "FACTURAS@BBTI.COM.PE" in text_u.upper():
-        m = re.search(r"\b([0-9]{4,})\b", name_u)
-        if m:
-            return "OC", m.group(1)
 
     return None, None
 
@@ -183,9 +177,8 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     elif doc_type == "guia_remision":
         serie, numero = _extract_guia_fields(text_u, name_u)
 
-    if doc_type == "orden_compra" and oc and not numero:
-        serie = "OC"
-        numero = oc
+    elif doc_type == "orden_compra":
+        serie, numero = _extract_oc_fields(text_u, name_u)
 
     # 3. RUC emisor / proveedor
     if doc_type == "factura":
