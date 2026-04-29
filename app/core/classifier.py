@@ -34,16 +34,20 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
         if qr and qr.get("tipo_documental"):
             return qr.get("tipo_documental")
 
-    patron_oc = r"\b(ORDEN\s+DE\s+COM[PR]A(\s+N)?|ORDEN\s+COMPRA|OC[:\s-]*)\b.{0,80}?[0-9]{4,}"
-    
-    # 1. Orden de compra FUERTE antes que certificado
+    patron_oc = (
+        r"\b("
+        r"ORDEN\s+DE\s+COM[PR]A(\s+N)?"
+        r"|ORDEN\s+COMPRA"
+        r"|OC[:\s-]*"
+        r")\b.{0,80}?[0-9]{4,}"
+    )
+
     if (
-        re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
-        or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
-        or re.search(r"\bORDEN\s+COMPRA\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
-        or re.search(r"\bOC[:\s-]*[0-9]{4,}", text_u, re.IGNORECASE)
-        or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b", name_u, re.IGNORECASE)
-        or "FACTURAS@BBTI.COM.PE" in text_u
+        (
+            re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
+            or re.search(r"\bORDEN\s+DE\s+COM[PR]A\b", name_u, re.IGNORECASE)
+        )
+        and "FACTURAS@BBTI.COM.PE" in text_u.upper()
     ):
         return "orden_compra"
 

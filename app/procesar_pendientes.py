@@ -590,18 +590,24 @@ def process_correo(items: list[dict]) -> None:
         for d in enriched
     )
 
-    if not factura_principal and not hay_guia_valida:
-        print(f"[WARN] correo_id={correo_id} sin factura principal ni guía válida")
+    hay_oc_valida = any(
+        d["fields"].get("tipo_documental") == "orden_compra"
+        and d["fields"].get("numero")
+        for d in enriched
+    )
+
+    if not factura_principal and not hay_guia_valida and not hay_oc_valida:
+        print(f"[WARN] correo_id={correo_id} sin factura principal, guía válida ni OC válida")
         mark_documents_as_review(
             items=enriched,
-            estado_documento="pendiente_asociacion",
-            bucket="pendientes_revision",
+            estado_documento="no_identificado",
+            bucket="no_identificados",
         )
         update_correo_estado(
             correo_id=correo_id,
             procesado=False,
-            estado_correo="sin_documento_principal",
-            observacion="No se encontró factura principal ni guía válida en el correo.",
+            estado_correo="sin_documento_valido",
+            observacion="No se encontró factura, guía ni orden de compra válida.",
         )
         return
 
@@ -695,9 +701,49 @@ def process_correo(items: list[dict]) -> None:
 
         fecha_base_doc = fecha_principal if fecha_principal else doc.get("fecha_emision_date")
 
-        if not fecha_base_doc:
+        if tipo_documental == "otro":
+        estado_documento = "no_identificado"
+        bucket = "no_identificados"
+        estado_archivo = "observado"
+        total_no_identificados += 1
+        grupo_codigo = grupo_codigo or "SIN-GRUPO"
+        correlativo_mes = None
+        year = datetime.now().year
+        month = datetime.now().month
+
+    elif not fecha_base_doc and tipo_documental in ("factura", "guia_remision"):
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+        estado_archivo = "observado"
+        total_revision_manual += 1
+        grupo_codigo = grupo_codigo or "SIN-GRUPO"
+        correlativo_mes = None
+        year = datetime.now().year
+        month = datetime.now().month
+
+    elif tipo_documental == "orden_compra":
+        # Si hay factura principal, usa su fecha/grupo.
+        # Si no hay factura, puede ir igual clasificada con fecha actual o fecha correo.
+        if fecha_base_doc:
+            correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_base_doc, prefijo="04")
+            year = fecha_base_doc.year
+            month = fecha_base_doc.month
+        else:
+            grupo_codigo = grupo_codigo or "SIN-GRUPO"
+            correlativo_mes = None
+            year = datetime.now().year
+            month = datetime.now().month
+
+        if es_documento_valido:
+            estado_documento = "clasificado"
+            bucket = "pendientes_clasificados"
+            estado_archivo = "renombrado"
+            total_clasificados += 1
+        else:
             estado_documento = "revision_manual"
             bucket = "pendientes_revision"
+            estado_archivo = "observado"
+            total_revision_manual += 1
             estado_archivo = "observado"
             total_revision_manual += 1
             grupo_codigo = None

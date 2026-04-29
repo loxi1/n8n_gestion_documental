@@ -1,116 +1,58 @@
-Sí. Ajustaría 2 partes clave.
-1. classifier.py — detector OC producción
-Reemplaza tu bloque OC por este:
-Python
-patron_oc = (
-    r"\b("
-    r"ORDEN\s+DE\s+COM[PR]A(\s+N)?"
-    r"|ORDEN\s+COMPRA"
-    r"|OC[:\s-]*"
-    r")\b.{0,80}?[0-9]{4,}"
-)
+se cambio classifier.py
+def detect_tipo_documental(text: str, file_name: str) -> str:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
 
-if (
-    (
-        re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
-        or re.search(r"\bORDEN\s+DE\s+COM[PR]A\b", name_u, re.IGNORECASE)
+    # 0. QR manda
+    for candidate in extract_qr_candidates(text):
+        qr = parse_qr_payload(candidate)
+        if qr and qr.get("tipo_documental"):
+            return qr.get("tipo_documental")
+
+    patron_oc = (
+        r"\b("
+        r"ORDEN\s+DE\s+COM[PR]A(\s+N)?"
+        r"|ORDEN\s+COMPRA"
+        r"|OC[:\s-]*"
+        r")\b.{0,80}?[0-9]{4,}"
     )
-    and "FACTURAS@BBTI.COM.PE" in text_u.upper()
-):
-    return "orden_compra"
-Importante: no uses solo:
-Python
-or "FACTURAS@BBTI.COM.PE" in text_u
-porque eso clasificaría cualquier documento como OC.
-2. process_correo() — problema actual
-Ahora tienes esto:
-Python
-if not factura_principal and not hay_guia_valida:
-    ...
-    return
-Eso todavía puede romper si llega una orden de compra sola.
-Cámbialo por:
-Python
-hay_oc_valida = any(
-    d["fields"].get("tipo_documental") == "orden_compra"
-    and d["fields"].get("numero")
-    for d in enriched
-)
 
-if not factura_principal and not hay_guia_valida and not hay_oc_valida:
-    print(f"[WARN] correo_id={correo_id} sin factura principal, guía válida ni OC válida")
-    mark_documents_as_review(
-        items=enriched,
-        estado_documento="no_identificado",
-        bucket="no_identificados",
-    )
-    update_correo_estado(
-        correo_id=correo_id,
-        procesado=False,
-        estado_correo="sin_documento_valido",
-        observacion="No se encontró factura, guía ni orden de compra válida.",
-    )
-    return
-3. Ajuste importante dentro del for
-Antes de validar fecha, primero maneja otro.
-Reemplaza esta parte:
-Python
-if not fecha_base_doc:
-    estado_documento = "revision_manual"
-    bucket = "pendientes_revision"
-por esta lógica:
-Python
-if tipo_documental == "otro":
-    estado_documento = "no_identificado"
-    bucket = "no_identificados"
-    estado_archivo = "observado"
-    total_no_identificados += 1
-    grupo_codigo = grupo_codigo or "SIN-GRUPO"
-    correlativo_mes = None
-    year = datetime.now().year
-    month = datetime.now().month
+    if (
+        (
+            re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
+            or re.search(r"\bORDEN\s+DE\s+COM[PR]A\b", name_u, re.IGNORECASE)
+        )
+        and "FACTURAS@BBTI.COM.PE" in text_u.upper()
+    ):
+        return "orden_compra"
 
-elif not fecha_base_doc and tipo_documental in ("factura", "guia_remision"):
-    estado_documento = "revision_manual"
-    bucket = "pendientes_revision"
-    estado_archivo = "observado"
-    total_revision_manual += 1
-    grupo_codigo = grupo_codigo or "SIN-GRUPO"
-    correlativo_mes = None
-    year = datetime.now().year
-    month = datetime.now().month
+    # 3. Factura por nombre
+    if (
+        re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
+    ):
+        return "factura"
 
-elif tipo_documental == "orden_compra":
-    # Si hay factura principal, usa su fecha/grupo.
-    # Si no hay factura, puede ir igual clasificada con fecha actual o fecha correo.
-    if fecha_base_doc:
-        correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_base_doc, prefijo="04")
-        year = fecha_base_doc.year
-        month = fecha_base_doc.month
-    else:
-        grupo_codigo = grupo_codigo or "SIN-GRUPO"
-        correlativo_mes = None
-        year = datetime.now().year
-        month = datetime.now().month
+    # 4. Guía por nombre
+    if (
+        re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
+    ):
+        return "guia_remision"
 
-    if es_documento_valido:
-        estado_documento = "clasificado"
-        bucket = "pendientes_clasificados"
-        estado_archivo = "renombrado"
-        total_clasificados += 1
-    else:
-        estado_documento = "revision_manual"
-        bucket = "pendientes_revision"
-        estado_archivo = "observado"
-        total_revision_manual += 1
-Conclusión
-Sí, tu enfoque está bien:
-Plain text
-Solo reconocer:
-- FACTURA
-- GUIA_REMISION
-- ORDEN_COMPRA
+    # 5. Factura por texto
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u)
+    ):
+        return "factura"
 
-Todo lo demás:
-- OTRO → no_identificados
-El cambio más importante ahora es que OC válida no debe depender de factura ni guía.
+    # 6. Guía por texto, soporta salto de línea
+    if (
+        re.search(r"GUIA\s+(DE\s+)?REMISION\s+ELECTRONICA", text_u, re.IGNORECASE)
+        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u)
+    ):
+        return "guia_remision"
+
+    return "otro"
+mostrar el codigo final de def process_correo
