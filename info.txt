@@ -1,17 +1,22 @@
-El problema ya no está en el nombre final. Está antes: tu OC llega así:
-Python
-'serie': None, 'numero': None, 'oc': None
-Entonces build_final_name() no tiene 007902.
-Aplica estos 2 cambios.
-1. En classifier.py, reemplaza _extract_oc_fields
+Sí, esa es la causa probable: el PDF de Starsoft está representando el símbolo ° con una fuente/carácter que al extraer texto sale como *, º, espacio, o incluso desaparece.
+Por eso la regla no debe depender del símbolo. Para OC usa una regex flexible que busque:
+Plain text
+ORDEN DE COMPRA N   ...   007902
+sin importar qué haya entre N y el número.
+Reemplaza _extract_oc_fields() por esta versión:
 Python
 def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
-        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.{0,80}?([0-9]{4,})\b",
-        r"\bORDEN\s+DE\s+COM(?:P|R)A.{0,80}?([0-9]{4,})\b",
-        r"\bORDEN\s+COMPRA.{0,80}?([0-9]{4,})\b",
-        r"\bNRO\s*OC[:\s]*([0-9]{4,})\b",
-        r"\bN[°º*]?\s*OC[:\s]*([0-9]{4,})\b",
+        # Orden de Compra N°:007902 / N*:007902 / N : 007902 / N 007902
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.{0,40}?([0-9]{4,})\b",
+
+        # Orden de Compra: 007902
+        r"\bORDEN\s+DE\s+COM(?:P|R)A\b.{0,40}?([0-9]{4,})\b",
+
+        # Orden Compra: 007902
+        r"\bORDEN\s+COMPRA\b.{0,40}?([0-9]{4,})\b",
+
+        # OC: 007902 / OC-007902
         r"\bOC[:\s-]*([0-9]{4,})\b",
     ]
 
@@ -21,60 +26,24 @@ def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None
             if m:
                 return "OC", m.group(1)
 
-    # fallback por nombre: ORDEN DE COMRA 007902.pdf.pdf
-    m = re.search(r"\b([0-9]{4,})\b", name_u)
-    if "ORDEN" in name_u and m:
-        return "OC", m.group(1)
-
     return None, None
-2. En extract_basic_fields(), mejora la detección de OC referencial
-Reemplaza el bloque de OC referencial por:
+Y en detect_tipo_documental() cambia la regla OC por esta:
 Python
-# 5. OC referencial dentro de factura/guía/OC
-    _, oc_detectada = _extract_oc_fields(text_u, name_u)
-    if oc_detectada:
-        oc = oc_detectada
-
-    if doc_type == "orden_compra" and oc and not numero:
-        serie = "OC"
-        numero = oc
-3. En process_correo(), agrega fallback por documentos hermanos
-Después de:
-Python
-enriched = [enrich_document(x) for x in items]
-agrega:
-Python
-oc_global = None
-    for d in enriched:
-        oc_tmp = d["fields"].get("oc")
-        if oc_tmp:
-            oc_global = oc_tmp
-            break
-
-    if oc_global:
-        for d in enriched:
-            if d["fields"].get("tipo_documental") == "orden_compra":
-                if not d["fields"].get("numero"):
-                    d["fields"]["serie"] = "OC"
-                    d["fields"]["numero"] = oc_global
-                    d["fields"]["oc"] = oc_global
-Esto es importante porque tu guía sí trae:
-Python
-'oc': '007902'
-Entonces la OC puede heredar ese número si su propio OCR no lo detectó.
-4. Corrige tu función de validación
-Ahora mismo para guía devuelve string:
-Python
-return fields.get("serie") and fields.get("numero") and fields.get("ruc"), [], []
-Mejor:
-Python
-if tipo == "guia_remision":
-    return bool(fields.get("serie") and fields.get("numero") and fields.get("ruc")), [], []
-
-if tipo == "orden_compra":
-    return bool(fields.get("numero")), [], []
-Resultado esperado
-La OC debe salir así:
+if (
+    re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
+    or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
+    or re.search(r"\bORDEN\s+COMPRA\b.{0,40}?[0-9]{4,}", text_u, re.IGNORECASE | re.DOTALL)
+    or re.search(r"\bOC[:\s-]*[0-9]{4,}", text_u, re.IGNORECASE)
+    or re.search(r"\bORDEN\s+DE\s+COM(?:P|R)A\b", name_u, re.IGNORECASE)
+):
+    return "orden_compra"
+Con esto ya no importa si sale:
+Plain text
+Orden de Compra N°:007902
+Orden de Compra N*:007902
+Orden de Compra N :007902
+Orden de Compra N 007902
+Orden de Compra N�:007902
+La salida debería quedar:
 Plain text
 04-0003 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
-Tu problema actual es que 007902 no está llegando a numero; con el fallback por hermanos se corrige incluso si el OCR de la OC falla.
