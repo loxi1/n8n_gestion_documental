@@ -36,23 +36,13 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
             return qr.get("tipo_documental")
 
     # 1. Orden de compra BBTI / consorcios
-    patron_oc = (
-        r"\b("
-        r"ORDEN\s+DE\s+COM(?:PRA|RA)"
-        r"|ORDEN\s+COMPRA"
-        r"|OC\s*BBTI"
-        r"|OC[:\s-]*"
-        r")\b.{0,120}?[0-9]{4,}"
-    )
+    patron_oc = r"\b(ORDEN\s+DE\s+COM\w{0,3}|ORDEN\s+COMPRA|OC)\b.{0,120}?[0-9]{4,}"
 
     if (
-        (
-            re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
-            or re.search(r"\bORDEN\s+DE\s+COM(?:PRA|RA)\b", name_u, re.IGNORECASE)
-            or re.search(r"\bOC\s*BBTI\b", name_u, re.IGNORECASE)
-            or re.search(r"^\d{4,}\.PDF$", name_u, re.IGNORECASE)
-        )
-        and "FACTURAS@BBTI.COM.PE" in text_email_u
+        re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
+        or re.search(patron_oc, name_u, re.IGNORECASE | re.DOTALL)
+        or re.search(r"\bOCBBTI\b", name_u, re.IGNORECASE)
+        or re.search(r"\b\d{4,}\.PDF$", name_u, re.IGNORECASE)
     ):
         return "orden_compra"
 
@@ -123,10 +113,11 @@ def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | No
 
 def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
-        r"ORDEN\s+DE\s+COM(?:PRA|RA).*?([0-9]{4,})",
+        r"ORDEN\s+DE\s+COM\w{0,3}.*?([0-9]{4,})",
         r"ORDEN\s+COMPRA.*?([0-9]{4,})",
-        r"OC\s*BBTI.*?([0-9]{4,})",
+        r"OCBBTI.*?([0-9]{4,})",
         r"\bOC[:\s-]*([0-9]{4,})\b",
+        r"\b([0-9]{4,})\.PDF\b",
     ]
 
     for fuente in (text_u, name_u):
@@ -179,6 +170,13 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
 
     elif doc_type == "orden_compra":
         serie, numero = _extract_oc_fields(text_u, name_u)
+    
+    if doc_type == "orden_compra":
+        print("====== DEBUG OC ======")
+        print("TEXT:", text_u[:500])
+        print("NAME:", name_u)
+        print("SERIE:", serie)
+        print("NUMERO:", numero)
 
     # 3. RUC emisor / proveedor
     if doc_type == "factura":
