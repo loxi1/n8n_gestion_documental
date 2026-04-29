@@ -1,13 +1,19 @@
-se puede cambiar classifier.py
-para validar la orden de compra:
-# Versión simplificada y más rápida
-patron_oc = r"\b(ORDEN\s+DE\s+COM[PR]A(\s+N)?|ORDEN\s+COMPRA|OC[:\s-]*)[0-9]{4,}"
-
+Sí, puedes cambiarlo, pero ajustaría tu condición así:
+Python
+patron_oc = r"\b(ORDEN\s+DE\s+COM[PR]A(\s+N)?|ORDEN\s+COMPRA|OC[:\s-]*)\b.{0,80}?[0-9]{4,}"
+Y usaría:
+Python
 if (
-    (re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL) or "ORDEN DE COMPRA" in name_u.upper())
+    (
+        re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
+        or "ORDEN DE COMPRA" in name_u.upper()
+    )
     and "FACTURAS@BBTI.COM.PE" in text_u.upper()
 ):
-Siempre debe tener "FACTURAS@BBTI.COM.PE" in text_u.upper() para que sea una factura y revisar los cambios:
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py
-y
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/classifier.py
+    return "orden_compra"
+Tu GitHub actual todavía tiene una regla demasiado amplia porque clasifica OC si aparece solo FACTURAS@BBTI.COM.PE, aunque no encuentre número OC. Eso puede generar falsos positivos. �
+GitHub
+También veo que aún clasifica certificados como certificado_calidad; si tu regla nueva es “solo factura, guía y orden de compra”, esa parte debe eliminarse o comentarse para que caiga como otro. �
+GitHub
+En procesar_pendientes.py ya tienes que otro va a no_identificados, y factura/guía/OC siguen el flujo de validación/clasificación. �
+GitHub
