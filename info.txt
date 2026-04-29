@@ -1,17 +1,69 @@
-Sí, te ayudo. Comparé ambos PDFs y hay una diferencia importante:
-04-0002 ORDEN_COMPRA OC 007914... sí tiene texto extraíble y metadatos de Crystal Reports/Nitro Pro 12. Además muestra fuentes embebidas como Calibri y Arial. �
-04-0002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf
-04-0001 ORDEN_COMPRA OC 007902... no tiene texto extraíble; es prácticamente una imagen dentro del PDF. Por eso visualmente puede verse diferente, y también por eso tu OCR lo trata distinto. �
-04-0001 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
-La diferencia visual de la “I” en BBTI puede deberse a que el segundo PDF fue rasterizado: impreso a PDF, escaneado, convertido a imagen o editado y luego guardado como imagen. No puedo afirmar que fue adulterado solo por eso, pero sí es una señal para revisarlo.
-Para comprobarlo en tu PC, ejecuta:
-Bash
-pdfinfo "04-0001 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf"
-pdffonts "04-0001 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf"
-pdfimages -list "04-0001 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf"
-Si pdffonts sale vacío y pdfimages muestra una imagen grande, es PDF imagen/rasterizado.
-Comparación rápida:
-Bash
-pdffonts "04-0002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf"
-pdffonts "04-0001 ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf"
-Mi conclusión: 007914 parece generado como PDF digital normal; 007902 parece PDF convertido a imagen. Esto no prueba edición maliciosa, pero sí justifica mandarlo a revisión manual o marcarlo como “OC imagen/rasterizada”.
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ pdfinfo storage/files/pendientes_clasificados/2026/04/04-0001\ ORDEN_COMPRA\ OC\ 007902\ 20538549071\ OMEGA_POWER_S_A_C.pdf
+Creator:         Nitro Pro 10  (10. 5. 9. 9)
+Producer:        Nitro Pro 10  (10. 5. 9. 9)
+CreationDate:    Wed Apr 15 15:53:52 2026 Hora est. PacÝfico, SudamÚrica
+ModDate:         Wed Apr 15 15:53:56 2026 Hora est. PacÝfico, SudamÚrica
+Custom Metadata: no
+Metadata Stream: yes
+Tagged:          no
+UserProperties:  no
+Suspects:        no
+Form:            none
+JavaScript:      no
+Pages:           1
+Encrypted:       no
+Page size:       595.32 x 841.92 pts (A4)
+Page rot:        0
+File size:       764541 bytes
+Optimized:       no
+PDF version:     1.4
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ pdffonts storage/files/pendientes_clasificados/2026/04/04-0001\ ORDEN_COMPRA\ OC\ 007902\ 20538549071\ OMEGA_POWER_S_A_C.pdf
+name                                 type              encoding         emb sub uni object ID
+------------------------------------ ----------------- ---------------- --- --- --- ---------
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ pdfimages -list storage/files/pendientes_clasificados/2026/04/04-0001\ ORDEN_COMPRA\ OC\ 007902\ 20538549071\ OMEGA_POWER_S_A_C.pdf
+page   num  type   width height color comp bpc  enc interp  object ID x-ppi y-ppi size ratio
+--------------------------------------------------------------------------------------------
+   1     0 image     254    66  rgb     3   8  jpeg   no         6  0   149   148 4888B 9.7%
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ pdfinfo storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
+Title:           Crystal Reports ActiveX Designer - OCBBTI.RPT
+Author:          PRODUCCION 03
+Creator:         Nitro Pro 12 (12.3.0.240)
+Producer:        Nitro Pro 12 (12.3.0.240)
+CreationDate:    Fri Apr 17 10:20:55 2026 Hora est. PacÝfico, SudamÚrica
+ModDate:         Fri Apr 17 10:20:56 2026 Hora est. PacÝfico, SudamÚrica
+Custom Metadata: no
+Metadata Stream: yes
+Tagged:          no
+UserProperties:  no
+Suspects:        no
+Form:            none
+JavaScript:      no
+Pages:           1
+Encrypted:       no
+Page size:       595.22 x 842 pts (A4)
+Page rot:        0
+File size:       78247 bytes
+Optimized:       no
+PDF version:     1.4
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ pdffonts storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
+name                                 type              encoding         emb sub uni object ID
+------------------------------------ ----------------- ---------------- --- --- --- ---------
+VMOYJE+Calibri                       TrueType          WinAnsi          yes yes yes     13  0
+LEEISK+Arial,Bold                    TrueType          WinAnsi          yes yes yes      8  0
+WLPWXE+Arial                         TrueType          WinAnsi          yes yes yes     10  0
+
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ pdfimages -list storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
+page   num  type   width height color comp bpc  enc interp  object ID x-ppi y-ppi size ratio
+--------------------------------------------------------------------------------------------
+   1     0 image     300    68  rgb     3   8  jpeg   no        12  0   176   155 4743B 7.8%
+
