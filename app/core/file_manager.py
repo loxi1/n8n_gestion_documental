@@ -33,6 +33,7 @@ def build_final_name(
     ruc_emisor: str | None,
     razon_social_emisor: str | None,
     fallback_name: str,
+    prefijo_nombre: str | None = None,
 ) -> str:
     ext = Path(fallback_name).suffix.lower() or ".pdf"
 
@@ -55,7 +56,8 @@ def build_final_name(
     ruc_txt = normalize_token(ruc_emisor)
     razon_txt = normalize_token(razon_social_emisor) or "SIN_RAZON_SOCIAL"
 
-    parts: list[str] = [grupo_codigo, tipo_txt]
+    inicio = normalize_token(prefijo_nombre) if prefijo_nombre else grupo_codigo
+    parts: list[str] = [inicio, tipo_txt]
 
     if tipo_documental in (
         "factura",

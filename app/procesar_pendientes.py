@@ -754,14 +754,34 @@ def process_correo(items: list[dict]) -> None:
                 estado_archivo = "observado"
                 total_revision_manual += 1
 
+
+        prefijo_nombre = None
+
+        qr_data = doc.get("qr_data")
+        ruc_cliente_qr = None
+
+        if qr_data:
+            ruc_cliente_qr = qr_data.get("num_doc_adquirente")
+
+        cliente_por_qr = get_cliente_destino_by_ruc(ruc_cliente_qr)
+
+        if cliente_por_qr:
+            prefijo_nombre = cliente_por_qr["abreviatura"]
+            cliente_id_final = cliente_por_qr["id"]
+        elif doc.get("cliente_match"):
+            prefijo_nombre = doc["cliente_match"]["abreviatura"]
+        else:
+            prefijo_nombre = grupo_codigo
+            
         nombre_final = build_final_name(
-            grupo_codigo=grupo_codigo or "SIN-GRUPO",
+            grupo_codigo=grupo_codigo,
             tipo_documental=tipo_documental,
             serie=fields["serie"],
             numero=fields["numero"],
             ruc_emisor=ruc_emisor,
             razon_social_emisor=razon_social_emisor,
             fallback_name=doc["nombre_archivo_actual"],
+            prefijo_nombre=prefijo_nombre,
         )
 
         pdf_path = resolve_absolute_path(doc["ruta_temporal"])
@@ -968,6 +988,22 @@ def is_documento_valido_produccion(fields, qr_data):
         return fields.get("numero") is not None, [], []
 
     return False, [], []
+
+def get_cliente_destino_by_ruc(ruc: str | None) -> dict | None:
+    if not ruc:
+        return None
+
+    with get_cursor(commit=False) as (_, cur):
+        cur.execute(
+            """
+            SELECT id, nombre_oficial, abreviatura, ruta_windows
+            FROM clientes_destino
+            WHERE ruc = %(ruc)s
+            LIMIT 1
+            """,
+            {"ruc": ruc},
+        )
+        return cur.fetchone()
 
 if __name__ == "__main__":
     main()
