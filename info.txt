@@ -1,149 +1,61 @@
-Vas bien, pero acá hay dos problemas claros que están causando esos falsos negativos:
-🔴 1. Órdenes de compra detectadas como CERTIFICADO_CALIDAD
-Esto NO es OCR, es tu lógica de clasificación.
-Qué está pasando
-Tu detect_tipo_documental() tiene este orden:
-Python
-# 1. Certificado
-if "CERTIFICADO" in text_u:
-    return "certificado_calidad"
-👉 Eso se dispara antes que detectar OC
-👉 Y muchas OC tienen texto tipo:
-“Certificado”
-“Condiciones”
-“Calidad”
-💥 Resultado: clasifica mal como certificado
-✅ SOLUCIÓN CRÍTICA (orden correcto)
-Mueve ORDEN DE COMPRA arriba del certificado
-Python
-# 1. ORDEN DE COMPRA (ANTES que certificado)
-if (
-    re.search(r"ORDEN\s+DE\s+COM(?:P|R)A", text_u, re.IGNORECASE)
-    or re.search(r"OC[- ]?\d{4,}", text_u, re.IGNORECASE)
-    or "FACTURAS@BBTI.COM.PE" in text_u
-):
-    return "orden_compra"
-
-
-# 2. Certificado (DESPUÉS)
-if (
-    "CERTIFICADO DE CALIDAD" in text_u
-    or "CERT. DE CALIDAD" in text_u
-):
-    return "certificado_calidad"
-👉 Esto solo ya te va a corregir esos 2 archivos.
-🔴 2. OCR no detecta bien la OC
-Tu debug lo confirma:
-Python
-'tipo': 'orden_compra',
-'serie': None,
-'numero': None,
-'oc': None
-👉 Eso significa que:
-❌ OCR no leyó bien
-❌ o el regex no está cubriendo el caso real
-✅ SOLUCIÓN: reforzar _extract_oc_fields
-Usa este definitivo (más tolerante):
-Python
-def _extract_oc_fields(text_u: str, name_u: str):
-    patrones = [
-        r"ORDEN\s+DE\s+COM(?:P|R)A.*?(\d{4,})",
-        r"ORDEN\s+COMPRA.*?(\d{4,})",
-        r"OC[- ]?(\d{4,})",
-        r"N[°º*:]?\s*:?\s*(\d{4,})",
-    ]
-
-    for fuente in (text_u, name_u):
-        for patron in patrones:
-            m = re.search(patron, fuente, re.IGNORECASE | re.DOTALL)
-            if m:
-                return "OC", m.group(1)
-
-    return None, None
-👉 Este ya cubre:
-N°
-N*
-saltos de línea
-formatos rotos de Starsoft
-🔴 3. QR no detectado (lado derecho)
-Esto es otro problema separado:
-👉 Tu lector QR probablemente:
-solo escanea centro o izquierda
-o baja resolución
-✅ SOLUCIÓN REAL (no teoría)
-En qr_reader.py debes hacer esto:
-✔️ escanear TODAS las páginas
-✔️ y aumentar resolución
-Ejemplo:
-Python
-images = convert_from_path(pdf_path, dpi=300)
-Y luego:
-Python
-for img in images:
-    decoded = decode(img)
-    if decoded:
-        return decoded
-🔥 Mejora PRO (muy recomendada)
-Para QR en posiciones raras:
-Python
-# recortar zonas
-width, height = img.size
-
-zonas = [
-    img,
-    img.crop((0, 0, width//2, height)),  # izquierda
-    img.crop((width//2, 0, width, height)),  # derecha
-    img.crop((0, 0, width, height//2)),  # arriba
-    img.crop((0, height//2, width, height)),  # abajo
-]
-
-for zona in zonas:
-    decoded = decode(zona)
-👉 Esto detecta QR en:
-derecha ✔
-abajo ✔
-esquina ✔
-🔴 4. Archivos en ocr_tmp que no se borran
-Ya detectaste esto:
-Bash
-ocr_tmp/
-👉 Eso pasa cuando:
-no se ejecuta unlink
-o falla silenciosamente
-✅ SOLUCIÓN SEGURA
-En process_correo deja esto SIEMPRE:
-Python
-ocr_output_path = doc.get("ocr_output_path")
-
-if ocr_output_path:
-    try:
-        p = Path(ocr_output_path)
-        if p.exists():
-            p.unlink()
-    except Exception as e:
-        print(f"[WARN OCR DELETE] {e}")
-🧠 RESUMEN REAL (lo importante)
-Tus problemas NO son uno solo:
-1️⃣ Clasificación mal ordenada
-✔ OC debe ir antes que certificado
-2️⃣ Regex débil para OC
-✔ ampliar patrones
-3️⃣ QR mal leído
-✔ escanear TODA la imagen
-4️⃣ OCR temporal no limpiado
-✔ borrar siempre
-🚀 Resultado después de esto
-Los archivos:
+Sí, correcto. Por ahora deja la regla así:
 Plain text
-04-0004 CERTIFICADO_CALIDAD SIN_RAZON_SOCIAL.pdf
-04-0006 CERTIFICADO_CALIDAD SIN_RAZON_SOCIAL.pdf
-👉 pasarán a:
+CLASIFICAR:
+- factura
+- guia_remision
+- orden_compra
+
+TODO LO DEMÁS:
+- otro
+- no_identificados
+1. En classifier.py
+Quita la clasificación de certificado/cotización/requerimiento. Es decir, no retornes:
+Python
+return "certificado_calidad"
+return "cotizacion"
+return "requerimiento_compra"
+Déjalos caer al final:
+Python
+return "otro"
+La prioridad debería quedar así:
+Python
+# 1. QR manda
+# 2. orden_compra
+# 3. factura
+# 4. guia_remision
+# 5. otro
+2. En process_correo()
+La regla debe ser:
+Python
+if tipo_documental == "otro":
+    estado_documento = "no_identificado"
+    bucket = "no_identificados"
+    estado_archivo = "observado"
+    total_no_identificados += 1
+
+elif tipo_documental in ("factura", "guia_remision", "orden_compra"):
+    if not es_documento_valido:
+        estado_documento = "revision_manual"
+        bucket = "pendientes_revision"
+        estado_archivo = "observado"
+        total_revision_manual += 1
+    else:
+        estado_documento = "clasificado"
+        bucket = "pendientes_clasificados"
+        estado_archivo = "renombrado"
+        total_clasificados += 1
+3. Resultado esperado
+Certificados como:
 Plain text
-BBTI ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
-Si quieres siguiente nivel 🔥
-Te puedo ayudar a:
-✔ detectar OC incluso SIN número visible
-✔ relacionar OC ↔ factura automáticamente
-✔ evitar duplicados reales (hash + lógica de negocio)
-✔ mejorar OCR con layout-aware parsing
-Solo dime 👍
+CERTIFICADO_CALIDAD
+ya no deberían salir así. Deben quedar como:
+Plain text
+OTRO
+y moverse a:
+Plain text
+storage/files/no_identificados/2026/04/
+4. Luego
+Cuando termines de estabilizar esto, recién agregamos el nuevo tipo:
+Plain text
+guia_ingreso
+o el nombre que definas para “guía de ingreso”. Ahí lo hacemos controlado, sin romper factura/guía/OC.
