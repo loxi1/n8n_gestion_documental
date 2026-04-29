@@ -1,15 +1,62 @@
-Sí: tus comandos confirman la diferencia.
-El 007902 es sospechoso a nivel técnico porque:
+Sí. Tu classifier.py está casi bien. Agrega este cambio para que la OC tome bien el RUC aunque venga con salto de línea.
+1. Agrega esta función
+Ponla debajo de _extract_oc_fields():
+Python
+def _extract_oc_ruc(text_u: str) -> str | None:
+    patrones = [
+        r"SEÑOR\(ES\)\s*:\s*.*?R\.?U\.?C\.?\s*:\s*([0-9]{11})",
+        r"SENOR\(ES\)\s*:\s*.*?R\.?U\.?C\.?\s*:\s*([0-9]{11})",
+        r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})",
+        r"\bRUC\s*:\s*[\r\n\s]*([0-9]{11})",
+    ]
+
+    for patron in patrones:
+        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
+        if m:
+            return m.group(1)
+
+    return None
+2. En extract_basic_fields(), antes del fallback general de RUC
+Busca esta parte:
+Python
+if not ruc:
+    for patron in [
+Y justo antes agrega:
+Python
+if not ruc and doc_type == "orden_compra":
+        ruc = _extract_oc_ruc(text_u)
+Queda así:
+Python
+if not ruc and doc_type == "orden_compra":
+        ruc = _extract_oc_ruc(text_u)
+
+    if not ruc:
+        for patron in [
+            r"\bRUC[:\s]*([0-9]{11})\b",
+            r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
+            r"\bREG\.?\s*UNICO\s+DE\s+CONTRIBUYENTES[:\s]*([0-9]{11})\b",
+        ]:
+            m = re.search(patron, text_u, re.IGNORECASE)
+            if m:
+                ruc = m.group(1)
+                break
+3. Mejora el fallback general también
+Cambia este patrón:
+Python
+r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
+por este:
+Python
+r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})\b",
+4. Quita el debug cuando ya confirmes
+Este bloque ya no debería quedar en producción:
+Python
+if doc_type == "orden_compra":
+    print("====== DEBUG OC ======")
+    print("TEXT:", text_u[:500])
+    print("NAME:", name_u)
+    print("SERIE:", serie)
+    print("NUMERO:", numero)
+Con eso las OC deberían quedar así:
 Plain text
-pdffonts: vacío
-pdfimages: solo detecta una imagen pequeña de logo
-Creator/Producer: Nitro Pro 10
-Eso indica que no tiene texto digital embebido como el otro PDF, o el contenido principal está como trazos/objetos no textuales. En cambio, el 007914 sí tiene fuentes Calibri/Arial embebidas y viene de Crystal Reports, más consistente con un PDF generado por sistema.
-Conclusión práctica:
-Plain text
-007914 → PDF digital normal
-007902 → PDF no textual / reprocesado con Nitro Pro 10 / requiere revisión visual
-No se puede afirmar “fue editado” solo con eso, pero sí puedes marcarlo como:
-Plain text
-observacion = "OC rasterizada/no textual: validar visualmente."
-Y para tu sistema: si pdffonts sale vacío en una OC, no la rechaces, pero pásala a pendientes_revision o clasifícala con bandera de alerta.
+04-0002 ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE...
+04-0002 ORDEN_COMPRA OC 007914 20538549071 OMEGA_POWER_S_A_C.pdf
