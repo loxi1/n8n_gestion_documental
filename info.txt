@@ -1,3 +1,123 @@
-Perfecto ya puedo reconocer guias, facturas, orden de compra y otros. Ahora quiero hacer algo quiero cambiar un poco la nomenclatura por ejemplo: quiero poner al inicio las siglas abreviadas de la empresa emisora para la Orden de Compra en el ejempo de la orden de compra es: 20565747356 es: https://github.com/loxi1/n8n_gestion_documental/blob/master/storage/files/pendientes_clasificados/2026/04/04-0003%20ORDEN_COMPRA%20OC%20007902%2020538549071%20OMEGA_POWER_S_A_C.pdf
-ahora para una factura o guia es el quien a quien se emite y eso datos quizas lo podemos sacar del qr en caso tuviera por ejemplo para la guia: https://github.com/loxi1/n8n_gestion_documental/blob/master/storage/files/pendientes_clasificados/2026/04/04-0004%20GUIA_REMISION%20T002%2000280%2020538549071%20OMEGA_POWER_S_A_C.pdf el qr en la parte inferiro es: 20538549071|09|T002|00280|0|2026-04-15|6|20565747356|https://e-factura.sunat.gob.pe/v1/contribuyente/gre/comprobantes/descargaqr?hashqr=i9PP93DgTkYyPM4qjLWzuAbyu4km6eGKR7XXoHwlaiZN4Dr72CCKUJ0/+zfOLeX03ycWaX4E8DncU5mJiyi3wx6EfYJCArAj5Q558MWT2lk=| se podria obtener el ruc del cliente similar en la factura: https://github.com/loxi1/n8n_gestion_documental/blob/master/storage/files/pendientes_clasificados/2026/04/04-0003%20FACTURA%20F002%2000000254%2020538549071%20OMEGA_POWER_S_A_C.pdf el qr es: 20538549071|01|F002|00000254|67.87|444.95|2026-04-16|6|20565747356|
-quisiera obtener el ruc en la base datos de la tabla select abreviatura from clientes_destino where ruc = '20299922821' colocar la abreviatura al inicio de cada documento en vez de colocar el asiento contable es decir 04-000X colocar la abreviatura pero normal sigue guardando grupo_codigo en la base datos. espero que sea facil ese cambio
+Sí, es un cambio fácil y bien lógico.
+La idea sería:
+Plain text
+grupo_codigo sigue en BD: 04-0003
+nombre_final usa abreviatura cliente: BBTI FACTURA F002 00000254 ...
+Ejemplo esperado:
+Plain text
+BBTI FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+BBTI GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+BBTI ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+1) Obtener RUC cliente desde QR
+En enrich_document() o donde ya tienes:
+Python
+qr_data = doc.get("qr_data")
+Para factura/guía, el RUC cliente viene aquí:
+Python
+qr_data.get("num_doc_adquirente")
+Ejemplo:
+Python
+20538549071|01|F002|00000254|67.87|444.95|2026-04-16|6|20565747356|
+Ahí:
+Python
+ruc_emisor = 20538549071
+ruc_cliente = 20565747356
+2) Crear función para buscar cliente por RUC
+En procesar_pendientes.py, agrega:
+Python
+def get_cliente_destino_by_ruc(ruc: str | None) -> dict | None:
+    if not ruc:
+        return None
+
+    with get_cursor(commit=False) as (_, cur):
+        cur.execute(
+            """
+            SELECT id, nombre_oficial, abreviatura, ruta_windows
+            FROM clientes_destino
+            WHERE ruc = %(ruc)s
+            LIMIT 1
+            """,
+            {"ruc": ruc},
+        )
+        return cur.fetchone()
+3) Cambiar build_final_name()
+En file_manager.py, agrega un parámetro nuevo:
+Python
+prefijo_nombre: str | None = None
+Así:
+Python
+def build_final_name(
+    grupo_codigo: str,
+    tipo_documental: str,
+    serie: str | None,
+    numero: str | None,
+    ruc_emisor: str | None,
+    razon_social_emisor: str | None,
+    fallback_name: str,
+    prefijo_nombre: str | None = None,
+) -> str:
+Luego cambia:
+Python
+parts: list[str] = [grupo_codigo, tipo_txt]
+por:
+Python
+inicio = normalize_token(prefijo_nombre) if prefijo_nombre else grupo_codigo
+parts: list[str] = [inicio, tipo_txt]
+4) En process_correo(), definir abreviatura para el nombre
+Antes de llamar a build_final_name():
+Python
+prefijo_nombre = None
+
+qr_data = doc.get("qr_data")
+ruc_cliente_qr = None
+
+if qr_data:
+    ruc_cliente_qr = qr_data.get("num_doc_adquirente")
+
+cliente_por_qr = get_cliente_destino_by_ruc(ruc_cliente_qr)
+
+if cliente_por_qr:
+    prefijo_nombre = cliente_por_qr["abreviatura"]
+    cliente_id_final = cliente_por_qr["id"]
+elif doc.get("cliente_match"):
+    prefijo_nombre = doc["cliente_match"]["abreviatura"]
+else:
+    prefijo_nombre = grupo_codigo
+5) Pasar el prefijo al nombre final
+Cambia esto:
+Python
+nombre_final = build_final_name(
+    grupo_codigo=grupo_codigo,
+    tipo_documental=tipo_documental,
+    serie=fields["serie"],
+    numero=fields["numero"],
+    ruc_emisor=ruc_emisor,
+    razon_social_emisor=razon_social_emisor,
+    fallback_name=doc["nombre_archivo_actual"],
+)
+por:
+Python
+nombre_final = build_final_name(
+    grupo_codigo=grupo_codigo,
+    tipo_documental=tipo_documental,
+    serie=fields["serie"],
+    numero=fields["numero"],
+    ruc_emisor=ruc_emisor,
+    razon_social_emisor=razon_social_emisor,
+    fallback_name=doc["nombre_archivo_actual"],
+    prefijo_nombre=prefijo_nombre,
+)
+Resultado
+Si en clientes_destino tienes:
+SQL
+ruc = '20565747356'
+abreviatura = 'BBTI'
+Entonces tus archivos quedarían:
+Plain text
+BBTI FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+BBTI GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
+BBTI ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
+Y en BD seguirá normal:
+Plain text
+grupo_codigo = 04-0003
+Sí, este cambio es limpio y recomendable.
