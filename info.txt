@@ -1,64 +1,16 @@
-El fallo está en tu regex:
-Python
-COM[PR]A
-Eso reconoce COMPA o COMRA, pero NO reconoce COMPRA.
-Usa esto:
-Python
-COM(?:PRA|RA)
-Cambia en detect_tipo_documental()
-Python
-patron_oc = (
-    r"\b("
-    r"ORDEN\s+DE\s+COM(?:PRA|RA)(\s+N)?"
-    r"|ORDEN\s+COMPRA"
-    r"|OC\s*BBTI\s*N?"
-    r"|OC[:\s-]*"
-    r")\b.{0,120}?[0-9]{4,}"
-)
+Solo paso esta orden de compra 
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -ld storage/files/pendientes_clasificados/2026/04/04-0002\ ORDEN_COMPRA\ OC\ 007914\ SIN_RAZON_SOCIAL.pdf
+-rw-r--r-- 1 BBTI 01 197121 78247 Apr 29 16:27 'storage/files/pendientes_clasificados/2026/04/04-0002 ORDEN_COMPRA OC 007914 SIN_RAZON_SOCIAL.pdf'
 
-if (
-    (
-        re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
-        or re.search(r"\bORDEN\s+DE\s+COM(?:PRA|RA)\b", name_u, re.IGNORECASE)
-        or re.search(r"\bOC\s*BBTI\s*N?.{0,40}?[0-9]{4,}", name_u, re.IGNORECASE | re.DOTALL)
-        or re.search(r"^\d{4,}\.PDF$", name_u, re.IGNORECASE)
-    )
-    and (
-        "FACTURAS@BBTI.COM.PE" in text_u.upper()
-        or "OCBBTI" in name_u.replace(" ", "").upper()
-    )
-):
-    return "orden_compra"
-Cambia también _extract_oc_fields()
-Python
-def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
-    patrones = [
-        r"\bORDEN\s+DE\s+COM(?:PRA|RA)\s+N\b.{0,80}?([0-9]{4,})\b",
-        r"\bORDEN\s+DE\s+COM(?:PRA|RA)\b.{0,80}?([0-9]{4,})\b",
-        r"\bORDEN\s+COMPRA\b.{0,80}?([0-9]{4,})\b",
-        r"\bOC\s*BBTI\s*N?.{0,80}?([0-9]{4,})\b",
-        r"\bOC[:\s-]*([0-9]{4,})\b",
-    ]
+existe pendientes de revision
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master|MERGING)
+$ ls -ld storage/files/pendientes_revision/2026/04/posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf
+-rw-r--r-- 1 BBTI 01 197121 76677 Apr 29 16:27 storage/files/pendientes_revision/2026/04/posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf
 
-    for fuente in (text_u, name_u):
-        for patron in patrones:
-            m = re.search(patron, fuente, re.IGNORECASE | re.DOTALL)
-            if m:
-                return "OC", m.group(1)
-
-    # fallback: archivo tipo 007886.pdf
-    if "FACTURAS@BBTI.COM.PE" in text_u.upper():
-        m = re.search(r"\b([0-9]{4,})\b", name_u)
-        if m:
-            return "OC", m.group(1)
-
-    return None, None
-Con esto deben reconocerse:
-Plain text
-ORDEN DE COMPRA N°:007902
-ORDEN DE COMRA N*:007902
-OCBBTI N░ 007914
-007886.pdf
-y salir como:
-Plain text
-BBTI ORDEN_COMPRA OC 007914 ...
+existen no identificados
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
+$ ls -l storage/files/no_identificados/2026/04/
+total 824
+-rw-r--r-- 1 BBTI 01 197121 764541 Apr 29 16:27 '04-0001 OTRO 20538549071 OMEGA_POWER_S_A_C.pdf'
+-rw-r--r-- 1 BBTI 01 197121  76340 Apr 29 16:27 '04-0003 OTRO SIN_RAZON_SOCIAL.pdf'

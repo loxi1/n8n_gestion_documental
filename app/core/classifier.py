@@ -36,18 +36,24 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
 
     patron_oc = (
         r"\b("
-        r"ORDEN\s+DE\s+COM[PR]A(\s+N)?"
+        r"ORDEN\s+DE\s+COM(?:PRA|RA)(\s+N)?"
         r"|ORDEN\s+COMPRA"
+        r"|OC\s*BBTI\s*N?"
         r"|OC[:\s-]*"
-        r")\b.{0,80}?[0-9]{4,}"
+        r")\b.{0,120}?[0-9]{4,}"
     )
 
     if (
         (
             re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
-            or re.search(r"\bORDEN\s+DE\s+COM[PR]A\b", name_u, re.IGNORECASE)
+            or re.search(r"\bORDEN\s+DE\s+COM(?:PRA|RA)\b", name_u, re.IGNORECASE)
+            or re.search(r"\bOC\s*BBTI\s*N?.{0,40}?[0-9]{4,}", name_u, re.IGNORECASE | re.DOTALL)
+            or re.search(r"^\d{4,}\.PDF$", name_u, re.IGNORECASE)
         )
-        and "FACTURAS@BBTI.COM.PE" in text_u.upper()
+        and (
+            "FACTURAS@BBTI.COM.PE" in text_u.upper()
+            or "OCBBTI" in name_u.replace(" ", "").upper()
+        )
     ):
         return "orden_compra"
 
@@ -116,16 +122,10 @@ def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | No
 
 def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
-        # Orden de Compra N°:007902 / N*:007902 / N : 007902 / N 007902
-        r"\bORDEN\s+DE\s+COM(?:P|R)A\s+N\b.{0,40}?([0-9]{4,})\b",
-
-        # Orden de Compra: 007902
-        r"\bORDEN\s+DE\s+COM(?:P|R)A\b.{0,40}?([0-9]{4,})\b",
-
-        # Orden Compra: 007902
-        r"\bORDEN\s+COMPRA\b.{0,40}?([0-9]{4,})\b",
-
-        # OC: 007902 / OC-007902
+        r"\bORDEN\s+DE\s+COM(?:PRA|RA)\s+N\b.{0,80}?([0-9]{4,})\b",
+        r"\bORDEN\s+DE\s+COM(?:PRA|RA)\b.{0,80}?([0-9]{4,})\b",
+        r"\bORDEN\s+COMPRA\b.{0,80}?([0-9]{4,})\b",
+        r"\bOC\s*BBTI\s*N?.{0,80}?([0-9]{4,})\b",
         r"\bOC[:\s-]*([0-9]{4,})\b",
     ]
 
@@ -134,6 +134,12 @@ def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None
             m = re.search(patron, fuente, re.IGNORECASE | re.DOTALL)
             if m:
                 return "OC", m.group(1)
+
+    # fallback: archivo tipo 007886.pdf
+    if "FACTURAS@BBTI.COM.PE" in text_u.upper():
+        m = re.search(r"\b([0-9]{4,})\b", name_u)
+        if m:
+            return "OC", m.group(1)
 
     return None, None
 
