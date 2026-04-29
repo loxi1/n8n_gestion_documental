@@ -1,61 +1,13 @@
-Sí, correcto. Por ahora deja la regla así:
-Plain text
-CLASIFICAR:
-- factura
-- guia_remision
-- orden_compra
+se puede cambiar classifier.py
+para validar la orden de compra:
+# Versión simplificada y más rápida
+patron_oc = r"\b(ORDEN\s+DE\s+COM[PR]A(\s+N)?|ORDEN\s+COMPRA|OC[:\s-]*)[0-9]{4,}"
 
-TODO LO DEMÁS:
-- otro
-- no_identificados
-1. En classifier.py
-Quita la clasificación de certificado/cotización/requerimiento. Es decir, no retornes:
-Python
-return "certificado_calidad"
-return "cotizacion"
-return "requerimiento_compra"
-Déjalos caer al final:
-Python
-return "otro"
-La prioridad debería quedar así:
-Python
-# 1. QR manda
-# 2. orden_compra
-# 3. factura
-# 4. guia_remision
-# 5. otro
-2. En process_correo()
-La regla debe ser:
-Python
-if tipo_documental == "otro":
-    estado_documento = "no_identificado"
-    bucket = "no_identificados"
-    estado_archivo = "observado"
-    total_no_identificados += 1
-
-elif tipo_documental in ("factura", "guia_remision", "orden_compra"):
-    if not es_documento_valido:
-        estado_documento = "revision_manual"
-        bucket = "pendientes_revision"
-        estado_archivo = "observado"
-        total_revision_manual += 1
-    else:
-        estado_documento = "clasificado"
-        bucket = "pendientes_clasificados"
-        estado_archivo = "renombrado"
-        total_clasificados += 1
-3. Resultado esperado
-Certificados como:
-Plain text
-CERTIFICADO_CALIDAD
-ya no deberían salir así. Deben quedar como:
-Plain text
-OTRO
-y moverse a:
-Plain text
-storage/files/no_identificados/2026/04/
-4. Luego
-Cuando termines de estabilizar esto, recién agregamos el nuevo tipo:
-Plain text
-guia_ingreso
-o el nombre que definas para “guía de ingreso”. Ahí lo hacemos controlado, sin romper factura/guía/OC.
+if (
+    (re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL) or "ORDEN DE COMPRA" in name_u.upper())
+    and "FACTURAS@BBTI.COM.PE" in text_u.upper()
+):
+Siempre debe tener "FACTURAS@BBTI.COM.PE" in text_u.upper() para que sea una factura y revisar los cambios:
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py
+y
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/classifier.py

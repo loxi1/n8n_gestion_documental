@@ -45,14 +45,6 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
     ):
         return "orden_compra"
 
-    # 2. Certificado
-    if (
-        "CERTIFICADO DE CALIDAD" in text_u
-        or "CERT. DE CALIDAD" in text_u
-        or "CERTIFICADO" in name_u
-    ):
-        return "certificado_calidad"
-
     # 3. Factura por nombre
     if (
         re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)

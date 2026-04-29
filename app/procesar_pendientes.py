@@ -717,42 +717,17 @@ def process_correo(items: list[dict]) -> None:
                 estado_archivo = "observado"
                 total_no_identificados += 1
 
-            elif tipo_documental in ("factura", "guia_remision", "orden_compra", "adjunto_factura"):
+            elif tipo_documental in ("factura", "guia_remision", "orden_compra"):
                 if not es_documento_valido:
                     estado_documento = "revision_manual"
                     bucket = "pendientes_revision"
                     estado_archivo = "observado"
                     total_revision_manual += 1
-
-                elif DEV_FORCE_REVIEW_FACTURAS and tipo_documental in ("factura", "adjunto_factura"):
-                    estado_documento = "revision_manual"
-                    bucket = "pendientes_revision"
-                    estado_archivo = "observado"
-                    total_revision_manual += 1
-
-                elif tipo_documental == "orden_compra":
-                    estado_documento = "clasificado"
-                    bucket = "pendientes_clasificados"
-                    estado_archivo = "renombrado"
-                    total_clasificados += 1
-
                 else:
                     estado_documento = "clasificado"
                     bucket = "pendientes_clasificados"
                     estado_archivo = "renombrado"
                     total_clasificados += 1
-
-            elif tipo_documental in ("certificado_calidad", "cotizacion"):
-                estado_documento = "pendiente_asociacion"
-                bucket = "pendientes_revision"
-                estado_archivo = "observado"
-                total_revision_manual += 1
-
-            else:
-                estado_documento = "revision_manual"
-                bucket = "pendientes_revision"
-                estado_archivo = "observado"
-                total_revision_manual += 1
 
 
         prefijo_nombre = None
