@@ -647,6 +647,8 @@ def process_correo(items: list[dict]) -> None:
         tipo_documental = fields["tipo_documental"]
         qr_data = doc.get("qr_data")
 
+        print(f"[DEBUG_Mirame] fields={fields} qr_data={qr_data}")
+
         es_documento_valido = True
         diferencias_criticas: list[str] = []
         advertencias: list[str] = []
@@ -702,6 +704,7 @@ def process_correo(items: list[dict]) -> None:
             correlativo_mes = None
             year = doc.get("fecha_emision_date").year if doc.get("fecha_emision_date") else datetime.now().year
             month = doc.get("fecha_emision_date").month if doc.get("fecha_emision_date") else datetime.now().month
+            print(f"[Estamos ahi")
         else:
             correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_base_doc, prefijo="04")
             ultimo_grupo_codigo = grupo_codigo
@@ -728,7 +731,7 @@ def process_correo(items: list[dict]) -> None:
                     total_revision_manual += 1
 
                 elif tipo_documental == "orden_compra":
-                   estado_documento = "clasificado"
+                    estado_documento = "clasificado"
                     bucket = "pendientes_clasificados"
                     estado_archivo = "renombrado"
                     total_clasificados += 1
@@ -739,7 +742,7 @@ def process_correo(items: list[dict]) -> None:
                     estado_archivo = "renombrado"
                     total_clasificados += 1
 
-            elif tipo_documental in ("certificado_calidad", "requerimiento_compra", "cotizacion"):
+            elif tipo_documental in ("certificado_calidad", "cotizacion"):
                 estado_documento = "pendiente_asociacion"
                 bucket = "pendientes_revision"
                 estado_archivo = "observado"
@@ -764,6 +767,8 @@ def process_correo(items: list[dict]) -> None:
         pdf_path = resolve_absolute_path(doc["ruta_temporal"])
         destino_relativo = f"{bucket}/{year}/{month:02d}/{nombre_final}"
         destino_abs = STORAGE_DIR / destino_relativo
+
+        print(f"[DEBUG_mover_destino] pdf_path={pdf_path} destino_relativo={destino_relativo} destino_abs={destino_abs}")
 
         if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
             move_file(pdf_path, destino_abs)

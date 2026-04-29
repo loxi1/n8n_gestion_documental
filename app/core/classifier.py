@@ -175,8 +175,9 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     elif doc_type == "guia_remision":
         serie, numero = _extract_guia_fields(text_u, name_u)
 
-    elif doc_type == "orden_compra":
-        serie, numero = _extract_oc_fields(text_u, name_u)
+    if doc_type == "orden_compra" and oc and not numero:
+        serie = "OC"
+        numero = oc
 
     # 3. RUC emisor / proveedor
     if doc_type == "factura":
