@@ -4,7 +4,7 @@ import numpy as np
 from pdf2image import convert_from_path
 
 pdf_path = Path(
-    r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_revision\2026\04\f.pdf"
+    r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_clasificados\2026\04\b.pdf"
 )
 
 out_dir = Path(r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\debug_qr")

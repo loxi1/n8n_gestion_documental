@@ -1,374 +1,56 @@
-Sí. Este sería el classifier.py final corregido, con prioridad correcta: QR → factura → guía → orden_compra → otro.
-Python
-from __future__ import annotations
-
-import re
-from typing import Any
-
-from core.text_utils import normalize_text
-from core.qr_parser import extract_qr_candidates, parse_qr_payload
-
-
-FACTURA_SERIE_RE = r"F[A-Z0-9]{3}"
-FACTURA_NUMERO_RE = r"\d{1,8}"
-
-GUIA_SERIE_RE = r"(?:T[A-Z0-9]{3}|GR[A-Z0-9]{2,3})"
-GUIA_NUMERO_RE = r"\d{1,8}"
-
-
-def clean_number(value: str | None) -> float | None:
-    if not value:
-        return None
-
-    value = str(value).replace(",", "").strip()
-
-    try:
-        return float(value)
-    except Exception:
-        return None
-
-
-def _compact_text(value: str | None) -> str:
-    if not value:
-        return ""
-
-    value = normalize_text(value)
-    return re.sub(r"[^A-Z0-9]", "", value.upper())
-
-
-def normalize_email_like(text: str | None) -> str:
-    if not text:
-        return ""
-
-    return re.sub(r"\s+", "", normalize_text(text).upper())
-
-
-def _is_factura_text(text_u: str, name_u: str) -> bool:
-    return bool(
-        "FACTURA ELECTRONICA" in text_u
-        or "FACTURAELECTRONICA" in _compact_text(text_u)
-        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u, re.IGNORECASE)
-        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u, re.IGNORECASE)
-        or re.search(
-            rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b",
-            name_u,
-            re.IGNORECASE,
-        )
-    )
-
-
-def _is_guia_text(text_u: str, name_u: str) -> bool:
-    compact = _compact_text(text_u)
-
-    return bool(
-        "GUIADEREMISIONELECTRONICA" in compact
-        or "GUIAREMISIONELECTRONICA" in compact
-        or re.search(r"GUIA\s+(DE\s+)?REMISION\s+ELECTRONICA", text_u, re.IGNORECASE | re.DOTALL)
-        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u, re.IGNORECASE)
-        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u, re.IGNORECASE)
-        or re.search(
-            rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b",
-            name_u,
-            re.IGNORECASE,
-        )
-    )
-
-
-def _score_orden_compra(text_u: str, name_u: str) -> tuple[int, list[str]]:
-    score = 0
-    reasons: list[str] = []
-
-    fuentes = f"{text_u}\n{name_u}"
-    compact = _compact_text(fuentes)
-
-    # Señales fuertes de OC
-    if re.search(
-        r"ORDEN\s+DE\s+COM\w{0,4}.{0,120}?[0-9]{4,}",
-        fuentes,
-        re.IGNORECASE | re.DOTALL,
-    ):
-        score += 70
-        reasons.append("orden_compra_con_numero")
-
-    if re.search(
-        r"ORDEN\s+COMPRA.{0,120}?[0-9]{4,}",
-        fuentes,
-        re.IGNORECASE | re.DOTALL,
-    ):
-        score += 60
-        reasons.append("orden_compra_sin_de")
-
-    if re.search(
-        r"OC\s*BBTI.{0,80}?[0-9]{4,}",
-        fuentes,
-        re.IGNORECASE | re.DOTALL,
-    ):
-        score += 70
-        reasons.append("ocbbti_con_numero")
-
-    if re.search(r"\bOC[:\s-]*[0-9]{4,}", fuentes, re.IGNORECASE):
-        score += 50
-        reasons.append("oc_abreviado")
-
-    if re.search(r"\b[0-9]{4,}\.PDF\b", name_u, re.IGNORECASE):
-        score += 35
-        reasons.append("nombre_solo_numero_pdf")
-
-    if "ORDENDECOMPRA" in compact or "ORDENDECOMRA" in compact:
-        score += 40
-        reasons.append("compact_orden_compra")
-
-    if "BBTISAC" in compact or "20565747356" in compact:
-        score += 20
-        reasons.append("senal_bbti")
-
-    if "PRESENTACIONDECOMPROBANTESDEPAGO" in compact:
-        score += 15
-        reasons.append("bloque_presentacion_pago")
-
-    return score, reasons
-
-
-def detect_tipo_documental(text: str, file_name: str) -> str:
-    text_u = normalize_text(text)
-    name_u = normalize_text(file_name)
-
-    # 0. QR manda para factura/guía
-    for candidate in extract_qr_candidates(text):
-        qr = parse_qr_payload(candidate)
-        if qr and qr.get("tipo_documental") in ("factura", "guia_remision"):
-            return qr["tipo_documental"]
-
-    # 1. Factura primero para evitar falso positivo por campo "Orden de compra"
-    if _is_factura_text(text_u, name_u):
-        return "factura"
-
-    # 2. Guía segundo
-    if _is_guia_text(text_u, name_u):
-        return "guia_remision"
-
-    # 3. Orden de compra tercero
-    score_oc, _ = _score_orden_compra(text_u, name_u)
-    if score_oc >= 60:
-        return "orden_compra"
-
-    return "otro"
-
-
-def _extract_factura_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
-    patrones = [
-        rf"\b({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
-        rf"\bNRO\s*({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
-        rf"\bN[°º]\s*({FACTURA_SERIE_RE})-({FACTURA_NUMERO_RE})\b",
-    ]
-
-    for fuente in (text_u, name_u):
-        for patron in patrones:
-            m = re.search(patron, fuente, re.IGNORECASE)
-            if m:
-                return m.group(1), m.group(2)
-
-    return None, None
-
-
-def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
-    patrones = [
-        rf"\b({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-        rf"\bNRO\.?\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-        rf"\bN[°º]\s*({GUIA_SERIE_RE})-({GUIA_NUMERO_RE})\b",
-    ]
-
-    for fuente in (text_u, name_u):
-        for patron in patrones:
-            m = re.search(patron, fuente, re.IGNORECASE)
-            if m:
-                return m.group(1), m.group(2)
-
-    return None, None
-
-
-def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
-    fuentes = f"{text_u}\n{name_u}"
-
-    patrones = [
-        r"ORDEN\s+DE\s+COM\w{0,4}.{0,120}?([0-9]{4,})",
-        r"ORDEN\s+COMPRA.{0,120}?([0-9]{4,})",
-        r"OC\s*BBTI.{0,80}?([0-9]{4,})",
-        r"\bOC[:\s-]*([0-9]{4,})\b",
-        r"\b([0-9]{4,})\.PDF\b",
-    ]
-
-    for patron in patrones:
-        m = re.search(patron, fuentes, re.IGNORECASE | re.DOTALL)
-        if m:
-            numero = m.group(1)
-
-            # Evita capturar RUC como número de OC.
-            if 4 <= len(numero) <= 8:
-                return "OC", numero
-
-    return None, None
-
-
-def _extract_oc_ruc(text_u: str) -> str | None:
-    """
-    Para OC de BBTI:
-    - Primero suele venir RUC de BBTI: 20565747356
-    - Luego viene RUC del proveedor.
-    Se intenta devolver el RUC proveedor, no el de BBTI.
-    """
-    rucs = re.findall(r"\b(20\d{9})\b", text_u)
-
-    for ruc in rucs:
-        if ruc != "20565747356":
-            return ruc
-
-    return None
-
-
-def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
-    text_u = normalize_text(text)
-    name_u = normalize_text(file_name)
-    doc_type = detect_tipo_documental(text, file_name)
-
-    ruc = None
-    serie = None
-    numero = None
-    fecha_emision = None
-    importe = None
-    oc = None
-    qr_data = None
-
-    # 1. QR prioridad para factura/guía
-    for candidate in extract_qr_candidates(text):
-        qr_data = parse_qr_payload(candidate)
-        if qr_data:
-            break
-
-    if qr_data and qr_data.get("tipo_documental") in ("factura", "guia_remision"):
-        return {
-            "tipo_documental": qr_data.get("tipo_documental"),
-            "serie": qr_data.get("serie"),
-            "numero": qr_data.get("numero"),
-            "ruc": qr_data.get("ruc_emisor"),
-            "fecha_emision": qr_data.get("fecha_emision"),
-            "importe": qr_data.get("importe"),
-            "igv": qr_data.get("igv"),
-            "oc": None,
-            "qr_data": qr_data,
-        }
-
-    # 2. Serie / número principal
-    if doc_type == "factura":
-        serie, numero = _extract_factura_fields(text_u, name_u)
-
-    elif doc_type == "guia_remision":
-        serie, numero = _extract_guia_fields(text_u, name_u)
-
-    elif doc_type == "orden_compra":
-        serie, numero = _extract_oc_fields(text_u, name_u)
-
-    # 3. RUC emisor/proveedor
-    if doc_type == "factura":
-        patrones_ruc_factura = [
-            r"FACTURA ELECTRONICA.{0,400}?R\.?U\.?C\.?[:\s]*([0-9]{11})",
-            r"R\.?U\.?C\.?[:\s]*([0-9]{11}).{0,400}?FACTURA ELECTRONICA",
-        ]
-
-        for patron in patrones_ruc_factura:
-            m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
-            if m:
-                ruc = m.group(1)
-                break
-
-    if not ruc and doc_type == "factura":
-        m = re.search(
-            rf"\b(\d{{11}})-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b",
-            name_u,
-            re.IGNORECASE,
-        )
-        if m:
-            ruc = m.group(1)
-
-    if not ruc and doc_type == "guia_remision":
-        m = re.search(
-            rf"\b(\d{{11}})-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b",
-            name_u,
-            re.IGNORECASE,
-        )
-        if m:
-            ruc = m.group(1)
-
-    if not ruc and doc_type == "orden_compra":
-        ruc = _extract_oc_ruc(text_u)
-
-    if not ruc:
-        for patron in [
-            r"\bRUC[:\s]*([0-9]{11})\b",
-            r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})\b",
-            r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
-            r"\bREG\.?\s*UNICO\s+DE\s+CONTRIBUYENTES[:\s]*([0-9]{11})\b",
-        ]:
-            m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
-            if m:
-                ruc = m.group(1)
-                break
-
-    # 4. Fecha robusta
-    patrones_fecha = [
-        r"FECHA\s+DE\s+EMISION\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-        r"FECHA\s+DE\s+EMISION\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
-        r"FECHA\s+DE\s+EMISION\s*[:\-]?\s*([0-9]{1,2}-[A-Z]{3}-[0-9]{4})",
-        r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-        r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
-        r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{1,2}-[A-Z]{3}-[0-9]{4})",
-        r"(\d{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+\d{4})",
-    ]
-
-    for patron in patrones_fecha:
-        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
-        if m:
-            fecha_emision = m.group(1)
-            break
-
-    # 5. OC referencial o número principal de OC
-    _, oc_detectada = _extract_oc_fields(text_u, name_u)
-    if oc_detectada:
-        oc = oc_detectada
-
-    if doc_type == "orden_compra" and oc and not numero:
-        serie = "OC"
-        numero = oc
-
-    # 6. Importe
-    for patron in [
-        r"\bTOTAL\s*\(USD\s*\$?\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
-        r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
-        r"\bTOTAL\s+A\s+PAGAR[:\s]*([0-9][0-9,.\s]*)\b",
-        r"\bIMPORTE\s+TOTAL[:\sA-Z$/.]*([0-9][0-9,.\s]*)\b",
-        r"\bTOTAL\s*S/\s*([0-9][0-9,.\s]*)\b",
-    ]:
-        m = re.search(patron, text_u, re.IGNORECASE)
-        if m:
-            importe = m.group(1).strip()
-            break
-
-    return {
-        "tipo_documental": doc_type,
-        "serie": serie,
-        "numero": numero,
-        "ruc": ruc,
-        "fecha_emision": fecha_emision,
-        "importe": importe,
-        "igv": None,
-        "oc": oc,
-        "qr_data": qr_data,
-    }
-Puntos importantes corregidos:
-Plain text
-Factura se detecta antes que OC.
-Guía se detecta antes que OC.
-OC solo se evalúa después.
-OC no puede usar RUC como número.
-Orden de COMRA también puede pasar.
-Además, para QR en lado derecho/inferior, eso ya no va en classifier.py, sino en qr_reader.py.
+se hizo la extraccion de dos pdf
+https://i.ibb.co/MxwLyYZ4/page1-full-a.png
+https://i.ibb.co/7JD6hcn0/page1-qr-crop-a.png
+la images que te voy a pasar terminan en _a y el pdf es BBTI FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
+$ python debug_qr_render.py
+Imagen completa: C:\D\Proyectos\GestionDocumental\n8n-local\storage\debug_qr\page1_full.png
+Recorte QR: C:\D\Proyectos\GestionDocumental\n8n-local\storage\debug_qr\page1_qr_crop.png
+Dimensiones página: 2893 x 4094
+Dimensiones recorte: 1012 x 1638
+(venv) 
+
+las imagenes teminan en _b y el pdf es b.pdf
+las imagenes son:
+https://i.ibb.co/xKHr3CR2/page1-full-b.png
+https://i.ibb.co/wZZV8cTn/page1-qr-crop-b.png
+BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local/app (master)
+$ python debug_qr_render.py
+Imagen completa: C:\D\Proyectos\GestionDocumental\n8n-local\storage\debug_qr\page1_full.png
+Recorte QR: C:\D\Proyectos\GestionDocumental\n8n-local\storage\debug_qr\page1_qr_crop.png
+Dimensiones página: 4089 x 2893
+Dimensiones recorte: 1431 x 1158
+(venv) 
+
+debug_qr_render.py
+from pathlib import Path
+import cv2
+import numpy as np
+from pdf2image import convert_from_path
+
+pdf_path = Path(
+    r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_clasificados\2026\04\b.pdf"
+)
+
+out_dir = Path(r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\debug_qr")
+out_dir.mkdir(parents=True, exist_ok=True)
+
+pages = convert_from_path(str(pdf_path), dpi=350, first_page=1, last_page=1)
+
+page = pages[0]
+img_rgb = np.array(page)
+img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
+full_path = out_dir / "page1_full.png"
+cv2.imwrite(str(full_path), img_bgr)
+
+h, w = img_bgr.shape[:2]
+
+# recorte inferior izquierdo, donde suele estar el QR
+crop = img_bgr[int(h * 0.60):h, 0:int(w * 0.35)]
+crop_path = out_dir / "page1_qr_crop.png"
+cv2.imwrite(str(crop_path), crop)
+
+print("Imagen completa:", full_path)
+print("Recorte QR:", crop_path)
+print("Dimensiones página:", w, "x", h)
+print("Dimensiones recorte:", crop.shape[1], "x", crop.shape[0])

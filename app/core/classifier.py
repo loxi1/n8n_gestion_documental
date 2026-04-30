@@ -17,67 +17,141 @@ GUIA_NUMERO_RE = r"\d{1,8}"
 def clean_number(value: str | None) -> float | None:
     if not value:
         return None
-    value = value.replace(",", "").strip()
+
+    value = str(value).replace(",", "").strip()
+
     try:
         return float(value)
     except Exception:
         return None
 
 
+def _compact_text(value: str | None) -> str:
+    if not value:
+        return ""
+
+    value = normalize_text(value)
+    return re.sub(r"[^A-Z0-9]", "", value.upper())
+
+
+def normalize_email_like(text: str | None) -> str:
+    if not text:
+        return ""
+
+    return re.sub(r"\s+", "", normalize_text(text).upper())
+
+
+def _is_factura_text(text_u: str, name_u: str) -> bool:
+    return bool(
+        "FACTURA ELECTRONICA" in text_u
+        or "FACTURAELECTRONICA" in _compact_text(text_u)
+        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u, re.IGNORECASE)
+        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u, re.IGNORECASE)
+        or re.search(
+            rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b",
+            name_u,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _is_guia_text(text_u: str, name_u: str) -> bool:
+    compact = _compact_text(text_u)
+
+    return bool(
+        "GUIADEREMISIONELECTRONICA" in compact
+        or "GUIAREMISIONELECTRONICA" in compact
+        or re.search(r"GUIA\s+(DE\s+)?REMISION\s+ELECTRONICA", text_u, re.IGNORECASE | re.DOTALL)
+        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u, re.IGNORECASE)
+        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u, re.IGNORECASE)
+        or re.search(
+            rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b",
+            name_u,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _score_orden_compra(text_u: str, name_u: str) -> tuple[int, list[str]]:
+    score = 0
+    reasons: list[str] = []
+
+    fuentes = f"{text_u}\n{name_u}"
+    compact = _compact_text(fuentes)
+
+    # Señales fuertes de OC
+    if re.search(
+        r"ORDEN\s+DE\s+COM\w{0,4}.{0,120}?[0-9]{4,}",
+        fuentes,
+        re.IGNORECASE | re.DOTALL,
+    ):
+        score += 70
+        reasons.append("orden_compra_con_numero")
+
+    if re.search(
+        r"ORDEN\s+COMPRA.{0,120}?[0-9]{4,}",
+        fuentes,
+        re.IGNORECASE | re.DOTALL,
+    ):
+        score += 60
+        reasons.append("orden_compra_sin_de")
+
+    if re.search(
+        r"OC\s*BBTI.{0,80}?[0-9]{4,}",
+        fuentes,
+        re.IGNORECASE | re.DOTALL,
+    ):
+        score += 70
+        reasons.append("ocbbti_con_numero")
+
+    if re.search(r"\bOC[:\s-]*[0-9]{4,}", fuentes, re.IGNORECASE):
+        score += 50
+        reasons.append("oc_abreviado")
+
+    if re.search(r"\b[0-9]{4,}\.PDF\b", name_u, re.IGNORECASE):
+        score += 35
+        reasons.append("nombre_solo_numero_pdf")
+
+    if "ORDENDECOMPRA" in compact or "ORDENDECOMRA" in compact:
+        score += 40
+        reasons.append("compact_orden_compra")
+
+    if "BBTISAC" in compact or "20565747356" in compact:
+        score += 20
+        reasons.append("senal_bbti")
+
+    if "PRESENTACIONDECOMPROBANTESDEPAGO" in compact:
+        score += 15
+        reasons.append("bloque_presentacion_pago")
+
+    return score, reasons
+
+
 def detect_tipo_documental(text: str, file_name: str) -> str:
     text_u = normalize_text(text)
     name_u = normalize_text(file_name)
-    text_email_u = normalize_email_like(text_u)
 
     # 0. QR manda para factura/guía
     for candidate in extract_qr_candidates(text):
         qr = parse_qr_payload(candidate)
-        if qr and qr.get("tipo_documental"):
-            return qr.get("tipo_documental")
+        if qr and qr.get("tipo_documental") in ("factura", "guia_remision"):
+            return qr["tipo_documental"]
 
-    # 1. Orden de compra BBTI / consorcios
-    patron_oc = r"\b(ORDEN\s+DE\s+COM\w{0,3}|ORDEN\s+COMPRA|OC)\b.{0,120}?[0-9]{4,}"
+    # 1. Factura primero para evitar falso positivo por campo "Orden de compra"
+    if _is_factura_text(text_u, name_u):
+        return "factura"
 
-    if (
-        re.search(patron_oc, text_u, re.IGNORECASE | re.DOTALL)
-        or re.search(patron_oc, name_u, re.IGNORECASE | re.DOTALL)
-        or re.search(r"\bOCBBTI\b", name_u, re.IGNORECASE)
-        or re.search(r"\b\d{4,}\.PDF$", name_u, re.IGNORECASE)
-    ):
+    # 2. Guía segundo
+    if _is_guia_text(text_u, name_u):
+        return "guia_remision"
+
+    # 3. Orden de compra tercero
+    score_oc, _ = _score_orden_compra(text_u, name_u)
+    if score_oc >= 60:
         return "orden_compra"
-
-    # 2. Factura por nombre
-    if (
-        re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
-        or re.search(rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
-    ):
-        return "factura"
-
-    # 3. Guía por nombre
-    if (
-        re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
-        or re.search(rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
-    ):
-        return "guia_remision"
-
-    # 4. Factura por texto
-    if (
-        "FACTURA ELECTRONICA" in text_u
-        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u)
-    ):
-        return "factura"
-
-    # 5. Guía por texto
-    if (
-        re.search(r"GUIA\s+(DE\s+)?REMISION\s+ELECTRONICA", text_u, re.IGNORECASE)
-        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u)
-    ):
-        return "guia_remision"
 
     return "otro"
 
-def normalize_email_like(text: str) -> str:
-    return re.sub(r"\s+", "", text).upper()
 
 def _extract_factura_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
     patrones = [
@@ -112,35 +186,40 @@ def _extract_guia_fields(text_u: str, name_u: str) -> tuple[str | None, str | No
 
 
 def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
+    fuentes = f"{text_u}\n{name_u}"
+
     patrones = [
-        r"ORDEN\s+DE\s+COM\w{0,3}.*?([0-9]{4,})",
-        r"ORDEN\s+COMPRA.*?([0-9]{4,})",
-        r"OCBBTI.*?([0-9]{4,})",
+        r"ORDEN\s+DE\s+COM\w{0,4}.{0,120}?([0-9]{4,})",
+        r"ORDEN\s+COMPRA.{0,120}?([0-9]{4,})",
+        r"OC\s*BBTI.{0,80}?([0-9]{4,})",
         r"\bOC[:\s-]*([0-9]{4,})\b",
         r"\b([0-9]{4,})\.PDF\b",
     ]
 
-    for fuente in (text_u, name_u):
-        for patron in patrones:
-            m = re.search(patron, fuente, re.IGNORECASE | re.DOTALL)
-            if m:
-                return "OC", m.group(1)
+    for patron in patrones:
+        m = re.search(patron, fuentes, re.IGNORECASE | re.DOTALL)
+        if m:
+            numero = m.group(1)
+
+            # Evita capturar RUC como número de OC.
+            if 4 <= len(numero) <= 8:
+                return "OC", numero
 
     return None, None
 
 
 def _extract_oc_ruc(text_u: str) -> str | None:
-    patrones = [
-        r"SEÑOR\(ES\)\s*:\s*.*?R\.?U\.?C\.?\s*:\s*([0-9]{11})",
-        r"SENOR\(ES\)\s*:\s*.*?R\.?U\.?C\.?\s*:\s*([0-9]{11})",
-        r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})",
-        r"\bRUC\s*:\s*[\r\n\s]*([0-9]{11})",
-    ]
+    """
+    Para OC de BBTI:
+    - Primero suele venir RUC de BBTI: 20565747356
+    - Luego viene RUC del proveedor.
+    Se intenta devolver el RUC proveedor, no el de BBTI.
+    """
+    rucs = re.findall(r"\b(20\d{9})\b", text_u)
 
-    for patron in patrones:
-        m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
-        if m:
-            return m.group(1)
+    for ruc in rucs:
+        if ruc != "20565747356":
+            return ruc
 
     return None
 
@@ -158,7 +237,7 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     oc = None
     qr_data = None
 
-    # 1. QR prioridad total
+    # 1. QR prioridad para factura/guía
     for candidate in extract_qr_candidates(text):
         qr_data = parse_qr_payload(candidate)
         if qr_data:
@@ -187,12 +266,13 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     elif doc_type == "orden_compra":
         serie, numero = _extract_oc_fields(text_u, name_u)
 
-    # 3. RUC emisor / proveedor
+    # 3. RUC emisor/proveedor
     if doc_type == "factura":
         patrones_ruc_factura = [
-            r"FACTURA ELECTRONICA.{0,300}?R\.?U\.?C\.?[:\s]*([0-9]{11})",
-            r"R\.?U\.?C\.?[:\s]*([0-9]{11}).{0,300}?FACTURA ELECTRONICA",
+            r"FACTURA ELECTRONICA.{0,400}?R\.?U\.?C\.?[:\s]*([0-9]{11})",
+            r"R\.?U\.?C\.?[:\s]*([0-9]{11}).{0,400}?FACTURA ELECTRONICA",
         ]
+
         for patron in patrones_ruc_factura:
             m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
             if m:
@@ -216,17 +296,18 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
         )
         if m:
             ruc = m.group(1)
-    
+
     if not ruc and doc_type == "orden_compra":
         ruc = _extract_oc_ruc(text_u)
 
     if not ruc:
         for patron in [
             r"\bRUC[:\s]*([0-9]{11})\b",
-            r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})\b",r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
+            r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})\b",
+            r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
             r"\bREG\.?\s*UNICO\s+DE\s+CONTRIBUYENTES[:\s]*([0-9]{11})\b",
         ]:
-            m = re.search(patron, text_u, re.IGNORECASE)
+            m = re.search(patron, text_u, re.IGNORECASE | re.DOTALL)
             if m:
                 ruc = m.group(1)
                 break
@@ -248,7 +329,7 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
             fecha_emision = m.group(1)
             break
 
-    # 5. OC referencial dentro de factura/guía o como dato principal de OC
+    # 5. OC referencial o número principal de OC
     _, oc_detectada = _extract_oc_fields(text_u, name_u)
     if oc_detectada:
         oc = oc_detectada
