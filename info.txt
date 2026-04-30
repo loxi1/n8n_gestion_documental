@@ -1,10 +1,2 @@
-Estas son las imagnes exportadas ahora eso quiere decir que  debug_qr_render.py exporto las images ahora esto hay que integrar donde para que las facturas y guias tenga mas info en el qr
-https://i.ibb.co/nqtqRMVJ/page1-full.png
-https://i.ibb.co/4wKMR1Z1/page1-qr-crop-bottom-full.png
-https://i.ibb.co/pBQNWk96/page1-qr-crop-bottom-left.png
-https://i.ibb.co/R4JR8jGM/page1-qr-crop-bottom-right.png
-https://i.ibb.co/hFLwXCyT/page1-qr-crop-center.png
-https://i.ibb.co/jvBtKBxR/page1-qr-crop-left-full.png
-https://i.ibb.co/6JspC5wQ/page1-qr-crop-right-full.png
-https://i.ibb.co/GvG9XpMj/page1-qr-crop-top-left.png
-https://i.ibb.co/RkKfYy35/page1-qr-crop-top-right.png
+se tiene lo ideal es que lo puedas leer y trer el codigo final:
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_reader.py
