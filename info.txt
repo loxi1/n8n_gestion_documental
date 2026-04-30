@@ -1,25 +1,3 @@
-python procesar_pendientes.py
-Correos pendientes encontrados: 4
-[INFO] procesando correo_id=4 documentos=6
-Traceback (most recent call last):
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 1048, in <module>
-    main()
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 919, in main
-    process_correo(items)
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 599, in process_correo
-    enriched = [enrich_document(x) for x in items]
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 599, in <listcomp>
-    enriched = [enrich_document(x) for x in items]
-                ^^^^^^^^^^^^^^^^^^
-  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 344, in enrich_document
-    pdf_path = resolve_absolute_path(doc["ruta_temporal"])
-                                     ^^^
-NameError: name 'doc' is not defined
-(venv) 
-validar los archivos:
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_reader.py
-y
+python procesar_pendientes.py validar
+
 https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py
-Y
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_parser.py
