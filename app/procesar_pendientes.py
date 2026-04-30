@@ -636,7 +636,18 @@ def process_correo(items: list[dict]) -> None:
             "fecha": d.get("fecha_emision_norm"),
             "qr": bool(d.get("qr_data")),
         })
+        qr = d.get("qr_data")
+        if qr and qr.get("num_doc_adquirente"):
+            cliente_destino_global = get_cliente_destino_by_ruc(qr.get("num_doc_adquirente"))
+            if cliente_destino_global:
+                break
 
+    if not cliente_destino_global:
+    for d in enriched:
+        if d.get("cliente_match"):
+            cliente_destino_global = d["cliente_match"]
+            break
+            
     correo_id = items[0]["correo_id"]
     factura_principal = select_factura_principal(enriched)
     print("[DEBUG] factura_principal =", factura_principal)
@@ -712,6 +723,8 @@ def process_correo(items: list[dict]) -> None:
     total_adjuntos_factura = 0
 
     ultimo_grupo_codigo = None
+
+    cliente_destino_global = None
 
     for doc in enriched:
         fields = doc["fields"]
