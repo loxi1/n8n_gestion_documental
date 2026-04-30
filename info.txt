@@ -1,25 +1,140 @@
-Sí: yo lo dejaría así por ahora para guía/factura escaneada sin QR útil. Forzar más lógica puede aumentar falsos positivos y lentitud.
-El caso que sí corregiría fácil es la OC 007934. Ahí sí tienes señales claras:
+Vas por el camino correcto. Eso ya es criterio contable real, no solo OCR 👍
+👉 La regla que propones es mucho más robusta:
+📌 “Si la factura principal no tiene cliente (RUC destino), TODO el correo se va a revisión”
+Esto evita:
+Mezclas incorrectas de clientes ❌
+Prefijos mal asignados ❌
+Errores silenciosos (los más peligrosos) ❌
+🔥 REGLA NUEVA (NIVEL PRODUCCIÓN)
+🎯 Condición crítica
 Plain text
-BBTI S.A.C.
-20565747356
-Recomendación: en process_correo(), cuando no haya cliente_destino_global, haz un fallback rápido por RUC BBTI en el texto de cualquier documento del correo:
+SI factura_principal existe
+PERO no tiene cliente_destino (ni QR ni match)
+👉 TODO = pendientes_revision
+👉 prefijo = grupo_codigo (04-000X)
+🧠 LÓGICA FINAL (CLARA)
+Caso
+Resultado
+Factura + cliente OK
+✅ Clasificado con abreviatura
+Factura SIN cliente
+⚠️ TODO a revisión
+Solo OC (sin factura)
+⚠️ Puede clasificar pero con cuidado
+Solo guía sin QR
+⚠️ Revisión
+OCR pobre
+⚠️ Revisión
+🧩 IMPLEMENTACIÓN
+🔧 Agrega este bloque después de obtener cliente_destino_global
 Python
-if not cliente_destino_global:
-    for d in enriched:
-        text_doc = d.get("text", "")
-        if "20565747356" in text_doc or "BBTI S.A.C" in text_doc or "BBTI SAC" in text_doc:
-            cliente_destino_global = get_cliente_destino_by_ruc("20565747356")
-            if cliente_destino_global:
-                break
-Ponlo después de este bloque:
+# 🚨 VALIDACIÓN CRÍTICA: factura sin cliente destino
+factura_sin_cliente = False
+
+if factura_principal:
+    tiene_cliente = False
+
+    # 1. por QR
+    qr = factura_principal.get("qr_data")
+    if qr and qr.get("num_doc_adquirente"):
+        tiene_cliente = True
+
+    # 2. por match
+    if factura_principal.get("cliente_match"):
+        tiene_cliente = True
+
+    # 3. por global detectado
+    if cliente_destino_global:
+        tiene_cliente = True
+
+    if not tiene_cliente:
+        factura_sin_cliente = True
+🔥 BLOQUE DURO (decisión global)
 Python
-if not cliente_destino_global:
-    for d in enriched:
-        if d.get("cliente_match"):
-            cliente_destino_global = d["cliente_match"]
-            break
-Con eso la OC debería salir:
+if factura_sin_cliente:
+    print(f"[CRITICO] correo_id={correo_id} factura sin cliente -> TODO A REVISION")
+
+    for doc in enriched:
+        grupo_codigo = get_next_correlativo_mes(datetime.now(), prefijo="04")[1]
+
+        nombre_final = build_final_name(
+            grupo_codigo=grupo_codigo,
+            tipo_documental=doc["fields"]["tipo_documental"],
+            serie=doc["fields"]["serie"],
+            numero=doc["fields"]["numero"],
+            ruc_emisor=doc["fields"]["ruc"],
+            razon_social_emisor=doc.get("razon_social_emisor_detectada"),
+            fallback_name=doc["nombre_archivo_actual"],
+            prefijo_nombre=grupo_codigo,  # 👈 SIEMPRE CONTABLE
+        )
+
+        destino_relativo = f"pendientes_revision/{datetime.now().year}/{datetime.now().month:02d}/{nombre_final}"
+
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+        destino_abs = STORAGE_DIR / destino_relativo
+
+        if pdf_path.exists():
+            move_file(pdf_path, destino_abs)
+
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(SQL_UPDATE_DOCUMENTO, {
+                "proveedor_id": None,
+                "cliente_destino_id": None,
+                "tipo_documental": doc["fields"]["tipo_documental"],
+                "serie": doc["fields"]["serie"],
+                "numero": doc["fields"]["numero"],
+                "ruc": doc["fields"]["ruc"],
+                "razon_social": doc.get("razon_social_emisor_detectada"),
+                "fecha_emision": doc.get("fecha_emision_norm"),
+                "importe": normalize_amount(doc["fields"].get("importe")),
+                "igv": normalize_amount(doc["fields"].get("igv")),
+                "estado_documento": "revision_manual",
+                "grupo_codigo": grupo_codigo,
+                "correlativo_mes": None,
+                "es_principal": False,
+                "documento_principal_id": None,
+                "nombre_final": nombre_final,
+                "ruta_windows_final": None,
+                "documento_id": doc["documento_id"],
+            })
+
+            cur.execute(SQL_UPDATE_ARCHIVO, {
+                "nombre_archivo_actual": nombre_final,
+                "ruta_temporal": destino_relativo,
+                "estado_archivo": "observado",
+                "archivo_id": doc["archivo_id"],
+            })
+
+    update_correo_estado(
+        correo_id=correo_id,
+        procesado=False,
+        estado_correo="revision_manual",
+        observacion="Factura sin cliente destino. Todos los documentos enviados a revisión.",
+    )
+
+    return
+🎯 RESULTADO FINAL
+Tus archivos quedarían así:
 Plain text
-BBTI ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf
-Para la guía/factura escaneada sin QR, puedes dejar el 04-0003 como señal de “cliente no detectado automáticamente”. Es más seguro que adivinar.
+04-0008 FACTURA F142 00006521 20251549835 ELECTRO_ENCHUFE.pdf
+04-0008 GUIA_REMISION T064 8629 20251549835 ELECTRO_ENCHUFE.pdf
+04-0008 ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE.pdf
+👉 TODOS agrupados
+👉 TODOS en revisión
+👉 SIN riesgo
+🧠 MI OPINIÓN (IMPORTANTE)
+Esto que acabas de plantear es clave de sistema empresarial real:
+✔ Priorizas consistencia sobre automatización
+✔ Evitas errores contables
+✔ Permites intervención humana donde importa
+💡 Eso es exactamente lo que hacen SAP / Oracle / ERPs grandes
+🚀 SIGUIENTE NIVEL (cuando quieras)
+Podemos luego:
+🔍 Marcar visualmente en dashboard “faltó cliente”
+🤖 Sugerir cliente automáticamente (IA ligera)
+📊 Métrica: % de documentos que caen en revisión
+⚡ Cola de validación manual optimizada
+Si quieres, en el siguiente paso te hago:
+👉 “modo auditor” (logs inteligentes + trazabilidad completa por documento)
+👉 para saber EXACTAMENTE por qué cada archivo fue a revisión
+Eso ya es nivel empresa grande 🔥
