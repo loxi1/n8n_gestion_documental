@@ -1,63 +1,10 @@
-Sí, el problema está claro: tu debug_qr_render.py solo recorta inferior izquierdo:
-Python
-crop = img_bgr[int(h * 0.60):h, 0:int(w * 0.35)]
-Pero en varios PDFs el QR está en inferior derecho o incluso superior derecho. Por eso algunos no se leen.
-Usa este debug_qr_render.py para generar recortes de todas las zonas:
-Python
-from pathlib import Path
-import cv2
-import numpy as np
-from pdf2image import convert_from_path
-
-pdf_path = Path(
-    r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\files\pendientes_clasificados\2026\04\b.pdf"
-)
-
-out_dir = Path(r"C:\D\Proyectos\GestionDocumental\n8n-local\storage\debug_qr")
-out_dir.mkdir(parents=True, exist_ok=True)
-
-pages = convert_from_path(str(pdf_path), dpi=350, first_page=1, last_page=1)
-
-page = pages[0]
-img_rgb = np.array(page)
-img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
-
-h, w = img_bgr.shape[:2]
-
-cv2.imwrite(str(out_dir / "page1_full.png"), img_bgr)
-
-zones = {
-    "top_left":        (0, 0, int(w * 0.40), int(h * 0.40)),
-    "top_right":       (int(w * 0.60), 0, w, int(h * 0.40)),
-    "bottom_left":     (0, int(h * 0.55), int(w * 0.45), h),
-    "bottom_right":    (int(w * 0.55), int(h * 0.55), w, h),
-    "right_full":      (int(w * 0.55), 0, w, h),
-    "left_full":       (0, 0, int(w * 0.45), h),
-    "bottom_full":     (0, int(h * 0.55), w, h),
-    "center":          (int(w * 0.25), int(h * 0.25), int(w * 0.75), int(h * 0.75)),
-}
-
-print("Imagen completa:", out_dir / "page1_full.png")
-print("Dimensiones página:", w, "x", h)
-
-for name, (x1, y1, x2, y2) in zones.items():
-    crop = img_bgr[y1:y2, x1:x2]
-    crop_path = out_dir / f"page1_qr_crop_{name}.png"
-    cv2.imwrite(str(crop_path), crop)
-    print(f"{name}: {crop_path} | {crop.shape[1]} x {crop.shape[0]}")
-Luego prueba abrir estos:
-Plain text
-page1_qr_crop_bottom_left.png
-page1_qr_crop_bottom_right.png
-page1_qr_crop_top_right.png
-page1_qr_crop_right_full.png
-page1_qr_crop_bottom_full.png
-Para producción, tu qr_reader.py no debería depender de un solo recorte. Debe intentar:
-Plain text
-1. página completa
-2. inferior izquierdo
-3. inferior derecho
-4. superior derecho
-5. lado derecho completo
-6. parte inferior completa
-La factura BBTI FACTURA F002... probablemente necesita bottom_right o right_full; b.pdf usa otra orientación/tamaño, por eso el recorte fijo no sirve.
+Estas son las imagnes exportadas ahora eso quiere decir que  debug_qr_render.py exporto las images ahora esto hay que integrar donde para que las facturas y guias tenga mas info en el qr
+https://i.ibb.co/nqtqRMVJ/page1-full.png
+https://i.ibb.co/4wKMR1Z1/page1-qr-crop-bottom-full.png
+https://i.ibb.co/pBQNWk96/page1-qr-crop-bottom-left.png
+https://i.ibb.co/R4JR8jGM/page1-qr-crop-bottom-right.png
+https://i.ibb.co/hFLwXCyT/page1-qr-crop-center.png
+https://i.ibb.co/jvBtKBxR/page1-qr-crop-left-full.png
+https://i.ibb.co/6JspC5wQ/page1-qr-crop-right-full.png
+https://i.ibb.co/GvG9XpMj/page1-qr-crop-top-left.png
+https://i.ibb.co/RkKfYy35/page1-qr-crop-top-right.png
