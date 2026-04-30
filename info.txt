@@ -1,2 +1,3 @@
 se tiene lo ideal es que lo puedas leer y trer el codigo final:
 https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_reader.py
+app
