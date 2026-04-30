@@ -1,140 +1,406 @@
-Vas por el camino correcto. Eso ya es criterio contable real, no solo OCR 👍
-👉 La regla que propones es mucho más robusta:
-📌 “Si la factura principal no tiene cliente (RUC destino), TODO el correo se va a revisión”
-Esto evita:
-Mezclas incorrectas de clientes ❌
-Prefijos mal asignados ❌
-Errores silenciosos (los más peligrosos) ❌
-🔥 REGLA NUEVA (NIVEL PRODUCCIÓN)
-🎯 Condición crítica
-Plain text
-SI factura_principal existe
-PERO no tiene cliente_destino (ni QR ni match)
-👉 TODO = pendientes_revision
-👉 prefijo = grupo_codigo (04-000X)
-🧠 LÓGICA FINAL (CLARA)
-Caso
-Resultado
-Factura + cliente OK
-✅ Clasificado con abreviatura
-Factura SIN cliente
-⚠️ TODO a revisión
-Solo OC (sin factura)
-⚠️ Puede clasificar pero con cuidado
-Solo guía sin QR
-⚠️ Revisión
-OCR pobre
-⚠️ Revisión
-🧩 IMPLEMENTACIÓN
-🔧 Agrega este bloque después de obtener cliente_destino_global
+Aquí tienes el process_correo() final con la regla nueva: si hay factura principal pero no se identifica cliente destino, todo el grupo va a pendientes_revision con prefijo contable 04-000X.
 Python
-# 🚨 VALIDACIÓN CRÍTICA: factura sin cliente destino
-factura_sin_cliente = False
+def process_correo(items: list[dict]) -> None:
+    enriched = enrich_documents_parallel(items)
+    correo_id = items[0]["correo_id"]
 
-if factura_principal:
-    tiene_cliente = False
+    print(f"[DEBUG] correo_id={correo_id} enriquecidos:")
+    for d in enriched:
+        print({
+            "documento_id": d["documento_id"],
+            "archivo": d["nombre_archivo_actual"],
+            "tipo": d["fields"]["tipo_documental"],
+            "serie": d["fields"]["serie"],
+            "numero": d["fields"]["numero"],
+            "ruc": d["fields"]["ruc"],
+            "oc": d["fields"].get("oc"),
+            "cliente_raw": d.get("cliente_raw"),
+            "cliente_match": d.get("cliente_match"),
+            "fecha": d.get("fecha_emision_norm"),
+            "qr": bool(d.get("qr_data")),
+        })
 
-    # 1. por QR
-    qr = factura_principal.get("qr_data")
-    if qr and qr.get("num_doc_adquirente"):
-        tiene_cliente = True
+    # 1. Cliente global por QR o texto
+    cliente_destino_global = None
 
-    # 2. por match
-    if factura_principal.get("cliente_match"):
-        tiene_cliente = True
+    for d in enriched:
+        qr = d.get("qr_data")
+        if qr and qr.get("num_doc_adquirente"):
+            cliente_destino_global = get_cliente_destino_by_ruc(qr.get("num_doc_adquirente"))
+            if cliente_destino_global:
+                break
 
-    # 3. por global detectado
-    if cliente_destino_global:
-        tiene_cliente = True
+    if not cliente_destino_global:
+        for d in enriched:
+            if d.get("cliente_match"):
+                cliente_destino_global = d["cliente_match"]
+                break
 
-    if not tiene_cliente:
-        factura_sin_cliente = True
-🔥 BLOQUE DURO (decisión global)
-Python
-if factura_sin_cliente:
-    print(f"[CRITICO] correo_id={correo_id} factura sin cliente -> TODO A REVISION")
+    # 2. Documento principal
+    factura_principal = select_factura_principal(enriched)
+    print("[DEBUG] factura_principal =", factura_principal)
+
+    hay_guia_valida = any(
+        d["fields"].get("tipo_documental") == "guia_remision"
+        and d["fields"].get("serie")
+        and d["fields"].get("numero")
+        and d["fields"].get("ruc")
+        for d in enriched
+    )
+
+    hay_oc_valida = any(
+        d["fields"].get("tipo_documental") == "orden_compra"
+        and d["fields"].get("numero")
+        for d in enriched
+    )
+
+    if not factura_principal and not hay_guia_valida and not hay_oc_valida:
+        print(f"[WARN] correo_id={correo_id} sin documentos válidos")
+
+        mark_documents_as_review(
+            items=enriched,
+            estado_documento="no_identificado",
+            bucket="no_identificados",
+        )
+
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="sin_documento_valido",
+            observacion="No se encontró factura, guía ni OC válida.",
+        )
+        return
+
+    # 3. Fecha base
+    fecha_principal = factura_principal.get("fecha_emision_date") if factura_principal else None
+
+    if not fecha_principal:
+        for d in enriched:
+            if (
+                d["fields"].get("tipo_documental") in ("factura", "guia_remision")
+                and d.get("fecha_emision_date")
+            ):
+                fecha_principal = d["fecha_emision_date"]
+                break
+
+    fecha_base_global = fecha_principal or datetime.now().date()
+
+    correlativo_global, grupo_codigo_global = get_next_correlativo_mes(
+        fecha_base_global,
+        prefijo="04",
+    )
+
+    year_global = fecha_base_global.year
+    month_global = fecha_base_global.month
+
+    # 4. Validación crítica: factura sin cliente destino
+    factura_sin_cliente = False
+
+    if factura_principal:
+        tiene_cliente = False
+
+        qr = factura_principal.get("qr_data")
+        if qr and qr.get("num_doc_adquirente"):
+            if get_cliente_destino_by_ruc(qr.get("num_doc_adquirente")):
+                tiene_cliente = True
+
+        if factura_principal.get("cliente_match"):
+            tiene_cliente = True
+
+        if cliente_destino_global:
+            tiene_cliente = True
+
+        if not tiene_cliente:
+            factura_sin_cliente = True
+
+    # 5. Si hay factura pero no cliente, todo a revisión
+    if factura_sin_cliente:
+        print(f"[CRITICO] correo_id={correo_id} factura sin cliente -> TODO A REVISION")
+
+        for doc in enriched:
+            fields = doc["fields"]
+            tipo = fields.get("tipo_documental")
+
+            ruc_emisor = fields.get("ruc")
+            razon_social = doc.get("razon_social_emisor_detectada") or "SIN_RAZON_SOCIAL"
+
+            proveedor = get_or_create_proveedor(ruc_emisor, razon_social)
+            proveedor_id = proveedor["id"] if proveedor else None
+
+            if proveedor and proveedor.get("nombre"):
+                razon_social = proveedor["nombre"]
+
+            nombre_final = build_final_name(
+                grupo_codigo=grupo_codigo_global,
+                tipo_documental=tipo,
+                serie=fields.get("serie"),
+                numero=fields.get("numero"),
+                ruc_emisor=ruc_emisor,
+                razon_social_emisor=razon_social,
+                fallback_name=doc["nombre_archivo_actual"],
+                prefijo_nombre=grupo_codigo_global,
+            )
+
+            destino_relativo = (
+                f"pendientes_revision/{year_global}/{month_global:02d}/{nombre_final}"
+            )
+            destino_abs = STORAGE_DIR / destino_relativo
+            pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+
+            if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+                move_file(pdf_path, destino_abs)
+
+            ocr_output_path = doc.get("ocr_output_path")
+            if ocr_output_path:
+                try:
+                    Path(ocr_output_path).unlink(missing_ok=True)
+                except Exception as e:
+                    print(f"[WARN] no se pudo eliminar OCR temporal: {ocr_output_path} -> {e}")
+
+            with get_cursor(commit=True) as (_, cur):
+                cur.execute(
+                    SQL_UPDATE_DOCUMENTO,
+                    {
+                        "proveedor_id": proveedor_id,
+                        "cliente_destino_id": None,
+                        "tipo_documental": tipo,
+                        "serie": fields.get("serie"),
+                        "numero": fields.get("numero"),
+                        "ruc": ruc_emisor,
+                        "razon_social": razon_social,
+                        "fecha_emision": doc.get("fecha_emision_norm"),
+                        "importe": normalize_amount(fields.get("importe")),
+                        "igv": normalize_amount(fields.get("igv")),
+                        "estado_documento": "revision_manual",
+                        "grupo_codigo": grupo_codigo_global,
+                        "correlativo_mes": correlativo_global,
+                        "es_principal": False,
+                        "documento_principal_id": None,
+                        "nombre_final": nombre_final,
+                        "ruta_windows_final": None,
+                        "documento_id": doc["documento_id"],
+                    },
+                )
+
+                cur.execute(
+                    SQL_UPDATE_ARCHIVO,
+                    {
+                        "nombre_archivo_actual": nombre_final,
+                        "ruta_temporal": destino_relativo,
+                        "estado_archivo": "observado",
+                        "archivo_id": doc["archivo_id"],
+                    },
+                )
+
+            print(f"[REVISION] doc={doc['documento_id']} nombre={nombre_final}")
+
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="revision_manual",
+            observacion=(
+                "Factura sin cliente destino. "
+                "Todos los documentos fueron enviados a revisión manual."
+            ),
+        )
+        return
+
+    # 6. Flujo normal
+    cliente_match = factura_principal.get("cliente_match") if factura_principal else None
+
+    if not cliente_match and cliente_destino_global:
+        cliente_match = cliente_destino_global
+
+    cliente_destino_id = cliente_match["id"] if cliente_match else None
+
+    ruta_windows_final = None
+    if cliente_match and fecha_base_global and cliente_match.get("ruta_windows"):
+        ruta_windows_final = build_windows_target_path(
+            cliente_match["ruta_windows"],
+            fecha_base_global,
+        )
+
+    documento_principal_id = factura_principal["documento_id"] if factura_principal else None
+
+    total_docs = len(enriched)
+    total_clasificados = 0
+    total_no_identificados = 0
+    total_revision_manual = 0
+    total_adjuntos_factura = 0
+
+    ultimo_grupo_codigo = grupo_codigo_global
 
     for doc in enriched:
-        grupo_codigo = get_next_correlativo_mes(datetime.now(), prefijo="04")[1]
+        fields = doc["fields"]
+        tipo = fields["tipo_documental"]
+        qr_data = doc.get("qr_data")
+
+        es_valido, diferencias_criticas, advertencias = is_documento_valido_produccion(
+            fields,
+            qr_data,
+        )
+
+        ruc_emisor = fields.get("ruc")
+        razon_social = doc.get("razon_social_emisor_detectada") or "SIN_RAZON_SOCIAL"
+
+        proveedor = get_or_create_proveedor(ruc_emisor, razon_social)
+        proveedor_id = proveedor["id"] if proveedor else None
+
+        if proveedor and proveedor.get("nombre"):
+            razon_social = proveedor["nombre"]
+
+        es_principal = (
+            doc["documento_id"] == documento_principal_id
+            if documento_principal_id
+            else tipo in ("factura", "guia_remision", "orden_compra")
+        )
+
+        documento_principal_ref = None if es_principal else documento_principal_id
+
+        cliente_id_final = (
+            doc["cliente_match"]["id"]
+            if doc.get("cliente_match")
+            else cliente_destino_id
+        )
+
+        grupo_codigo = grupo_codigo_global
+        correlativo_mes = correlativo_global
+        year = year_global
+        month = month_global
+
+        if tipo == "otro":
+            estado_documento = "no_identificado"
+            bucket = "no_identificados"
+            estado_archivo = "observado"
+            total_no_identificados += 1
+
+        elif es_valido:
+            estado_documento = "clasificado"
+            bucket = "pendientes_clasificados"
+            estado_archivo = "renombrado"
+            total_clasificados += 1
+
+        else:
+            estado_documento = "revision_manual"
+            bucket = "pendientes_revision"
+            estado_archivo = "observado"
+            total_revision_manual += 1
+
+        # Prefijo: QR > cliente_match > cliente_global > grupo
+        prefijo_nombre = None
+
+        if qr_data and qr_data.get("num_doc_adquirente"):
+            cliente_qr = get_cliente_destino_by_ruc(qr_data.get("num_doc_adquirente"))
+            if cliente_qr:
+                prefijo_nombre = cliente_qr["abreviatura"]
+                cliente_id_final = cliente_qr["id"]
+
+        if not prefijo_nombre and doc.get("cliente_match"):
+            prefijo_nombre = doc["cliente_match"]["abreviatura"]
+            cliente_id_final = doc["cliente_match"]["id"]
+
+        if not prefijo_nombre and cliente_destino_global:
+            prefijo_nombre = cliente_destino_global["abreviatura"]
+            cliente_id_final = cliente_destino_global["id"]
+
+        if not prefijo_nombre:
+            prefijo_nombre = grupo_codigo
 
         nombre_final = build_final_name(
             grupo_codigo=grupo_codigo,
-            tipo_documental=doc["fields"]["tipo_documental"],
-            serie=doc["fields"]["serie"],
-            numero=doc["fields"]["numero"],
-            ruc_emisor=doc["fields"]["ruc"],
-            razon_social_emisor=doc.get("razon_social_emisor_detectada"),
+            tipo_documental=tipo,
+            serie=fields.get("serie"),
+            numero=fields.get("numero"),
+            ruc_emisor=ruc_emisor,
+            razon_social_emisor=razon_social,
             fallback_name=doc["nombre_archivo_actual"],
-            prefijo_nombre=grupo_codigo,  # 👈 SIEMPRE CONTABLE
+            prefijo_nombre=prefijo_nombre,
         )
 
-        destino_relativo = f"pendientes_revision/{datetime.now().year}/{datetime.now().month:02d}/{nombre_final}"
-
-        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+        destino_relativo = f"{bucket}/{year}/{month:02d}/{nombre_final}"
         destino_abs = STORAGE_DIR / destino_relativo
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
 
-        if pdf_path.exists():
+        print(f"[MOVE] {pdf_path} -> {destino_relativo}")
+
+        if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
             move_file(pdf_path, destino_abs)
 
-        with get_cursor(commit=True) as (_, cur):
-            cur.execute(SQL_UPDATE_DOCUMENTO, {
-                "proveedor_id": None,
-                "cliente_destino_id": None,
-                "tipo_documental": doc["fields"]["tipo_documental"],
-                "serie": doc["fields"]["serie"],
-                "numero": doc["fields"]["numero"],
-                "ruc": doc["fields"]["ruc"],
-                "razon_social": doc.get("razon_social_emisor_detectada"),
-                "fecha_emision": doc.get("fecha_emision_norm"),
-                "importe": normalize_amount(doc["fields"].get("importe")),
-                "igv": normalize_amount(doc["fields"].get("igv")),
-                "estado_documento": "revision_manual",
-                "grupo_codigo": grupo_codigo,
-                "correlativo_mes": None,
-                "es_principal": False,
-                "documento_principal_id": None,
-                "nombre_final": nombre_final,
-                "ruta_windows_final": None,
-                "documento_id": doc["documento_id"],
-            })
+        ocr_output_path = doc.get("ocr_output_path")
+        if ocr_output_path:
+            try:
+                Path(ocr_output_path).unlink(missing_ok=True)
+            except Exception as e:
+                print(f"[WARN] no se pudo eliminar OCR temporal: {ocr_output_path} -> {e}")
 
-            cur.execute(SQL_UPDATE_ARCHIVO, {
-                "nombre_archivo_actual": nombre_final,
-                "ruta_temporal": destino_relativo,
-                "estado_archivo": "observado",
-                "archivo_id": doc["archivo_id"],
-            })
+        with get_cursor(commit=True) as (_, cur):
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO,
+                {
+                    "proveedor_id": proveedor_id,
+                    "cliente_destino_id": cliente_id_final,
+                    "tipo_documental": tipo,
+                    "serie": fields.get("serie"),
+                    "numero": fields.get("numero"),
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social,
+                    "fecha_emision": doc.get("fecha_emision_norm"),
+                    "importe": normalize_amount(fields.get("importe")),
+                    "igv": normalize_amount(fields.get("igv")),
+                    "estado_documento": estado_documento,
+                    "grupo_codigo": grupo_codigo,
+                    "correlativo_mes": correlativo_mes,
+                    "es_principal": es_principal,
+                    "documento_principal_id": documento_principal_ref,
+                    "nombre_final": nombre_final,
+                    "ruta_windows_final": ruta_windows_final,
+                    "documento_id": doc["documento_id"],
+                },
+            )
+
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": nombre_final,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": estado_archivo,
+                    "archivo_id": doc["archivo_id"],
+                },
+            )
+
+        if diferencias_criticas:
+            print(
+                f"[WARN] doc={doc['documento_id']} diferencias críticas: "
+                + " | ".join(diferencias_criticas)
+            )
+
+        if advertencias:
+            print(
+                f"[INFO] doc={doc['documento_id']} advertencias: "
+                + " | ".join(advertencias)
+            )
+
+        print(
+            f"[OK] doc={doc['documento_id']} "
+            f"tipo={tipo} "
+            f"estado={estado_documento} "
+            f"nombre={nombre_final}"
+        )
+
+    estado_correo = "procesado"
+    if total_no_identificados > 0 or total_revision_manual > 0:
+        estado_correo = "procesado_con_observaciones"
 
     update_correo_estado(
         correo_id=correo_id,
-        procesado=False,
-        estado_correo="revision_manual",
-        observacion="Factura sin cliente destino. Todos los documentos enviados a revisión.",
+        procesado=True,
+        estado_correo=estado_correo,
+        observacion=(
+            f"Docs: {total_docs}, "
+            f"clasificados: {total_clasificados}, "
+            f"revision: {total_revision_manual}, "
+            f"no_id: {total_no_identificados}, "
+            f"adjuntos_factura: {total_adjuntos_factura}, "
+            f"grupo: {ultimo_grupo_codigo}"
+        ),
     )
-
-    return
-🎯 RESULTADO FINAL
-Tus archivos quedarían así:
-Plain text
-04-0008 FACTURA F142 00006521 20251549835 ELECTRO_ENCHUFE.pdf
-04-0008 GUIA_REMISION T064 8629 20251549835 ELECTRO_ENCHUFE.pdf
-04-0008 ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE.pdf
-👉 TODOS agrupados
-👉 TODOS en revisión
-👉 SIN riesgo
-🧠 MI OPINIÓN (IMPORTANTE)
-Esto que acabas de plantear es clave de sistema empresarial real:
-✔ Priorizas consistencia sobre automatización
-✔ Evitas errores contables
-✔ Permites intervención humana donde importa
-💡 Eso es exactamente lo que hacen SAP / Oracle / ERPs grandes
-🚀 SIGUIENTE NIVEL (cuando quieras)
-Podemos luego:
-🔍 Marcar visualmente en dashboard “faltó cliente”
-🤖 Sugerir cliente automáticamente (IA ligera)
-📊 Métrica: % de documentos que caen en revisión
-⚡ Cola de validación manual optimizada
-Si quieres, en el siguiente paso te hago:
-👉 “modo auditor” (logs inteligentes + trazabilidad completa por documento)
-👉 para saber EXACTAMENTE por qué cada archivo fue a revisión
-Eso ya es nivel empresa grande 🔥
