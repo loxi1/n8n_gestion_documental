@@ -1,3 +1,75 @@
-se tiene lo ideal es que lo puedas leer y trer el codigo final:
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_reader.py
-app
+Sí. Eso se integra en app/core/qr_reader.py, no en classifier.py.
+La idea final:
+Plain text
+classifier.py
+→ detecta tipo y campos por texto
+
+qr_reader.py
+→ lee QR real convirtiendo PDF a imagen y probando zonas
+
+procesar_pendientes.py / enrich_document()
+→ combina texto + QR
+En qr_reader.py, tu decode_qr_from_pdf() debe intentar:
+Plain text
+página completa
+bottom_left
+bottom_right
+top_right
+right_full
+bottom_full
+left_full
+center
+Ejemplo de función mejorada:
+Python
+def _iter_qr_zones(img_bgr: np.ndarray) -> list[np.ndarray]:
+    h, w = img_bgr.shape[:2]
+
+    zones = [
+        img_bgr,  # página completa
+        img_bgr[0:int(h * 0.40), 0:int(w * 0.40)],                  # top_left
+        img_bgr[0:int(h * 0.40), int(w * 0.60):w],                  # top_right
+        img_bgr[int(h * 0.55):h, 0:int(w * 0.45)],                  # bottom_left
+        img_bgr[int(h * 0.55):h, int(w * 0.55):w],                  # bottom_right
+        img_bgr[0:h, int(w * 0.55):w],                              # right_full
+        img_bgr[0:h, 0:int(w * 0.45)],                              # left_full
+        img_bgr[int(h * 0.55):h, 0:w],                              # bottom_full
+        img_bgr[int(h * 0.25):int(h * 0.75), int(w * 0.25):int(w * 0.75)],  # center
+    ]
+
+    return zones
+Y dentro de decode_qr_from_pdf():
+Python
+for page in pages:
+    img_rgb = np.array(page)
+    img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
+    for zone in _iter_qr_zones(img_bgr):
+        for variant in _prepare_variants(zone):
+            decoded = _decode_qr_from_ndarray(variant)
+            for item in decoded:
+                if item not in results:
+                    results.append(item)
+Con esto, factura y guía podrán leer QR esté:
+Plain text
+abajo izquierda
+abajo derecha
+arriba derecha
+lado derecho
+parte inferior completa
+Luego en procesar_pendientes.py, dentro de enrich_document(), debes llamar:
+Python
+qr_values = decode_qr_from_pdf(pdf_path)
+y si encuentra QR:
+Python
+qr_data = parse_qr_payload(qr_values[0])
+Así el QR real complementa:
+Plain text
+ruc_emisor
+tipo_doc
+serie
+numero
+igv
+total
+fecha
+ruc_cliente
+Conclusión: el debug ya confirmó las zonas; ahora eso pasa a qr_reader.py para producción.
