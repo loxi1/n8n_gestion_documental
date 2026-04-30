@@ -638,7 +638,7 @@ def process_correo(items: list[dict]) -> None:
             "qr": bool(d.get("qr_data")),
         })
 
-    # Cliente global para usar como prefijo en factura/guía/OC del mismo correo
+    # 1. Cliente global por QR o texto
     cliente_destino_global = None
 
     for d in enriched:
@@ -654,6 +654,7 @@ def process_correo(items: list[dict]) -> None:
                 cliente_destino_global = d["cliente_match"]
                 break
 
+    # 2. Documento principal
     factura_principal = select_factura_principal(enriched)
     print("[DEBUG] factura_principal =", factura_principal)
 
@@ -688,9 +689,9 @@ def process_correo(items: list[dict]) -> None:
         )
         return
 
+    # 3. Fecha base
     fecha_principal = factura_principal.get("fecha_emision_date") if factura_principal else None
 
-    # Si no hay fecha principal, usar fecha de cualquier guía/factura válida.
     if not fecha_principal:
         for d in enriched:
             if (
@@ -700,6 +701,129 @@ def process_correo(items: list[dict]) -> None:
                 fecha_principal = d["fecha_emision_date"]
                 break
 
+    fecha_base_global = fecha_principal or datetime.now().date()
+
+    correlativo_global, grupo_codigo_global = get_next_correlativo_mes(
+        fecha_base_global,
+        prefijo="04",
+    )
+
+    year_global = fecha_base_global.year
+    month_global = fecha_base_global.month
+
+    # 4. Validación crítica: factura sin cliente destino
+    factura_sin_cliente = False
+
+    if factura_principal:
+        tiene_cliente = False
+
+        qr = factura_principal.get("qr_data")
+        if qr and qr.get("num_doc_adquirente"):
+            if get_cliente_destino_by_ruc(qr.get("num_doc_adquirente")):
+                tiene_cliente = True
+
+        if factura_principal.get("cliente_match"):
+            tiene_cliente = True
+
+        if cliente_destino_global:
+            tiene_cliente = True
+
+        if not tiene_cliente:
+            factura_sin_cliente = True
+
+    # 5. Si hay factura pero no cliente, todo a revisión
+    if factura_sin_cliente:
+        print(f"[CRITICO] correo_id={correo_id} factura sin cliente -> TODO A REVISION")
+
+        for doc in enriched:
+            fields = doc["fields"]
+            tipo = fields.get("tipo_documental")
+
+            ruc_emisor = fields.get("ruc")
+            razon_social = doc.get("razon_social_emisor_detectada") or "SIN_RAZON_SOCIAL"
+
+            proveedor = get_or_create_proveedor(ruc_emisor, razon_social)
+            proveedor_id = proveedor["id"] if proveedor else None
+
+            if proveedor and proveedor.get("nombre"):
+                razon_social = proveedor["nombre"]
+
+            nombre_final = build_final_name(
+                grupo_codigo=grupo_codigo_global,
+                tipo_documental=tipo,
+                serie=fields.get("serie"),
+                numero=fields.get("numero"),
+                ruc_emisor=ruc_emisor,
+                razon_social_emisor=razon_social,
+                fallback_name=doc["nombre_archivo_actual"],
+                prefijo_nombre=grupo_codigo_global,
+            )
+
+            destino_relativo = (
+                f"pendientes_revision/{year_global}/{month_global:02d}/{nombre_final}"
+            )
+            destino_abs = STORAGE_DIR / destino_relativo
+            pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+
+            if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
+                move_file(pdf_path, destino_abs)
+
+            ocr_output_path = doc.get("ocr_output_path")
+            if ocr_output_path:
+                try:
+                    Path(ocr_output_path).unlink(missing_ok=True)
+                except Exception as e:
+                    print(f"[WARN] no se pudo eliminar OCR temporal: {ocr_output_path} -> {e}")
+
+            with get_cursor(commit=True) as (_, cur):
+                cur.execute(
+                    SQL_UPDATE_DOCUMENTO,
+                    {
+                        "proveedor_id": proveedor_id,
+                        "cliente_destino_id": None,
+                        "tipo_documental": tipo,
+                        "serie": fields.get("serie"),
+                        "numero": fields.get("numero"),
+                        "ruc": ruc_emisor,
+                        "razon_social": razon_social,
+                        "fecha_emision": doc.get("fecha_emision_norm"),
+                        "importe": normalize_amount(fields.get("importe")),
+                        "igv": normalize_amount(fields.get("igv")),
+                        "estado_documento": "revision_manual",
+                        "grupo_codigo": grupo_codigo_global,
+                        "correlativo_mes": correlativo_global,
+                        "es_principal": False,
+                        "documento_principal_id": None,
+                        "nombre_final": nombre_final,
+                        "ruta_windows_final": None,
+                        "documento_id": doc["documento_id"],
+                    },
+                )
+
+                cur.execute(
+                    SQL_UPDATE_ARCHIVO,
+                    {
+                        "nombre_archivo_actual": nombre_final,
+                        "ruta_temporal": destino_relativo,
+                        "estado_archivo": "observado",
+                        "archivo_id": doc["archivo_id"],
+                    },
+                )
+
+            print(f"[REVISION] doc={doc['documento_id']} nombre={nombre_final}")
+
+        update_correo_estado(
+            correo_id=correo_id,
+            procesado=False,
+            estado_correo="revision_manual",
+            observacion=(
+                "Factura sin cliente destino. "
+                "Todos los documentos fueron enviados a revisión manual."
+            ),
+        )
+        return
+
+    # 6. Flujo normal
     cliente_match = factura_principal.get("cliente_match") if factura_principal else None
 
     if not cliente_match and cliente_destino_global:
@@ -708,10 +832,10 @@ def process_correo(items: list[dict]) -> None:
     cliente_destino_id = cliente_match["id"] if cliente_match else None
 
     ruta_windows_final = None
-    if cliente_match and fecha_principal and cliente_match.get("ruta_windows"):
+    if cliente_match and fecha_base_global and cliente_match.get("ruta_windows"):
         ruta_windows_final = build_windows_target_path(
             cliente_match["ruta_windows"],
-            fecha_principal,
+            fecha_base_global,
         )
 
     documento_principal_id = factura_principal["documento_id"] if factura_principal else None
@@ -722,14 +846,12 @@ def process_correo(items: list[dict]) -> None:
     total_revision_manual = 0
     total_adjuntos_factura = 0
 
-    ultimo_grupo_codigo = None
+    ultimo_grupo_codigo = grupo_codigo_global
 
     for doc in enriched:
         fields = doc["fields"]
         tipo = fields["tipo_documental"]
         qr_data = doc.get("qr_data")
-
-        print(f"[DEBUG_Mirame] fields={fields} qr_data={qr_data}")
 
         es_valido, diferencias_criticas, advertencias = is_documento_valido_produccion(
             fields,
@@ -759,7 +881,10 @@ def process_correo(items: list[dict]) -> None:
             else cliente_destino_id
         )
 
-        fecha_base = fecha_principal or doc.get("fecha_emision_date")
+        grupo_codigo = grupo_codigo_global
+        correlativo_mes = correlativo_global
+        year = year_global
+        month = month_global
 
         if tipo == "otro":
             estado_documento = "no_identificado"
@@ -767,38 +892,19 @@ def process_correo(items: list[dict]) -> None:
             estado_archivo = "observado"
             total_no_identificados += 1
 
-            grupo_codigo = "SIN-GRUPO"
-            correlativo_mes = None
-            year = datetime.now().year
-            month = datetime.now().month
+        elif es_valido:
+            estado_documento = "clasificado"
+            bucket = "pendientes_clasificados"
+            estado_archivo = "renombrado"
+            total_clasificados += 1
 
         else:
-            if fecha_base:
-                correlativo_mes, grupo_codigo = get_next_correlativo_mes(
-                    fecha_base,
-                    prefijo="04",
-                )
-                ultimo_grupo_codigo = grupo_codigo
-                year = fecha_base.year
-                month = fecha_base.month
-            else:
-                grupo_codigo = "SIN-GRUPO"
-                correlativo_mes = None
-                year = datetime.now().year
-                month = datetime.now().month
+            estado_documento = "revision_manual"
+            bucket = "pendientes_revision"
+            estado_archivo = "observado"
+            total_revision_manual += 1
 
-            if es_valido:
-                estado_documento = "clasificado"
-                bucket = "pendientes_clasificados"
-                estado_archivo = "renombrado"
-                total_clasificados += 1
-            else:
-                estado_documento = "revision_manual"
-                bucket = "pendientes_revision"
-                estado_archivo = "observado"
-                total_revision_manual += 1
-
-        # Prefijo por cliente destino: QR > cliente_match del doc > cliente global > grupo
+        # Prefijo: QR > cliente_match > cliente_global > grupo
         prefijo_nombre = None
 
         if qr_data and qr_data.get("num_doc_adquirente"):
@@ -829,9 +935,9 @@ def process_correo(items: list[dict]) -> None:
             prefijo_nombre=prefijo_nombre,
         )
 
-        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
         destino_relativo = f"{bucket}/{year}/{month:02d}/{nombre_final}"
         destino_abs = STORAGE_DIR / destino_relativo
+        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
 
         print(f"[MOVE] {pdf_path} -> {destino_relativo}")
 
