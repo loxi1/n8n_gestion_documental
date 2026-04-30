@@ -1,50 +1,5 @@
-Sí: la demora viene de qr_reader.py.
-El nuevo lector QR convierte el PDF a imagen con dpi=350, recorta muchas zonas y además escala x2/x3. Eso mejora detección, pero consume bastante CPU/RAM.
-De los archivos que mostraste:
-ocr_service.py: no cambiaría por ahora.
-text_utils.py: está bien.
-qr_parser.py: está bien para factura y guía.
-extractor_pdf.py: está bien.
-El ajuste debe ir en qr_reader.py.
-Optimización recomendada
-Cambia el orden:
-Plain text
-1. Intentar QR desde texto extraído
-2. Si no hay QR o faltan datos, recién usar decode_qr_from_pdf()
-3. Usar dpi=250 o 300, no 350 siempre
-4. Procesar solo página 1 por defecto
-En decode_qr_from_pdf(), cambia:
-Python
-dpi: int = 350
-por:
-Python
-dpi: int = 280
-max_pages: int = 1
-Y reduce escalados en _prepare_variants():
-Python
-for scale in (2,):
-en vez de:
-Python
-for scale in (2, 3):
-Eso bajará bastante el consumo.
-Regla práctica
-En enrich_document():
-Python
-qr_data = None
-
-# 1. Primero QR desde texto
-for candidate in extract_qr_candidates(text):
-    qr_data = parse_qr_payload(candidate)
-    if qr_data:
-        break
-
-# 2. Solo si no encontró QR, usar imagen
-if not qr_data and fields["tipo_documental"] in ("factura", "guia_remision"):
-    qr_values = decode_qr_from_pdf(pdf_path, max_pages=1, dpi=280)
-    for qr_text in qr_values:
-        qr_data = parse_qr_payload(qr_text)
-        if qr_data:
-            break
-No llames decode_qr_from_pdf() para orden de compra ni otro.
-Conclusión
-No tocaría esos 4 archivos. El cuello de botella es el QR por imagen. Optimiza qr_reader.py y llama ese proceso solo como fallback para factura/guía.
+Mostrar el codigo final de:
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_reader.py
+Y
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/classifier.py
+teniendo en cuenta que se tiene esto actualmente

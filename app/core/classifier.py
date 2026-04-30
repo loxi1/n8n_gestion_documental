@@ -133,6 +133,9 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
 
     # 0. QR manda para factura/guía
     for candidate in extract_qr_candidates(text):
+        qr_data = parse_qr_payload(candidate)
+        if qr_data:
+            break
         qr = parse_qr_payload(candidate)
         if qr and qr.get("tipo_documental") in ("factura", "guia_remision"):
             return qr["tipo_documental"]
