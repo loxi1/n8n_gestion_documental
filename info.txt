@@ -1,22 +1,25 @@
-Ya casi:
-BBTI 01@PROGRAMACION MINGW64 /c/D/Proyectos/GestionDocumental/n8n-local (master)
-$ ls -l storage/files/pendientes_clasificados/2026/04/
-04-0003 FACTURA F142 00006521 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf
-04-0003 GUIA_REMISION T064 8629 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf
-04-0003 ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf
-BBTI FACTURA F002 00000254 20538549071 OMEGA_POWER_S_A_C.pdf
-BBTI FACTURA F002 00000277 20538549071 OMEGA_POWER_S_A_C.pdf
-BBTI FACTURA F231 00101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-BBTI FACTURA F231 0101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-BBTI GUIA_REMISION T002 00280 20538549071 OMEGA_POWER_S_A_C.pdf
-BBTI GUIA_REMISION TO02 00291 20538549071 OMEGA_POWER_S_A_C.pdf
-BBTI ORDEN_COMPRA OC 007886 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-BBTI ORDEN_COMPRA OC 007902 20538549071 OMEGA_POWER_S_A_C.pdf
-
-se puede hacer un porque estos documento aun no cambiaron al nombre abrevidado: 
-04-0003 GUIA_REMISION T064 8629 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf Imagen escaneada es muy generica solo puso como titulo SEÑOR(ES) - RUC - DIRECCIÓN y debajo BBTI SAC debajo 20565747356 concluyo como no se muestra cliente o RUC no puede distinguir creo que esta bien espero que de esta factura existan pocas si validamos pues creo vamos a poner mas logica a la consulta y se va demorar mucho mas aparte que el QR de la guia no funciona.
-aca creo que si tienes un inconveniente 04-0003 ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf nose porque apesar que tiene
+Sí: yo lo dejaría así por ahora para guía/factura escaneada sin QR útil. Forzar más lógica puede aumentar falsos positivos y lentitud.
+El caso que sí corregiría fácil es la OC 007934. Ahí sí tienes señales claras:
+Plain text
 BBTI S.A.C.
 20565747356
-04-0003 FACTURA F142 00006521 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf solo puso como titulo SEÑOR(ES) - RUC - DIRECCIÓN y debajo BBTI SAC debajo 20565747356 concluyo como no se muestra cliente o RUC no puede distinguir creo que esta bien espero que de esta factura existan pocas si validamos pues creo vamos a poner mas logica a la consulta y se va demorar mucho mas aparte que el QR de la guia no funciona.
-
+Recomendación: en process_correo(), cuando no haya cliente_destino_global, haz un fallback rápido por RUC BBTI en el texto de cualquier documento del correo:
+Python
+if not cliente_destino_global:
+    for d in enriched:
+        text_doc = d.get("text", "")
+        if "20565747356" in text_doc or "BBTI S.A.C" in text_doc or "BBTI SAC" in text_doc:
+            cliente_destino_global = get_cliente_destino_by_ruc("20565747356")
+            if cliente_destino_global:
+                break
+Ponlo después de este bloque:
+Python
+if not cliente_destino_global:
+    for d in enriched:
+        if d.get("cliente_match"):
+            cliente_destino_global = d["cliente_match"]
+            break
+Con eso la OC debería salir:
+Plain text
+BBTI ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf
+Para la guía/factura escaneada sin QR, puedes dejar el 04-0003 como señal de “cliente no detectado automáticamente”. Es más seguro que adivinar.
