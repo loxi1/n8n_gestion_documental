@@ -13,6 +13,27 @@ FACTURA_NUMERO_RE = r"\d{1,8}"
 GUIA_SERIE_RE = r"(?:T[A-Z0-9]{3}|GR[A-Z0-9]{2,3})"
 GUIA_NUMERO_RE = r"\d{1,8}"
 
+MESES = {
+    "ENE": "01","FEB":"02","MAR":"03","ABR":"04","MAY":"05","JUN":"06",
+    "JUL":"07","AGO":"08","SEP":"09","OCT":"10","NOV":"11","DIC":"12"
+}
+
+def normalize_fecha(fecha: str | None) -> str | None:
+    if not fecha:
+        return None
+
+    fecha = fecha.strip()
+
+    # formato SAP: 21/Abr./2026
+    m = re.match(r"(\d{1,2})/([A-Za-z]{3})\.?/(\d{4})", fecha)
+    if m:
+        d, mon, y = m.groups()
+        mon = MESES.get(mon.upper())
+        if mon:
+            return f"{y}-{mon}-{int(d):02d}"
+
+    return fecha
+
 
 def clean_number(value: str | None) -> float | None:
     if not value:

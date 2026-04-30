@@ -142,6 +142,14 @@ def normalize_date(value: str | None) -> str | None:
         mon = meses.get(mon_txt)
         if mon:
             return f"{year}-{mon}-{str(day).zfill(2)}"
+    
+    # 21/Abr./2026
+    m = re.match(r"^(\d{1,2})/([A-Z]{3})\.?/(\d{4})$", raw)
+    if m:
+        day, mon_txt, year = m.groups()
+        mon = meses.get(mon_txt)
+        if mon:
+            return f"{year}-{mon}-{str(day).zfill(2)}"
 
     # CALLAO, 21 DE ABRIL DEL 2026
     m = re.search(r"(\d{1,2}) DE ([A-ZÁÉÍÓÚ]+) DEL (\d{4})", raw)
@@ -314,7 +322,6 @@ def enrich_document(item: dict) -> dict:
     pdf_path = resolve_absolute_path(item["ruta_temporal"])
     text = ""
     ocr_output = None
-    qr_data = None
 
     try:
         text = extract_text_from_pdf(pdf_path)
@@ -326,7 +333,9 @@ def enrich_document(item: dict) -> dict:
         month = pdf_path.parent.name
         ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
 
-        if run_ocr(pdf_path, ocr_output) and ocr_output.exists():
+        ocr_ok = run_ocr(pdf_path, ocr_output)
+
+        if ocr_ok and ocr_output.exists():
             try:
                 text = extract_text_from_pdf(ocr_output)
             except Exception:
@@ -335,9 +344,8 @@ def enrich_document(item: dict) -> dict:
     fields = extract_basic_fields(text, item["nombre_archivo_original"])
     qr_data = fields.get("qr_data")
 
+    # QR solo para factura / guía y solo si falta data crítica
     if should_use_qr(fields):
-        pdf_path = resolve_absolute_path(item["ruta_temporal"])
-
         try:
             qr_candidates = decode_qr_from_pdf(pdf_path, max_pages=1, dpi=280)
 
@@ -366,8 +374,6 @@ def enrich_document(item: dict) -> dict:
         except Exception as e:
             print(f"[WARN][QR_FAIL] {pdf_path} -> {e}")
 
-    qr_data = fields.get("qr_data") or qr_data
-
     cliente_raw = extract_cliente_destino_raw(text)
     cliente_match = find_cliente_destino_by_alias(cliente_raw)
 
@@ -375,6 +381,7 @@ def enrich_document(item: dict) -> dict:
     fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
 
     razon_social_emisor = item.get("razon_social") or None
+
     if not razon_social_emisor:
         m = re.search(
             r"\bEMISOR[:\s]+(.+?)(?:\bDIRECCION\b|\bRUC\b)",
@@ -946,7 +953,7 @@ def is_documento_valido_produccion(fields, qr_data):
     tipo = fields.get("tipo_documental")
 
     if tipo == "factura":
-        return is_factura_valida_produccion(fields, qr_data)
+        return bool(fields.get("serie") and fields.get("numero") and fields.get("ruc")), [], []
 
     if tipo == "guia_remision":
         return bool(fields.get("serie") and fields.get("numero") and fields.get("ruc")), [], []
