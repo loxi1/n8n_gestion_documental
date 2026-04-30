@@ -84,3 +84,39 @@ def extract_qr_candidates(text: str | None) -> list[str]:
             candidates.append(line)
 
     return candidates
+
+
+def _decode_qr_from_ndarray(img: np.ndarray) -> list[str]:
+    results: list[str] = []
+
+    if img is None:
+        return results
+
+    if not isinstance(img, np.ndarray):
+        return results
+
+    if img.size == 0:
+        return results
+
+    try:
+        detector = cv2.QRCodeDetector()
+
+        data, _, _ = detector.detectAndDecode(img)
+        if data:
+            results.append(data.strip())
+
+        try:
+            ok, decoded_info, _, _ = detector.detectAndDecodeMulti(img)
+            if ok and decoded_info:
+                for item in decoded_info:
+                    if item:
+                        item = item.strip()
+                        if item and item not in results:
+                            results.append(item)
+        except Exception:
+            pass
+
+    except Exception:
+        return results
+
+    return results

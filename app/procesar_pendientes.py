@@ -341,7 +341,8 @@ def enrich_document(item: dict) -> dict:
 
             # 3. Si aún no hay QR, intentar desde OCR PDF
             if not qr_data:
-                qr_candidates = decode_qr_from_pdf(ocr_output)
+                pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+                qr_candidates = decode_qr_from_pdf(pdf_path)
                 for candidate in qr_candidates:
                     parsed = parse_qr_payload(candidate)
                     if parsed:
@@ -349,6 +350,42 @@ def enrich_document(item: dict) -> dict:
                         break
 
     fields = extract_basic_fields(text, item["nombre_archivo_original"])
+
+    qr_data = fields.get("qr_data")
+
+    if should_use_qr(fields):
+        pdf_path = resolve_absolute_path(item["ruta_temporal"])
+
+        try:
+            qr_candidates = decode_qr_from_pdf(
+                pdf_path,
+                max_pages=1,
+                dpi=280,
+            )
+
+            for candidate in qr_candidates:
+                parsed_qr = parse_qr_payload(candidate)
+
+                if not parsed_qr:
+                    continue
+
+                if parsed_qr.get("tipo_documental") != fields.get("tipo_documental"):
+                    continue
+
+                qr_data = parsed_qr
+                fields["qr_data"] = parsed_qr
+
+                fields["serie"] = fields.get("serie") or parsed_qr.get("serie")
+                fields["numero"] = fields.get("numero") or parsed_qr.get("numero")
+                fields["ruc"] = fields.get("ruc") or parsed_qr.get("ruc_emisor")
+                fields["fecha_emision"] = fields.get("fecha_emision") or parsed_qr.get("fecha_emision")
+                fields["importe"] = fields.get("importe") or parsed_qr.get("importe")
+                fields["igv"] = fields.get("igv") or parsed_qr.get("igv")
+
+                break
+
+        except Exception as e:
+            print(f"[WARN][QR_FAIL] {pdf_path} -> {e}")
 
     # Si QR real existe, tiene prioridad
     if qr_data:
@@ -983,6 +1020,29 @@ def get_cliente_destino_by_ruc(ruc: str | None) -> dict | None:
             {"ruc": ruc},
         )
         return cur.fetchone()
+
+def should_use_qr(fields: dict) -> bool:
+    tipo = fields.get("tipo_documental")
+
+    if tipo not in ("factura", "guia_remision"):
+        return False
+
+    if not fields.get("serie"):
+        return True
+
+    if not fields.get("numero"):
+        return True
+
+    if not fields.get("ruc"):
+        return True
+
+    if tipo == "factura" and not fields.get("fecha_emision"):
+        return True
+
+    if tipo == "factura" and not fields.get("importe"):
+        return True
+
+    return False
 
 if __name__ == "__main__":
     main()

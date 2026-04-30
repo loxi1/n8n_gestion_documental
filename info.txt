@@ -1,228 +1,25 @@
-Sí. Para el siguiente nivel, el cambio va en 3 partes:
-qr_reader.py optimizado y seguro.
-should_use_qr() en procesar_pendientes.py.
-Ajuste en enrich_document() para usar QR solo en factura/guía y solo si falta data.
-app/core/qr_reader.py final
-Python
-from __future__ import annotations
-
-from pathlib import Path
-
-import cv2
-import numpy as np
-from pdf2image import convert_from_path
-
-
-def _decode_qr_from_ndarray(img: np.ndarray) -> list[str]:
-    results: list[str] = []
-
-    if img is None or not isinstance(img, np.ndarray) or img.size == 0:
-        return results
-
-    try:
-        detector = cv2.QRCodeDetector()
-
-        data, _, _ = detector.detectAndDecode(img)
-        if data and data.strip():
-            results.append(data.strip())
-
-        try:
-            ok, decoded_info, _, _ = detector.detectAndDecodeMulti(img)
-            if ok and decoded_info:
-                for item in decoded_info:
-                    item = item.strip() if item else ""
-                    if item and item not in results:
-                        results.append(item)
-        except Exception:
-            pass
-
-    except Exception:
-        return results
-
-    return results
-
-
-def _prepare_variants(img: np.ndarray) -> list[np.ndarray]:
-    variants: list[np.ndarray] = []
-
-    if img is None or img.size == 0:
-        return variants
-
-    if len(img.shape) == 2:
-        gray = img
-    else:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    variants.append(gray)
-
-    _, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    variants.append(th)
-
-    up = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-    variants.append(up)
-
-    _, up_th = cv2.threshold(up, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    variants.append(up_th)
-
-    return variants
-
-
-def _iter_qr_zones(img_bgr: np.ndarray) -> list[np.ndarray]:
-    h, w = img_bgr.shape[:2]
-
-    coords = [
-        (0, 0, w, h),                              # full
-        (int(w * 0.50), int(h * 0.55), w, h),      # bottom_right
-        (0, int(h * 0.55), int(w * 0.50), h),      # bottom_left
-        (int(w * 0.60), 0, w, h),                  # right_full
-        (0, int(h * 0.50), w, h),                  # bottom_full
-        (int(w * 0.60), 0, w, int(h * 0.45)),      # top_right
-    ]
-
-    zones: list[np.ndarray] = []
-
-    for x1, y1, x2, y2 in coords:
-        crop = img_bgr[y1:y2, x1:x2]
-        if crop.size > 0:
-            zones.append(crop)
-
-    return zones
-
-
-def decode_qr_from_image_path(image_path: str | Path) -> list[str]:
-    path = Path(image_path)
-
-    if not path.exists():
-        return []
-
-    img_bgr = cv2.imread(str(path))
-
-    if img_bgr is None:
-        return []
-
-    results: list[str] = []
-
-    for zone in _iter_qr_zones(img_bgr):
-        for variant in _prepare_variants(zone):
-            for item in _decode_qr_from_ndarray(variant):
-                if item not in results:
-                    results.append(item)
-
-    return results
-
-
-def decode_qr_from_pdf(
-    pdf_path: str | Path,
-    poppler_path: str | None = None,
-    max_pages: int = 1,
-    dpi: int = 280,
-) -> list[str]:
-    path = Path(pdf_path)
-
-    if not path.exists() or path.suffix.lower() != ".pdf":
-        return []
-
-    results: list[str] = []
-
-    try:
-        pages = convert_from_path(
-            str(path),
-            dpi=dpi,
-            first_page=1,
-            last_page=max_pages,
-            poppler_path=poppler_path,
-        )
-    except Exception:
-        return []
-
-    for page in pages:
-        try:
-            img_rgb = np.array(page)
-            img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
-
-            for zone in _iter_qr_zones(img_bgr):
-                for variant in _prepare_variants(zone):
-                    for item in _decode_qr_from_ndarray(variant):
-                        if item not in results:
-                            results.append(item)
-
-        except Exception:
-            continue
-
-    return results
-Agrega en procesar_pendientes.py
-Python
-def should_use_qr(fields: dict) -> bool:
-    tipo = fields.get("tipo_documental")
-
-    if tipo not in ("factura", "guia_remision"):
-        return False
-
-    if not fields.get("serie"):
-        return True
-
-    if not fields.get("numero"):
-        return True
-
-    if not fields.get("ruc"):
-        return True
-
-    if tipo == "factura" and not fields.get("fecha_emision"):
-        return True
-
-    if tipo == "factura" and not fields.get("importe"):
-        return True
-
-    return False
-Dentro de enrich_document(), usa este bloque QR
-Después de:
-Python
-fields = extract_basic_fields(text, item["nombre_archivo_original"])
-coloca:
-Python
-qr_data = fields.get("qr_data")
-
-if should_use_qr(fields):
-    pdf_path = resolve_absolute_path(item["ruta_temporal"])
-
-    try:
-        qr_candidates = decode_qr_from_pdf(
-            pdf_path,
-            max_pages=1,
-            dpi=280,
-        )
-
-        for candidate in qr_candidates:
-            parsed_qr = parse_qr_payload(candidate)
-
-            if not parsed_qr:
-                continue
-
-            if parsed_qr.get("tipo_documental") != fields.get("tipo_documental"):
-                continue
-
-            qr_data = parsed_qr
-            fields["qr_data"] = parsed_qr
-
-            fields["serie"] = fields.get("serie") or parsed_qr.get("serie")
-            fields["numero"] = fields.get("numero") or parsed_qr.get("numero")
-            fields["ruc"] = fields.get("ruc") or parsed_qr.get("ruc_emisor")
-            fields["fecha_emision"] = fields.get("fecha_emision") or parsed_qr.get("fecha_emision")
-            fields["importe"] = fields.get("importe") or parsed_qr.get("importe")
-            fields["igv"] = fields.get("igv") or parsed_qr.get("igv")
-
-            break
-
-    except Exception as e:
-        print(f"[WARN][QR_FAIL] {pdf_path} -> {e}")
-Y asegúrate de tener los imports:
-Python
-from core.qr_reader import decode_qr_from_pdf
-from core.qr_parser import parse_qr_payload
-Con esto:
-Plain text
-Factura/guía completas → NO usa QR imagen.
-Factura/guía incompletas → usa QR imagen.
-OC → nunca usa QR.
-Otro → nunca usa QR.
-Eso baja bastante el CPU y evita el crash de OpenCV.
+python procesar_pendientes.py
+Correos pendientes encontrados: 4
+[INFO] procesando correo_id=4 documentos=6
+Traceback (most recent call last):
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 1048, in <module>
+    main()
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 919, in main
+    process_correo(items)
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 599, in process_correo
+    enriched = [enrich_document(x) for x in items]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 599, in <listcomp>
+    enriched = [enrich_document(x) for x in items]
+                ^^^^^^^^^^^^^^^^^^
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 344, in enrich_document
+    pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+                                     ^^^
+NameError: name 'doc' is not defined
+(venv) 
+validar los archivos:
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_reader.py
+y
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/procesar_pendientes.py
+Y
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_parser.py
