@@ -1,134 +1,191 @@
-Perfecto, esto ya es nivel real de producción 🔥 — y ahora sí te explico EXACTAMENTE qué está pasando con tus archivos que quedaron en pendientes_revision.
-🧠 DIAGNÓSTICO REAL (con tus PDFs)
-📄 1. Factura que quedó en revisión
-👉 �
-BBTI FACTURA F231 00101493 20100084172 PROMOTORES_ELECTRICOS_S_A.pdf
-🔍 Qué veo en la imagen:
-El QR está abajo ✔️
-Hay datos completos ✔️
-PERO:
-Es una representación impresa (scan-like)
-El texto NO es seleccionable → OCR obligatorio
-El QR está correcto pero probablemente no lo estás leyendo bien en este caso
-💥 Resultado: 👉 Tu sistema:
-Detecta factura ✔️
-Pero NO logra completar todos los campos → cae en revision_manual
-📄 2. Guía + OC (correo 4)
-👉 �
-posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_1.pdf
-🔍 Qué pasa:
-Guía ✔️ (bien detectada)
-Tiene OC: 007934 ✔️
-QR está en parte inferior ✔️
-💥 Problema real: 👉 Tu sistema NO está usando el QR para completar la guía
-📄 3. Orden de compra pura (clave)
-👉 �
-posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf
-🔍 Texto crítico:
-
-Orden de Compra Nº:007934
-R.U.C. : 20565747356
-💥 Problema: 👉 OCR sí detecta texto
-👉 PERO:
-RUC está separado por líneas
-OCR mete saltos raros
-Tu regex actual no lo captura
-📄 4. Factura problemática (correo 4)
-👉 �
-posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_3.pdf
-🔍 Datos:
-FACTURA ELECTRONICA ✔️
-Serie: F142 ✔️
-Número: 00006521 ✔️
-RUC: 20251549835 ✔️
-Fecha: 21/Abr./2026 ⚠️
-💥 Problema REAL: 👉 Tu parser de fecha NO soporta formato:
-
-21/Abr./2026
-🚨 RESUMEN DE FALLAS
-Problema
-Impacto
-QR no siempre se lee (crop limitado)
-faltan datos
-OCR con saltos rompe regex
-no detecta RUC
-Fecha tipo "21/Abr./2026"
-invalida factura
-OC sin RUC robusto
-queda incompleta
-QR no se intenta cuando debería
-pierde data
-🚀 SOLUCIÓN NIVEL ULTRA (LO QUE TE FALTA)
-✅ 1. SOPORTE DE FECHA SAP
-Agrega esto en extract_basic_fields:
+Sí. Debes actualizar 3 partes: qr_reader.py, classifier.py y procesar_pendientes.py.
+1) qr_reader.py final
 Python
-r"([0-9]{1,2}/[A-Z][a-z]{2}\.?/[0-9]{4})"
-Y luego normaliza:
-Python
-MESES = {
-    "ENE": "01","FEB":"02","MAR":"03","ABR":"04","MAY":"05","JUN":"06",
-    "JUL":"07","AGO":"08","SEP":"09","OCT":"10","NOV":"11","DIC":"12"
-}
+from __future__ import annotations
 
-def normalize_fecha(fecha):
-    m = re.match(r"(\d{1,2})/([A-Za-z]{3})\.?/(\d{4})", fecha)
-    if m:
-        d, mon, y = m.groups()
-        mon = MESES.get(mon[:3].upper())
-        if mon:
-            return f"{y}-{mon}-{int(d):02d}"
-    return fecha
-✅ 2. RUC ROBUSTO PARA OC
-Reemplaza _extract_oc_ruc por:
-Python
-def _extract_oc_ruc(text_u: str) -> str | None:
-    m = re.search(r"R\.?U\.?C\.?.{0,20}?([0-9]{11})", text_u, re.IGNORECASE | re.DOTALL)
-    if m:
-        return m.group(1)
+from pathlib import Path
+import cv2
+import numpy as np
+from pdf2image import convert_from_path
 
-    m = re.search(r"\b([0-9]{11})\b", text_u)
-    return m.group(1) if m else None
-✅ 3. QR MULTI-REGIÓN (CRÍTICO)
-Tu problema más fuerte está aquí.
-Debes cambiar tu qr_reader.py para probar múltiples zonas:
-Python
-def crop_candidates(img):
-    h, w = img.shape[:2]
 
-    return [
-        img[int(h*0.6):h, 0:int(w*0.5)],       # abajo izquierda
-        img[int(h*0.6):h, int(w*0.5):w],       # abajo derecha
-        img[:, int(w*0.6):w],                  # derecha completa
-        img[:, 0:int(w*0.4)],                  # izquierda completa
-        img[int(h*0.4):int(h*0.8), int(w*0.3):int(w*0.7)],  # centro
+def _decode_qr_from_ndarray(img: np.ndarray) -> list[str]:
+    results: list[str] = []
+
+    if img is None or not isinstance(img, np.ndarray) or img.size == 0:
+        return results
+
+    try:
+        detector = cv2.QRCodeDetector()
+
+        data, _, _ = detector.detectAndDecode(img)
+        if data and data.strip():
+            results.append(data.strip())
+
+        try:
+            ok, decoded_info, _, _ = detector.detectAndDecodeMulti(img)
+            if ok and decoded_info:
+                for item in decoded_info:
+                    item = item.strip() if item else ""
+                    if item and item not in results:
+                        results.append(item)
+        except Exception:
+            pass
+
+    except Exception:
+        return results
+
+    return results
+
+
+def _prepare_variants(img: np.ndarray) -> list[np.ndarray]:
+    if img is None or img.size == 0:
+        return []
+
+    gray = img if len(img.shape) == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    variants = [gray]
+
+    _, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    variants.append(th)
+
+    up = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    variants.append(up)
+
+    _, up_th = cv2.threshold(up, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    variants.append(up_th)
+
+    return variants
+
+
+def _iter_qr_zones(img_bgr: np.ndarray) -> list[np.ndarray]:
+    h, w = img_bgr.shape[:2]
+
+    coords = [
+        (0, 0, w, h),                              # full
+        (0, int(h * 0.55), int(w * 0.55), h),      # bottom_left
+        (int(w * 0.45), int(h * 0.55), w, h),      # bottom_right
+        (int(w * 0.55), 0, w, h),                  # right_full
+        (0, 0, int(w * 0.45), h),                  # left_full
+        (0, int(h * 0.50), w, h),                  # bottom_full
+        (int(w * 0.55), 0, w, int(h * 0.45)),      # top_right
     ]
-Y probar todos.
-✅ 4. QR SOLO CUANDO FALTA DATA
-Esto ya lo hiciste bien, pero asegúrate:
+
+    zones = []
+    for x1, y1, x2, y2 in coords:
+        crop = img_bgr[y1:y2, x1:x2]
+        if crop.size > 0:
+            zones.append(crop)
+
+    return zones
+
+
+def decode_qr_from_pdf(
+    pdf_path: str | Path,
+    poppler_path: str | None = None,
+    max_pages: int = 1,
+    dpi: int = 280,
+) -> list[str]:
+    path = Path(pdf_path)
+
+    if not path.exists() or path.suffix.lower() != ".pdf":
+        return []
+
+    results: list[str] = []
+
+    try:
+        pages = convert_from_path(
+            str(path),
+            dpi=dpi,
+            first_page=1,
+            last_page=max_pages,
+            poppler_path=poppler_path,
+        )
+    except Exception:
+        return []
+
+    for page in pages:
+        try:
+            img_rgb = np.array(page)
+            img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
+            for zone in _iter_qr_zones(img_bgr):
+                for variant in _prepare_variants(zone):
+                    for item in _decode_qr_from_ndarray(variant):
+                        if item not in results:
+                            results.append(item)
+        except Exception:
+            continue
+
+    return results
+2) En classifier.py, mejora fecha SAP
+Agrega este patrón en patrones_fecha:
 Python
+r"([0-9]{1,2}/[A-Z]{3}\.?/[0-9]{4})",
+Esto cubre:
+Plain text
+21/Abr./2026
+La factura Electro Enchufe usa ese formato de fecha en la página 1. �
+posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_3.pdf
+3) En procesar_pendientes.py
+Agrega:
+Python
+def should_use_qr(fields: dict) -> bool:
+    tipo = fields.get("tipo_documental")
+
+    if tipo not in ("factura", "guia_remision"):
+        return False
+
+    return (
+        not fields.get("serie")
+        or not fields.get("numero")
+        or not fields.get("ruc")
+        or not fields.get("fecha_emision")
+        or (tipo == "factura" and not fields.get("importe"))
+    )
+Dentro de enrich_document(item), después de:
+Python
+fields = extract_basic_fields(text, item["nombre_archivo_original"])
+coloca:
+Python
+qr_data = fields.get("qr_data")
+
 if should_use_qr(fields):
-✅ 5. NO BLOQUEAR FACTURA POR FECHA
-CAMBIA esto:
-Python
-if factura_principal and not fecha_principal:
-por:
-Python
-if factura_principal and not fecha_principal:
-    print("[WARN] factura sin fecha → intento QR")
-⚠️ No la mandes a revisión todavía
-🧪 RESULTADO ESPERADO
-Después de esto:
-✔ Factura F142 → clasificada
-✔ Guía T064 → clasificada
-✔ OC 007934 → clasificada
-✔ PDF escaneado → rescatado por QR
-✔ Cero documentos en revisión
-🧠 CONCLUSIÓN (CLARA)
-Tu sistema ya está 80% correcto.
-Lo que falta NO es lógica… 👉 es robustez de extracción (OCR + QR + regex tolerante)
-⚡ SIGUIENTE PASO
-Si quieres te dejo el:
-👉 qr_reader.py ENTERPRISE FINAL 👉 classifier.py FINAL CONSOLIDADO 👉 extractor_pdf.py optimizado
-todo listo para copiar y pegar (sin romper lo que ya tienes)
-Solo dime:
-👉 “dame versión final completa”
+    pdf_path = resolve_absolute_path(item["ruta_temporal"])
+
+    try:
+        qr_candidates = decode_qr_from_pdf(pdf_path, max_pages=1, dpi=280)
+
+        if not qr_candidates and ocr_output and ocr_output.exists():
+            qr_candidates = decode_qr_from_pdf(ocr_output, max_pages=1, dpi=280)
+
+        for candidate in qr_candidates:
+            parsed_qr = parse_qr_payload(candidate)
+
+            if not parsed_qr:
+                continue
+
+            if parsed_qr.get("tipo_documental") != fields.get("tipo_documental"):
+                continue
+
+            qr_data = parsed_qr
+            fields["qr_data"] = parsed_qr
+            fields["serie"] = fields.get("serie") or parsed_qr.get("serie")
+            fields["numero"] = fields.get("numero") or parsed_qr.get("numero")
+            fields["ruc"] = fields.get("ruc") or parsed_qr.get("ruc_emisor")
+            fields["fecha_emision"] = fields.get("fecha_emision") or parsed_qr.get("fecha_emision")
+            fields["importe"] = fields.get("importe") or parsed_qr.get("importe")
+            fields["igv"] = fields.get("igv") or parsed_qr.get("igv")
+            break
+
+    except Exception as e:
+        print(f"[WARN][QR_FAIL] {pdf_path} -> {e}")
+Con eso:
+Plain text
+Factura/guía completas → no usa QR.
+Factura/guía incompletas → usa QR.
+Orden de compra → nunca usa QR.
+Otros → nunca usa QR.
+Tu guía y factura Electro Enchufe quedaron en revisión porque eran imagen/OCR y necesitaban rescate por QR/fecha robusta; la OC sí trae “Orden de Compra Nº:007934”. � �
+posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_1.pdf
+posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf
