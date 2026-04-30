@@ -353,39 +353,73 @@ def enrich_document(item: dict) -> dict:
 
     qr_data = fields.get("qr_data")
 
+    def should_use_qr(fields: dict) -> bool:
+    tipo = fields.get("tipo_documental")
+
+    if tipo not in ("factura", "guia_remision"):
+        return False
+
+    return (
+        not fields.get("serie")
+        or not fields.get("numero")
+        or not fields.get("ruc")
+        or not fields.get("fecha_emision")
+        or (tipo == "factura" and not fields.get("importe"))
+    )
+
+
+def enrich_document(item: dict) -> dict:
+    pdf_path = resolve_absolute_path(item["ruta_temporal"])
+    text = ""
+    ocr_output = None
+    qr_data = None
+
+    try:
+        text = extract_text_from_pdf(pdf_path)
+    except Exception:
+        text = ""
+
+    if not text.strip():
+        year = pdf_path.parent.parent.name
+        month = pdf_path.parent.name
+        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
+
+        ocr_ok = run_ocr(pdf_path, ocr_output)
+
+        if ocr_ok and ocr_output.exists():
+            try:
+                text = extract_text_from_pdf(ocr_output)
+            except Exception:
+                text = ""
+
+    fields = extract_basic_fields(text, item["nombre_archivo_original"])
+
+    # QR solo para factura / guía y solo si falta data
     if should_use_qr(fields):
-        pdf_path = resolve_absolute_path(item["ruta_temporal"])
+        qr_candidates = decode_qr_from_pdf(pdf_path, max_pages=1, dpi=280)
 
-        try:
-            qr_candidates = decode_qr_from_pdf(
-                pdf_path,
-                max_pages=1,
-                dpi=280,
-            )
+        # fallback: si hubo OCR PDF, también intentar ahí
+        if not qr_candidates and ocr_output and ocr_output.exists():
+            qr_candidates = decode_qr_from_pdf(ocr_output, max_pages=1, dpi=280)
 
-            for candidate in qr_candidates:
-                parsed_qr = parse_qr_payload(candidate)
+        for candidate in qr_candidates:
+            parsed = parse_qr_payload(candidate)
 
-                if not parsed_qr:
-                    continue
+            if not parsed:
+                continue
 
-                if parsed_qr.get("tipo_documental") != fields.get("tipo_documental"):
-                    continue
+            if parsed.get("tipo_documental") != fields.get("tipo_documental"):
+                continue
 
-                qr_data = parsed_qr
-                fields["qr_data"] = parsed_qr
-
-                fields["serie"] = fields.get("serie") or parsed_qr.get("serie")
-                fields["numero"] = fields.get("numero") or parsed_qr.get("numero")
-                fields["ruc"] = fields.get("ruc") or parsed_qr.get("ruc_emisor")
-                fields["fecha_emision"] = fields.get("fecha_emision") or parsed_qr.get("fecha_emision")
-                fields["importe"] = fields.get("importe") or parsed_qr.get("importe")
-                fields["igv"] = fields.get("igv") or parsed_qr.get("igv")
-
-                break
-
-        except Exception as e:
-            print(f"[WARN][QR_FAIL] {pdf_path} -> {e}")
+            qr_data = parsed
+            fields["qr_data"] = parsed
+            fields["serie"] = fields.get("serie") or parsed.get("serie")
+            fields["numero"] = fields.get("numero") or parsed.get("numero")
+            fields["ruc"] = fields.get("ruc") or parsed.get("ruc_emisor")
+            fields["fecha_emision"] = fields.get("fecha_emision") or parsed.get("fecha_emision")
+            fields["importe"] = fields.get("importe") or parsed.get("importe")
+            fields["igv"] = fields.get("igv") or parsed.get("igv")
+            break
 
     # Si QR real existe, tiene prioridad
     if qr_data:
@@ -813,7 +847,7 @@ def process_correo(items: list[dict]) -> None:
             prefijo_nombre=prefijo_nombre,
         )
 
-        pdf_path = resolve_absolute_path(doc["ruta_temporal"])
+        pdf_path = resolve_absolute_path(item["ruta_temporal"])
         destino_relativo = f"{bucket}/{year}/{month:02d}/{nombre_final}"
         destino_abs = STORAGE_DIR / destino_relativo
 
