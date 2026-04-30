@@ -1,47 +1,130 @@
-validar si es asi:
-    if not ruc and doc_type == "orden_compra":
-        ruc = _extract_oc_ruc(text_u)
-
-    if not ruc:
-        for patron in [
-            r"\bRUC[:\s]*([0-9]{11})\b",
-            r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
-            r"\bREG\.?\s*UNICO\s+DE\s+CONTRIBUYENTES[:\s]*([0-9]{11})\b",
-        ]:
-            m = re.search(patron, text_u, re.IGNORECASE)
-            if m:
-                ruc = m.group(1)
-                break
-if not ruc and doc_type == "orden_compra":
-        ruc = _extract_oc_ruc(text_u)
-
-    if not ruc:
-        for patron in [
-            r"\bRUC[:\s]*([0-9]{11})\b",
-            r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
-            r"\bREG\.?\s*UNICO\s+DE\s+CONTRIBUYENTES[:\s]*([0-9]{11})\b",
-        ]:
-            m = re.search(patron, text_u, re.IGNORECASE)
-            if m:
-                ruc = m.group(1)
-                break
-3. Mejora el fallback general también
-Cambia este patrón:
-Python
-r"\bR\.?U\.?C\.?[:\s]*([0-9]{11})\b",
-por este:
-Python
-r"\bR\.?U\.?C\.?\s*:\s*[\r\n\s]*([0-9]{11})\b",
-4. Quita el debug cuando ya confirmes
-Este bloque ya no debería quedar en producción:
-Python
-if doc_type == "orden_compra":
-    print("====== DEBUG OC ======")
-    print("TEXT:", text_u[:500])
-    print("NAME:", name_u)
-    print("SERIE:", serie)
-    print("NUMERO:", numero)
-Con eso las OC deberían quedar así:
+Sí. “Nivel Ultra” = no decidir OC solo por una palabra, sino por prioridad + bloqueo + score.
+Regla clave:
 Plain text
-04-0002 ORDEN_COMPRA OC 007934 20251549835 ELECTRO_ENCHUFE...
-04-0002 ORDEN_COMPRA OC 007914 20538549071 OMEGA_POWER_S_A_C.pdf
+1) Si es FACTURA → nunca puede ser OC
+2) Si es GUÍA → nunca puede ser OC
+3) Recién después evaluar si es ORDEN_COMPRA
+La factura de Electro Enchufe tiene claramente “FACTURA ELECTRÓNICA” y también un campo “ORDEN DE COMPRA 007934”, por eso tu código la confundió. �
+04-0002 ORDEN_COMPRA OC 20565747356 20251549835 ELECTRO_ENCHUFE_SOCIEDAD_ANONI.pdf
+Reemplaza en classifier.py
+Python
+def _compact_text(value: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", normalize_text(value).upper())
+
+
+def _score_orden_compra(text_u: str, name_u: str) -> tuple[int, list[str]]:
+    score = 0
+    reasons: list[str] = []
+
+    fuentes = f"{text_u}\n{name_u}"
+    compact = _compact_text(fuentes)
+
+    # BLOQUEOS: si es factura o guía real, no puede ser OC
+    if "FACTURA ELECTRONICA" in text_u:
+        return 0, ["bloqueado_por_factura"]
+
+    if re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u):
+        return 0, ["bloqueado_por_serie_factura"]
+
+    if re.search(r"GUIA\s+(DE\s+)?REMISION\s+ELECTRONICA", text_u, re.IGNORECASE):
+        return 0, ["bloqueado_por_guia"]
+
+    # Señales fuertes de OC real
+    if re.search(r"ORDEN\s+DE\s+COM\w{0,4}.{0,120}?[0-9]{4,}", fuentes, re.IGNORECASE | re.DOTALL):
+        score += 60
+        reasons.append("orden_compra_con_numero")
+
+    if re.search(r"OC\s*BBTI.{0,80}?[0-9]{4,}", fuentes, re.IGNORECASE | re.DOTALL):
+        score += 60
+        reasons.append("ocbbti_con_numero")
+
+    if re.search(r"\bOC[:\s-]*[0-9]{4,}", fuentes, re.IGNORECASE):
+        score += 45
+        reasons.append("oc_abreviado")
+
+    if re.search(r"\b[0-9]{4,}\.PDF\b", name_u, re.IGNORECASE):
+        score += 35
+        reasons.append("nombre_solo_numero_pdf")
+
+    if "BBTISAC" in compact or "20565747356" in compact:
+        score += 20
+        reasons.append("senal_bbti")
+
+    if "PRESENTACIONDECOMPROBANTESDEPAGO" in compact:
+        score += 15
+        reasons.append("bloque_presentacion_pago")
+
+    return score, reasons
+
+
+def detect_tipo_documental(text: str, file_name: str) -> str:
+    text_u = normalize_text(text)
+    name_u = normalize_text(file_name)
+
+    # 0. QR manda para factura/guía
+    for candidate in extract_qr_candidates(text):
+        qr = parse_qr_payload(candidate)
+        if qr and qr.get("tipo_documental"):
+            return qr.get("tipo_documental")
+
+    # 1. FACTURA PRIMERO
+    if (
+        "FACTURA ELECTRONICA" in text_u
+        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b\d{{11}}-\d{{2}}-{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u)
+    ):
+        return "factura"
+
+    # 2. GUÍA SEGUNDO
+    if (
+        re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
+        or re.search(rf"\b\d{{11}}-\d{{2}}-{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", name_u)
+        or re.search(r"GUIA\s+(DE\s+)?REMISION\s+ELECTRONICA", text_u, re.IGNORECASE)
+        or re.search(rf"\b{GUIA_SERIE_RE}-{GUIA_NUMERO_RE}\b", text_u)
+    ):
+        return "guia_remision"
+
+    # 3. OC TERCERO
+    score_oc, reasons_oc = _score_orden_compra(text_u, name_u)
+    if score_oc >= 60:
+        return "orden_compra"
+
+    return "otro"
+
+
+def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None]:
+    fuentes = f"{text_u}\n{name_u}"
+
+    patrones = [
+        r"ORDEN\s+DE\s+COM\w{0,4}.{0,120}?([0-9]{4,})",
+        r"ORDEN\s+COMPRA.{0,120}?([0-9]{4,})",
+        r"OC\s*BBTI.{0,80}?([0-9]{4,})",
+        r"\bOC[:\s-]*([0-9]{4,})\b",
+        r"\b([0-9]{4,})\.PDF\b",
+    ]
+
+    for patron in patrones:
+        m = re.search(patron, fuentes, re.IGNORECASE | re.DOTALL)
+        if m:
+            num = m.group(1)
+            # evita capturar RUC como número de OC
+            if len(num) <= 8:
+                return "OC", num
+
+    return None, None
+En extract_basic_fields()
+Para OC deja esto:
+Python
+elif doc_type == "orden_compra":
+    serie, numero = _extract_oc_fields(text_u, name_u)
+Y elimina cualquier lógica que haga esto:
+Python
+numero = ruc
+o que use un RUC como número de OC.
+Con esto:
+Plain text
+Factura con campo “Orden de compra 007934” → FACTURA
+OC real “Orden de Compra Nº:007914” → ORDEN_COMPRA
+OC imagen “Orden de Compra N°:007902” → ORDEN_COMPRA si OCR lo lee
+007886.pdf → ORDEN_COMPRA
