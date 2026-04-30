@@ -37,17 +37,12 @@ def _decode_qr_from_ndarray(img: np.ndarray) -> list[str]:
 
 
 def _prepare_variants(img: np.ndarray) -> list[np.ndarray]:
-    variants: list[np.ndarray] = []
-
     if img is None or img.size == 0:
-        return variants
+        return []
 
-    if len(img.shape) == 2:
-        gray = img
-    else:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = img if len(img.shape) == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    variants.append(gray)
+    variants = [gray]
 
     _, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     variants.append(th)
@@ -66,15 +61,15 @@ def _iter_qr_zones(img_bgr: np.ndarray) -> list[np.ndarray]:
 
     coords = [
         (0, 0, w, h),                              # full
-        (int(w * 0.50), int(h * 0.55), w, h),      # bottom_right
-        (0, int(h * 0.55), int(w * 0.50), h),      # bottom_left
-        (int(w * 0.60), 0, w, h),                  # right_full
+        (0, int(h * 0.55), int(w * 0.55), h),      # bottom_left
+        (int(w * 0.45), int(h * 0.55), w, h),      # bottom_right
+        (int(w * 0.55), 0, w, h),                  # right_full
+        (0, 0, int(w * 0.45), h),                  # left_full
         (0, int(h * 0.50), w, h),                  # bottom_full
-        (int(w * 0.60), 0, w, int(h * 0.45)),      # top_right
+        (int(w * 0.55), 0, w, int(h * 0.45)),      # top_right
     ]
 
-    zones: list[np.ndarray] = []
-
+    zones = []
     for x1, y1, x2, y2 in coords:
         crop = img_bgr[y1:y2, x1:x2]
         if crop.size > 0:
@@ -139,7 +134,6 @@ def decode_qr_from_pdf(
                     for item in _decode_qr_from_ndarray(variant):
                         if item not in results:
                             results.append(item)
-
         except Exception:
             continue
 

@@ -299,6 +299,7 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
         r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
         r"F\.?\s*EMISION\s*[:\-]?\s*([0-9]{1,2}-[A-Z]{3}-[0-9]{4})",
         r"(\d{1,2}\s+DE\s+[A-ZÁÉÍÓÚ]+\s+DEL\s+\d{4})",
+        r"([0-9]{1,2}/[A-Z]{3}\.?/[0-9]{4})",
     ]
 
     for patron in patrones_fecha:

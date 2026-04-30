@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import platform
 import re
 import subprocess
@@ -19,6 +20,7 @@ from core.text_utils import normalize_text
 from core.windows_path import build_windows_target_path
 from core.qr_reader import decode_qr_from_pdf
 from core.qr_parser import parse_qr_payload
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 SQL_SELECT_PENDING = """
@@ -319,122 +321,57 @@ def enrich_document(item: dict) -> dict:
     except Exception:
         text = ""
 
-    # 1. Intentar QR real directamente del PDF
-    qr_candidates = decode_qr_from_pdf(pdf_path)
-    for candidate in qr_candidates:
-        parsed = parse_qr_payload(candidate)
-        if parsed:
-            qr_data = parsed
-            break
-
-    # 2. Si no hay texto útil, hacer OCR
     if not text.strip():
         year = pdf_path.parent.parent.name
         month = pdf_path.parent.name
         ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
-        ocr_ok = run_ocr(pdf_path, ocr_output)
-        if ocr_ok and ocr_output.exists():
+
+        if run_ocr(pdf_path, ocr_output) and ocr_output.exists():
             try:
                 text = extract_text_from_pdf(ocr_output)
             except Exception:
                 text = ""
 
-            # 3. Si aún no hay QR, intentar desde OCR PDF
-            if not qr_data:
-                pdf_path = resolve_absolute_path(item["ruta_temporal"])
-                qr_candidates = decode_qr_from_pdf(pdf_path)
-                for candidate in qr_candidates:
-                    parsed = parse_qr_payload(candidate)
-                    if parsed:
-                        qr_data = parsed
-                        break
-
     fields = extract_basic_fields(text, item["nombre_archivo_original"])
-
     qr_data = fields.get("qr_data")
 
-    def should_use_qr(fields: dict) -> bool:
-        tipo = fields.get("tipo_documental")
-
-        if tipo not in ("factura", "guia_remision"):
-            return False
-
-        return (
-            not fields.get("serie")
-            or not fields.get("numero")
-            or not fields.get("ruc")
-            or not fields.get("fecha_emision")
-            or (tipo == "factura" and not fields.get("importe"))
-        )
-
-
-def enrich_document(item: dict) -> dict:
-    pdf_path = resolve_absolute_path(item["ruta_temporal"])
-    text = ""
-    ocr_output = None
-    qr_data = None
-
-    try:
-        text = extract_text_from_pdf(pdf_path)
-    except Exception:
-        text = ""
-
-    if not text.strip():
-        year = pdf_path.parent.parent.name
-        month = pdf_path.parent.name
-        ocr_output = OCR_TMP_DIR / year / month / f"ocr_{pdf_path.name}"
-
-        ocr_ok = run_ocr(pdf_path, ocr_output)
-
-        if ocr_ok and ocr_output.exists():
-            try:
-                text = extract_text_from_pdf(ocr_output)
-            except Exception:
-                text = ""
-
-    fields = extract_basic_fields(text, item["nombre_archivo_original"])
-
-    # QR solo para factura / guía y solo si falta data
     if should_use_qr(fields):
-        qr_candidates = decode_qr_from_pdf(pdf_path, max_pages=1, dpi=280)
+        pdf_path = resolve_absolute_path(item["ruta_temporal"])
 
-        # fallback: si hubo OCR PDF, también intentar ahí
-        if not qr_candidates and ocr_output and ocr_output.exists():
-            qr_candidates = decode_qr_from_pdf(ocr_output, max_pages=1, dpi=280)
+        try:
+            qr_candidates = decode_qr_from_pdf(pdf_path, max_pages=1, dpi=280)
 
-        for candidate in qr_candidates:
-            parsed = parse_qr_payload(candidate)
+            if not qr_candidates and ocr_output and ocr_output.exists():
+                qr_candidates = decode_qr_from_pdf(ocr_output, max_pages=1, dpi=280)
 
-            if not parsed:
-                continue
+            for candidate in qr_candidates:
+                parsed_qr = parse_qr_payload(candidate)
 
-            if parsed.get("tipo_documental") != fields.get("tipo_documental"):
-                continue
+                if not parsed_qr:
+                    continue
 
-            qr_data = parsed
-            fields["qr_data"] = parsed
-            fields["serie"] = fields.get("serie") or parsed.get("serie")
-            fields["numero"] = fields.get("numero") or parsed.get("numero")
-            fields["ruc"] = fields.get("ruc") or parsed.get("ruc_emisor")
-            fields["fecha_emision"] = fields.get("fecha_emision") or parsed.get("fecha_emision")
-            fields["importe"] = fields.get("importe") or parsed.get("importe")
-            fields["igv"] = fields.get("igv") or parsed.get("igv")
-            break
+                if parsed_qr.get("tipo_documental") != fields.get("tipo_documental"):
+                    continue
 
-    # Si QR real existe, tiene prioridad
-    if qr_data:
-        fields["tipo_documental"] = qr_data.get("tipo_documental") or fields.get("tipo_documental")
-        fields["serie"] = qr_data.get("serie") or fields.get("serie")
-        fields["numero"] = qr_data.get("numero") or fields.get("numero")
-        fields["ruc"] = qr_data.get("ruc_emisor") or fields.get("ruc")
-        fields["fecha_emision"] = qr_data.get("fecha_emision") or fields.get("fecha_emision")
-        fields["importe"] = qr_data.get("importe") or fields.get("importe")
-        fields["igv"] = qr_data.get("igv") or fields.get("igv")
+                qr_data = parsed_qr
+                fields["qr_data"] = parsed_qr
+                fields["serie"] = fields.get("serie") or parsed_qr.get("serie")
+                fields["numero"] = fields.get("numero") or parsed_qr.get("numero")
+                fields["ruc"] = fields.get("ruc") or parsed_qr.get("ruc_emisor")
+                fields["fecha_emision"] = fields.get("fecha_emision") or parsed_qr.get("fecha_emision")
+                fields["importe"] = fields.get("importe") or parsed_qr.get("importe")
+                fields["igv"] = fields.get("igv") or parsed_qr.get("igv")
+                break
+
+        except Exception as e:
+            print(f"[WARN][QR_FAIL] {pdf_path} -> {e}")
+
+    qr_data = fields.get("qr_data") or qr_data
 
     cliente_raw = extract_cliente_destino_raw(text)
     cliente_match = find_cliente_destino_by_alias(cliente_raw)
 
-    fecha_norm = normalize_date(fields["fecha_emision"])
+    fecha_norm = normalize_date(fields.get("fecha_emision"))
     fecha_date = parse_iso_date(fecha_norm) if fecha_norm else None
 
     razon_social_emisor = item.get("razon_social") or None
@@ -459,6 +396,51 @@ def enrich_document(item: dict) -> dict:
         "ocr_output_path": str(ocr_output) if ocr_output and ocr_output.exists() else None,
         "qr_data": qr_data,
     }
+
+def enrich_documents_parallel(items: list[dict]) -> list[dict]:
+    max_workers = min(4, os.cpu_count() or 2, len(items))
+
+    enriched: list[dict] = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(enrich_document, item): item for item in items}
+
+        for future in as_completed(futures):
+            item = futures[future]
+
+            try:
+                enriched.append(future.result())
+            except Exception as e:
+                print(
+                    f"[ERROR][ENRICH] correo_id={item.get('correo_id')} "
+                    f"documento_id={item.get('documento_id')} "
+                    f"archivo={item.get('nombre_archivo_actual')} -> {e}"
+                )
+
+                item["fields"] = {
+                    "tipo_documental": "otro",
+                    "serie": None,
+                    "numero": None,
+                    "ruc": None,
+                    "fecha_emision": None,
+                    "importe": None,
+                    "igv": None,
+                    "oc": None,
+                    "qr_data": None,
+                }
+                item["text"] = ""
+                item["cliente_raw"] = None
+                item["cliente_match"] = None
+                item["fecha_emision_norm"] = None
+                item["fecha_emision_date"] = None
+                item["razon_social_emisor_detectada"] = None
+                item["ocr_output_path"] = None
+                item["qr_data"] = None
+
+                enriched.append(item)
+
+    enriched.sort(key=lambda x: x["documento_id"])
+    return enriched
 
 
 def mark_documents_as_review(
@@ -630,7 +612,7 @@ def is_factura_valida_produccion(
     return False, criticas, advertencias
 
 def process_correo(items: list[dict]) -> None:
-    enriched = [enrich_document(x) for x in items]
+    enriched = enrich_documents_parallel(items)
 
     print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
     for d in enriched:
@@ -967,10 +949,10 @@ def is_documento_valido_produccion(fields, qr_data):
         return is_factura_valida_produccion(fields, qr_data)
 
     if tipo == "guia_remision":
-        return fields.get("serie") and fields.get("numero") and fields.get("ruc"), [], []
+        return bool(fields.get("serie") and fields.get("numero") and fields.get("ruc")), [], []
 
     if tipo == "orden_compra":
-        return fields.get("numero") is not None, [], []
+        return bool(fields.get("numero")), [], []
 
     return False, [], []
 
@@ -996,22 +978,13 @@ def should_use_qr(fields: dict) -> bool:
     if tipo not in ("factura", "guia_remision"):
         return False
 
-    if not fields.get("serie"):
-        return True
-
-    if not fields.get("numero"):
-        return True
-
-    if not fields.get("ruc"):
-        return True
-
-    if tipo == "factura" and not fields.get("fecha_emision"):
-        return True
-
-    if tipo == "factura" and not fields.get("importe"):
-        return True
-
-    return False
+    return (
+        not fields.get("serie")
+        or not fields.get("numero")
+        or not fields.get("ruc")
+        or not fields.get("fecha_emision")
+        or (tipo == "factura" and not fields.get("importe"))
+    )
 
 if __name__ == "__main__":
     main()
