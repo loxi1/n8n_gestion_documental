@@ -1,5 +1,120 @@
-Mostrar el codigo final de:
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_reader.py
-Y
-https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/classifier.py
-teniendo en cuenta que se tiene esto actualmente
+Error:
+[INFO] procesando correo_id=4 documentos=3
+Traceback (most recent call last):
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 988, in <module>
+    main()
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 882, in main
+    process_correo(items)
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 562, in process_correo
+    enriched = [enrich_document(x) for x in items]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 562, in <listcomp>
+    enriched = [enrich_document(x) for x in items]
+                ^^^^^^^^^^^^^^^^^^
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\procesar_pendientes.py", line 344, in enrich_document
+    qr_candidates = decode_qr_from_pdf(ocr_output)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\core\qr_reader.py", line 129, in decode_qr_from_pdf
+    for item in _decode_qr_from_ndarray(variant):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\D\Proyectos\GestionDocumental\n8n-local\app\core\qr_reader.py", line 14, in _decode_qr_from_ndarray
+    data, _, _ = detector.detectAndDecode(img)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cv2.error: OpenCV(4.13.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\convhull.cpp:147: error: (-215:Assertion failed) total >= 0 && (depth == CV_32F || depth == CV_32S) in function 'cv::convexHull'
+
+(venv) 
+
+gestiondocumental=# SELECT * FROM correos_ingresados;
+ id | origen | proveedor_correo |                              message_id                              | thread_id | remitente_
+nombre |      remitente_email      | reply_to | destinatario_para | destinatario_cc | destinatario_cco | asunto  | cuerpo_texto
+ | cuerpo_html |    fecha_correo     |      fecha_recepcion      | leido | procesado | estado_correo | cantidad_adjuntos |
+                                                         observacion
+    |         creado_en         |       actualizado_en
+----+--------+------------------+----------------------------------------------------------------------+-----------+-----------
+-------+---------------------------+----------+-------------------+-----------------+------------------+---------+-------------
+-+-------------+---------------------+---------------------------+-------+-----------+---------------+-------------------+-----
+-------------------------------------------------------------------------------------------------------------------------------
+----+---------------------------+----------------------------
+  4 | correo | imap             | <CAFtAZZAcQWR4=iJ+KuO5kW9wJMBUJDmkFkeyAO67Pwfmrmh3MA@mail.gmail.com> |           |
+       | anibal.cayetano@gmail.com |          |                   |                 |                  | fact 2  |
+ |             | 2026-04-29 18:06:45 | 2026-04-30 11:59:16.86738 | f     | f         | descargado    |                 1 |
+
+    | 2026-04-30 11:59:16.86738 | 2026-04-30 11:59:19.571468
+  7 | correo | imap             | <CAFtAZZB+d+cm=CJfCvF9yyzttqCduCsA3pqn2PjtwtXwYSP9MA@mail.gmail.com> |           |
+       | anibal.cayetano@gmail.com |          |                   |                 |                  | facy 3  |
+ |             | 2026-04-29 18:08:34 | 2026-04-30 11:59:16.86738 | f     | f         | descargado    |                 1 |
+
+    | 2026-04-30 11:59:16.86738 | 2026-04-30 11:59:19.571468
+ 10 | correo | imap             | <CAFtAZZBUhGwbPfoAw7aFXtNHoaTmZmbNd8DmLBJgWVK+ZeFHXg@mail.gmail.com> |           |
+       | anibal.cayetano@gmail.com |          |                   |                 |                  | afas    |
+ |             | 2026-04-29 18:12:51 | 2026-04-30 11:59:16.86738 | f     | f         | descargado    |                 1 |
+
+    | 2026-04-30 11:59:16.86738 | 2026-04-30 11:59:19.571468
+  1 | correo | imap             | <CAFtAZZBEhLRmC=4Z+Szr54Z1fV68YsEwDA1FfYZOJrJhiBvm8w@mail.gmail.com> |           |
+       | anibal.cayetano@gmail.com |          |                   |                 |                  | correos |
+ |             | 2026-04-29 18:01:02 | 2026-04-30 11:59:16.86738 | f     | t         | procesado     |                 1 | Proc
+esado correctamente. Documentos: 3, clasificados: 3, revision_manual: 0, no_identificados: 0, adjuntos_factura: 0, grupo: 04-00
+01. | 2026-04-30 11:59:16.86738 | 2026-04-30 12:01:23.420807
+(4 rows)
+
+gestiondocumental=# SELECT * FROM documentos where correo_id=4;;
+ id | correo_id | proveedor_id | tipo_documental | tipo_doc | serie | numero | ruc | razon_social | fecha_emision | fecha_venci
+miento | moneda | importe | igv | base_imponible | saldo | clave_documental | estado_documento |          observacion
+ |         creado_en          |       actualizado_en       | cliente_destino_id | grupo_codigo | correlativo_mes | es_principal
+ | documento_principal_id | nombre_final | ruta_windows_final
+----+-----------+--------------+-----------------+----------+-------+--------+-----+--------------+---------------+------------
+-------+--------+---------+-----+----------------+-------+------------------+------------------+-------------------------------
+-+----------------------------+----------------------------+--------------------+--------------+-----------------+-------------
+-+------------------------+--------------+--------------------
+  4 |         4 |              |                 |          |       |        |     |              |               |
+       |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n
+ | 2026-04-30 11:59:22.304338 | 2026-04-30 11:59:22.304338 |                    |              |                 | f
+ |                        |              |
+  5 |         4 |              |                 |          |       |        |     |              |               |
+       |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n
+ | 2026-04-30 11:59:22.304338 | 2026-04-30 11:59:22.304338 |                    |              |                 | f
+ |                        |              |
+  6 |         4 |              |                 |          |       |        |     |              |               |
+       |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n
+ | 2026-04-30 11:59:22.304338 | 2026-04-30 11:59:22.304338 |                    |              |                 | f
+ |                        |              |
+ 16 |         4 |              |                 |          |       |        |     |              |               |
+       |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n
+ | 2026-04-30 11:59:22.873183 | 2026-04-30 11:59:22.873183 |                    |              |                 | f
+ |                        |              |
+ 17 |         4 |              |                 |          |       |        |     |              |               |
+       |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n
+ | 2026-04-30 11:59:22.873183 | 2026-04-30 11:59:22.873183 |                    |              |                 | f
+ |                        |              |
+ 18 |         4 |              |                 |          |       |        |     |              |               |
+       |        |         |     |                |       |                  | pendiente        | Documento descargado desde n8n
+ | 2026-04-30 11:59:22.873183 | 2026-04-30 11:59:22.873183 |                    |              |                 | f
+ |                        |              |
+(6 rows)
+
+
+gestiondocumental=# SELECT * FROM archivos where correo_id=4;
+ id | documento_id | correo_id |        nombre_archivo_original         |                               nombre_archivo_actual
+                              | extension |    mime_type    | tamano_bytes | hash_sha256 |
+     ruta_temporal                                           | ruta_final | es_principal | estado_archivo |         creado_en
+        |       actualizado_en
+----+--------------+-----------+----------------------------------------+------------------------------------------------------
+------------------------------+-----------+-----------------+--------------+-------------+-------------------------------------
+-------------------------------------------------------------+------------+--------------+----------------+--------------------
+--------+----------------------------
+  4 |           16 |         4 | 20251549835-09-T064-8629.pdf           | posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_
+KuO5kW9wJMBUJDmkFkeyAO6_1.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_2026
+0429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_1.pdf |            | t            | descargado     | 2026-04-30 11:59:28
+.086302 | 2026-04-30 11:59:28.086302
+  5 |           17 |         4 | OCBBTI N░ 007934 (ELECTRO ENCHUFE).pdf | posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_
+KuO5kW9wJMBUJDmkFkeyAO6_2.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_2026
+0429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_2.pdf |            | t            | descargado     | 2026-04-30 11:59:28
+.086302 | 2026-04-30 11:59:28.086302
+  6 |           18 |         4 | 20251549835-01-F142-00006521.pdf       | posible_documento_20260429181453387_CAFtAZZAcQWR4_iJ_
+KuO5kW9wJMBUJDmkFkeyAO6_3.pdf | .pdf      | application/pdf |              |             | inbox/2026/04/posible_documento_2026
+0429181453387_CAFtAZZAcQWR4_iJ_KuO5kW9wJMBUJDmkFkeyAO6_3.pdf |            | t            | descargado     | 2026-04-30 11:59:28
+.086302 | 2026-04-30 11:59:28.086302
+(3 rows)
+
+
+gestiondocumental=#

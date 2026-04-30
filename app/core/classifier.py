@@ -34,17 +34,12 @@ def _compact_text(value: str | None) -> str:
     return re.sub(r"[^A-Z0-9]", "", value.upper())
 
 
-def normalize_email_like(text: str | None) -> str:
-    if not text:
-        return ""
-
-    return re.sub(r"\s+", "", normalize_text(text).upper())
-
-
 def _is_factura_text(text_u: str, name_u: str) -> bool:
+    compact = _compact_text(text_u)
+
     return bool(
         "FACTURA ELECTRONICA" in text_u
-        or "FACTURAELECTRONICA" in _compact_text(text_u)
+        or "FACTURAELECTRONICA" in compact
         or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", text_u, re.IGNORECASE)
         or re.search(rf"\b{FACTURA_SERIE_RE}-{FACTURA_NUMERO_RE}\b", name_u, re.IGNORECASE)
         or re.search(
@@ -79,7 +74,6 @@ def _score_orden_compra(text_u: str, name_u: str) -> tuple[int, list[str]]:
     fuentes = f"{text_u}\n{name_u}"
     compact = _compact_text(fuentes)
 
-    # Señales fuertes de OC
     if re.search(
         r"ORDEN\s+DE\s+COM\w{0,4}.{0,120}?[0-9]{4,}",
         fuentes,
@@ -131,24 +125,17 @@ def detect_tipo_documental(text: str, file_name: str) -> str:
     text_u = normalize_text(text)
     name_u = normalize_text(file_name)
 
-    # 0. QR manda para factura/guía
     for candidate in extract_qr_candidates(text):
-        qr_data = parse_qr_payload(candidate)
-        if qr_data:
-            break
         qr = parse_qr_payload(candidate)
         if qr and qr.get("tipo_documental") in ("factura", "guia_remision"):
             return qr["tipo_documental"]
 
-    # 1. Factura primero para evitar falso positivo por campo "Orden de compra"
     if _is_factura_text(text_u, name_u):
         return "factura"
 
-    # 2. Guía segundo
     if _is_guia_text(text_u, name_u):
         return "guia_remision"
 
-    # 3. Orden de compra tercero
     score_oc, _ = _score_orden_compra(text_u, name_u)
     if score_oc >= 60:
         return "orden_compra"
@@ -203,8 +190,6 @@ def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None
         m = re.search(patron, fuentes, re.IGNORECASE | re.DOTALL)
         if m:
             numero = m.group(1)
-
-            # Evita capturar RUC como número de OC.
             if 4 <= len(numero) <= 8:
                 return "OC", numero
 
@@ -212,12 +197,6 @@ def _extract_oc_fields(text_u: str, name_u: str) -> tuple[str | None, str | None
 
 
 def _extract_oc_ruc(text_u: str) -> str | None:
-    """
-    Para OC de BBTI:
-    - Primero suele venir RUC de BBTI: 20565747356
-    - Luego viene RUC del proveedor.
-    Se intenta devolver el RUC proveedor, no el de BBTI.
-    """
     rucs = re.findall(r"\b(20\d{9})\b", text_u)
 
     for ruc in rucs:
@@ -240,7 +219,6 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     oc = None
     qr_data = None
 
-    # 1. QR prioridad para factura/guía
     for candidate in extract_qr_candidates(text):
         qr_data = parse_qr_payload(candidate)
         if qr_data:
@@ -259,7 +237,6 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
             "qr_data": qr_data,
         }
 
-    # 2. Serie / número principal
     if doc_type == "factura":
         serie, numero = _extract_factura_fields(text_u, name_u)
 
@@ -269,7 +246,6 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
     elif doc_type == "orden_compra":
         serie, numero = _extract_oc_fields(text_u, name_u)
 
-    # 3. RUC emisor/proveedor
     if doc_type == "factura":
         patrones_ruc_factura = [
             r"FACTURA ELECTRONICA.{0,400}?R\.?U\.?C\.?[:\s]*([0-9]{11})",
@@ -315,7 +291,6 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
                 ruc = m.group(1)
                 break
 
-    # 4. Fecha robusta
     patrones_fecha = [
         r"FECHA\s+DE\s+EMISION\s*[:\-]?\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
         r"FECHA\s+DE\s+EMISION\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})",
@@ -332,7 +307,6 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
             fecha_emision = m.group(1)
             break
 
-    # 5. OC referencial o número principal de OC
     _, oc_detectada = _extract_oc_fields(text_u, name_u)
     if oc_detectada:
         oc = oc_detectada
@@ -341,7 +315,6 @@ def extract_basic_fields(text: str, file_name: str) -> dict[str, Any]:
         serie = "OC"
         numero = oc
 
-    # 6. Importe
     for patron in [
         r"\bTOTAL\s*\(USD\s*\$?\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
         r"\bTOTAL\s*\(S/\)\s*[:.]?\s*([0-9][0-9,.\s]*)\b",
