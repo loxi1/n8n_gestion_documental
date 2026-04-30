@@ -620,8 +620,9 @@ def is_factura_valida_produccion(
 
 def process_correo(items: list[dict]) -> None:
     enriched = enrich_documents_parallel(items)
+    correo_id = items[0]["correo_id"]
 
-    print(f"[DEBUG] correo_id={items[0]['correo_id']} enriquecidos:")
+    print(f"[DEBUG] correo_id={correo_id} enriquecidos:")
     for d in enriched:
         print({
             "documento_id": d["documento_id"],
@@ -636,6 +637,11 @@ def process_correo(items: list[dict]) -> None:
             "fecha": d.get("fecha_emision_norm"),
             "qr": bool(d.get("qr_data")),
         })
+
+    # Cliente global para usar como prefijo en factura/guía/OC del mismo correo
+    cliente_destino_global = None
+
+    for d in enriched:
         qr = d.get("qr_data")
         if qr and qr.get("num_doc_adquirente"):
             cliente_destino_global = get_cliente_destino_by_ruc(qr.get("num_doc_adquirente"))
@@ -643,18 +649,16 @@ def process_correo(items: list[dict]) -> None:
                 break
 
     if not cliente_destino_global:
-    for d in enriched:
-        if d.get("cliente_match"):
-            cliente_destino_global = d["cliente_match"]
-            break
-            
-    correo_id = items[0]["correo_id"]
+        for d in enriched:
+            if d.get("cliente_match"):
+                cliente_destino_global = d["cliente_match"]
+                break
+
     factura_principal = select_factura_principal(enriched)
     print("[DEBUG] factura_principal =", factura_principal)
 
     hay_guia_valida = any(
         d["fields"].get("tipo_documental") == "guia_remision"
-        and d.get("fecha_emision_date")
         and d["fields"].get("serie")
         and d["fields"].get("numero")
         and d["fields"].get("ruc")
@@ -667,7 +671,6 @@ def process_correo(items: list[dict]) -> None:
         for d in enriched
     )
 
-    # 🚨 regla base
     if not factura_principal and not hay_guia_valida and not hay_oc_valida:
         print(f"[WARN] correo_id={correo_id} sin documentos válidos")
 
@@ -687,28 +690,25 @@ def process_correo(items: list[dict]) -> None:
 
     fecha_principal = factura_principal.get("fecha_emision_date") if factura_principal else None
 
-    if factura_principal and not fecha_principal:
-        print(f"[WARN] correo_id={correo_id} factura sin fecha")
-
-        mark_documents_as_review(
-            items=enriched,
-            estado_documento="revision_manual",
-            bucket="pendientes_revision",
-        )
-
-        update_correo_estado(
-            correo_id=correo_id,
-            procesado=False,
-            estado_correo="factura_sin_fecha",
-            observacion="La factura principal no tiene fecha.",
-        )
-        return
+    # Si no hay fecha principal, usar fecha de cualquier guía/factura válida.
+    if not fecha_principal:
+        for d in enriched:
+            if (
+                d["fields"].get("tipo_documental") in ("factura", "guia_remision")
+                and d.get("fecha_emision_date")
+            ):
+                fecha_principal = d["fecha_emision_date"]
+                break
 
     cliente_match = factura_principal.get("cliente_match") if factura_principal else None
+
+    if not cliente_match and cliente_destino_global:
+        cliente_match = cliente_destino_global
+
     cliente_destino_id = cliente_match["id"] if cliente_match else None
 
     ruta_windows_final = None
-    if cliente_match and fecha_principal:
+    if cliente_match and fecha_principal and cliente_match.get("ruta_windows"):
         ruta_windows_final = build_windows_target_path(
             cliente_match["ruta_windows"],
             fecha_principal,
@@ -724,8 +724,6 @@ def process_correo(items: list[dict]) -> None:
 
     ultimo_grupo_codigo = None
 
-    cliente_destino_global = None
-
     for doc in enriched:
         fields = doc["fields"]
         tipo = fields["tipo_documental"]
@@ -733,10 +731,13 @@ def process_correo(items: list[dict]) -> None:
 
         print(f"[DEBUG_Mirame] fields={fields} qr_data={qr_data}")
 
-        es_valido, _, _ = is_documento_valido_produccion(fields, qr_data)
+        es_valido, diferencias_criticas, advertencias = is_documento_valido_produccion(
+            fields,
+            qr_data,
+        )
 
-        ruc_emisor = fields["ruc"]
-        razon_social = doc["razon_social_emisor_detectada"] or "SIN_RAZON_SOCIAL"
+        ruc_emisor = fields.get("ruc")
+        razon_social = doc.get("razon_social_emisor_detectada") or "SIN_RAZON_SOCIAL"
 
         proveedor = get_or_create_proveedor(ruc_emisor, razon_social)
         proveedor_id = proveedor["id"] if proveedor else None
@@ -744,7 +745,13 @@ def process_correo(items: list[dict]) -> None:
         if proveedor and proveedor.get("nombre"):
             razon_social = proveedor["nombre"]
 
-        es_principal = doc["documento_id"] == documento_principal_id if documento_principal_id else False
+        es_principal = (
+            doc["documento_id"] == documento_principal_id
+            if documento_principal_id
+            else tipo in ("factura", "guia_remision", "orden_compra")
+        )
+
+        documento_principal_ref = None if es_principal else documento_principal_id
 
         cliente_id_final = (
             doc["cliente_match"]["id"]
@@ -752,7 +759,8 @@ def process_correo(items: list[dict]) -> None:
             else cliente_destino_id
         )
 
-        # 👉 clasificación
+        fecha_base = fecha_principal or doc.get("fecha_emision_date")
+
         if tipo == "otro":
             estado_documento = "no_identificado"
             bucket = "no_identificados"
@@ -765,13 +773,14 @@ def process_correo(items: list[dict]) -> None:
             month = datetime.now().month
 
         else:
-            fecha_base = fecha_principal or doc.get("fecha_emision_date")
-
             if fecha_base:
-                correlativo_mes, grupo_codigo = get_next_correlativo_mes(fecha_base, prefijo="04")
+                correlativo_mes, grupo_codigo = get_next_correlativo_mes(
+                    fecha_base,
+                    prefijo="04",
+                )
+                ultimo_grupo_codigo = grupo_codigo
                 year = fecha_base.year
                 month = fecha_base.month
-                ultimo_grupo_codigo = grupo_codigo
             else:
                 grupo_codigo = "SIN-GRUPO"
                 correlativo_mes = None
@@ -789,29 +798,31 @@ def process_correo(items: list[dict]) -> None:
                 estado_archivo = "observado"
                 total_revision_manual += 1
 
-        # 👉 prefijo nombre
+        # Prefijo por cliente destino: QR > cliente_match del doc > cliente global > grupo
         prefijo_nombre = None
 
-        if qr_data:
-            ruc_cliente_qr = qr_data.get("num_doc_adquirente")
-            cliente_qr = get_cliente_destino_by_ruc(ruc_cliente_qr)
-
+        if qr_data and qr_data.get("num_doc_adquirente"):
+            cliente_qr = get_cliente_destino_by_ruc(qr_data.get("num_doc_adquirente"))
             if cliente_qr:
                 prefijo_nombre = cliente_qr["abreviatura"]
                 cliente_id_final = cliente_qr["id"]
 
         if not prefijo_nombre and doc.get("cliente_match"):
             prefijo_nombre = doc["cliente_match"]["abreviatura"]
+            cliente_id_final = doc["cliente_match"]["id"]
+
+        if not prefijo_nombre and cliente_destino_global:
+            prefijo_nombre = cliente_destino_global["abreviatura"]
+            cliente_id_final = cliente_destino_global["id"]
 
         if not prefijo_nombre:
             prefijo_nombre = grupo_codigo
 
-        # 👉 nombre final
         nombre_final = build_final_name(
             grupo_codigo=grupo_codigo,
             tipo_documental=tipo,
-            serie=fields["serie"],
-            numero=fields["numero"],
+            serie=fields.get("serie"),
+            numero=fields.get("numero"),
             ruc_emisor=ruc_emisor,
             razon_social_emisor=razon_social,
             fallback_name=doc["nombre_archivo_actual"],
@@ -827,39 +838,67 @@ def process_correo(items: list[dict]) -> None:
         if pdf_path.exists() and pdf_path.resolve() != destino_abs.resolve():
             move_file(pdf_path, destino_abs)
 
-        # 👉 guardar BD
+        ocr_output_path = doc.get("ocr_output_path")
+        if ocr_output_path:
+            try:
+                Path(ocr_output_path).unlink(missing_ok=True)
+            except Exception as e:
+                print(f"[WARN] no se pudo eliminar OCR temporal: {ocr_output_path} -> {e}")
+
         with get_cursor(commit=True) as (_, cur):
-            cur.execute(SQL_UPDATE_DOCUMENTO, {
-                "proveedor_id": proveedor_id,
-                "cliente_destino_id": cliente_id_final,
-                "tipo_documental": tipo,
-                "serie": fields["serie"],
-                "numero": fields["numero"],
-                "ruc": ruc_emisor,
-                "razon_social": razon_social,
-                "fecha_emision": doc["fecha_emision_norm"],
-                "importe": normalize_amount(fields["importe"]),
-                "igv": normalize_amount(fields.get("igv")),
-                "estado_documento": estado_documento,
-                "grupo_codigo": grupo_codigo,
-                "correlativo_mes": correlativo_mes,
-                "es_principal": es_principal,
-                "documento_principal_id": documento_principal_id,
-                "nombre_final": nombre_final,
-                "ruta_windows_final": ruta_windows_final,
-                "documento_id": doc["documento_id"],
-            })
+            cur.execute(
+                SQL_UPDATE_DOCUMENTO,
+                {
+                    "proveedor_id": proveedor_id,
+                    "cliente_destino_id": cliente_id_final,
+                    "tipo_documental": tipo,
+                    "serie": fields.get("serie"),
+                    "numero": fields.get("numero"),
+                    "ruc": ruc_emisor,
+                    "razon_social": razon_social,
+                    "fecha_emision": doc.get("fecha_emision_norm"),
+                    "importe": normalize_amount(fields.get("importe")),
+                    "igv": normalize_amount(fields.get("igv")),
+                    "estado_documento": estado_documento,
+                    "grupo_codigo": grupo_codigo,
+                    "correlativo_mes": correlativo_mes,
+                    "es_principal": es_principal,
+                    "documento_principal_id": documento_principal_ref,
+                    "nombre_final": nombre_final,
+                    "ruta_windows_final": ruta_windows_final,
+                    "documento_id": doc["documento_id"],
+                },
+            )
 
-            cur.execute(SQL_UPDATE_ARCHIVO, {
-                "nombre_archivo_actual": nombre_final,
-                "ruta_temporal": destino_relativo,
-                "estado_archivo": estado_archivo,
-                "archivo_id": doc["archivo_id"],
-            })
+            cur.execute(
+                SQL_UPDATE_ARCHIVO,
+                {
+                    "nombre_archivo_actual": nombre_final,
+                    "ruta_temporal": destino_relativo,
+                    "estado_archivo": estado_archivo,
+                    "archivo_id": doc["archivo_id"],
+                },
+            )
 
-        print(f"[OK] doc={doc['documento_id']} tipo={tipo} nombre={nombre_final}")
+        if diferencias_criticas:
+            print(
+                f"[WARN] doc={doc['documento_id']} diferencias críticas: "
+                + " | ".join(diferencias_criticas)
+            )
 
-    # 👉 resumen final
+        if advertencias:
+            print(
+                f"[INFO] doc={doc['documento_id']} advertencias: "
+                + " | ".join(advertencias)
+            )
+
+        print(
+            f"[OK] doc={doc['documento_id']} "
+            f"tipo={tipo} "
+            f"estado={estado_documento} "
+            f"nombre={nombre_final}"
+        )
+
     estado_correo = "procesado"
     if total_no_identificados > 0 or total_revision_manual > 0:
         estado_correo = "procesado_con_observaciones"
@@ -869,8 +908,11 @@ def process_correo(items: list[dict]) -> None:
         procesado=True,
         estado_correo=estado_correo,
         observacion=(
-            f"Docs: {total_docs}, clasificados: {total_clasificados}, "
-            f"revision: {total_revision_manual}, no_id: {total_no_identificados}, "
+            f"Docs: {total_docs}, "
+            f"clasificados: {total_clasificados}, "
+            f"revision: {total_revision_manual}, "
+            f"no_id: {total_no_identificados}, "
+            f"adjuntos_factura: {total_adjuntos_factura}, "
             f"grupo: {ultimo_grupo_codigo}"
         ),
     )
