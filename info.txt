@@ -1,3 +1,6 @@
+se tiene lo ideal es que lo puedas leer y trer el codigo final:
+https://raw.githubusercontent.com/loxi1/n8n_gestion_documental/refs/heads/master/app/core/qr_reader.py
+
 Sí. Eso se integra en app/core/qr_reader.py, no en classifier.py.
 La idea final:
 Plain text
