@@ -1,1 +1,62 @@
-Bueno ya tenenos como una base para poder clasificar los documentos dependiendo del tipo y poder clasificarlos me podrias resumir Matriz de Clasificación de Documentos en formato html por favor
+<table border="1" cellpadding="8" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Tipo de documento</th>
+      <th>Condición de detección</th>
+      <th>Datos mínimos requeridos</th>
+      <th>Validación QR</th>
+      <th>Destino</th>
+      <th>Nomenclatura</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Factura</td>
+      <td>QR tipo 01, “Factura Electrónica” o serie Fxxx</td>
+      <td>Serie, número, RUC emisor y cliente destino</td>
+      <td>Sí, solo si faltan datos</td>
+      <td>pendientes_clasificados</td>
+      <td>ABREV FACTURA SERIE NUMERO RUC RAZON_SOCIAL.pdf</td>
+    </tr>
+    <tr>
+      <td>Guía de remisión</td>
+      <td>QR tipo 09, “Guía de Remisión Electrónica” o serie Txxx/GRxxx</td>
+      <td>Serie, número, RUC emisor y cliente destino</td>
+      <td>Sí, solo si faltan datos y existe QR</td>
+      <td>pendientes_clasificados</td>
+      <td>ABREV GUIA_REMISION SERIE NUMERO RUC RAZON_SOCIAL.pdf</td>
+    </tr>
+    <tr>
+      <td>Orden de compra</td>
+      <td>“Orden de Compra”, “OCBBTI” o número OC detectado</td>
+      <td>Número de OC</td>
+      <td>No aplica</td>
+      <td>pendientes_clasificados si está asociada a factura válida</td>
+      <td>ABREV ORDEN_COMPRA OC NUMERO RUC RAZON_SOCIAL.pdf</td>
+    </tr>
+    <tr>
+      <td>Factura sin cliente destino</td>
+      <td>Factura detectada, pero no se identifica cliente por QR ni texto</td>
+      <td>Serie, número y RUC emisor pueden existir</td>
+      <td>Se intenta QR si faltan datos</td>
+      <td>pendientes_revision</td>
+      <td>04-000X FACTURA SERIE NUMERO RUC RAZON_SOCIAL.pdf</td>
+    </tr>
+    <tr>
+      <td>Guía/OC asociada a factura sin cliente</td>
+      <td>Documento pertenece al mismo correo de una factura sin cliente</td>
+      <td>Datos disponibles del documento</td>
+      <td>Guía: opcional / OC: no aplica</td>
+      <td>pendientes_revision</td>
+      <td>04-000X TIPO SERIE NUMERO RUC RAZON_SOCIAL.pdf</td>
+    </tr>
+    <tr>
+      <td>Otro</td>
+      <td>No cumple reglas de factura, guía u orden de compra</td>
+      <td>No aplica</td>
+      <td>No aplica</td>
+      <td>no_identificados</td>
+      <td>SIN-GRUPO OTRO RUC/RAZON si existe.pdf</td>
+    </tr>
+  </tbody>
+</table>
