@@ -1,20 +1,27 @@
-Teniendo tu todo el conocimiento puedes crear las base del proyecto en una nueva base datos con los mismos accesos de usuario actuales menos el nombre de la base datos, tienes que crear .env, archivos de procesar y todo necesario para poder leer la informacion de las imagenes:
-tienes esta nueva tabla de abreviaturas;
-        ^
-gestiondocumental=# select * from clientes_destino;
- id |          nombre_oficial          | abreviatura |     ruc     |                        ruta_windows                        |
- descripcion   | estado |         creado_en          |       actualizado_en
-----+----------------------------------+-------------+-------------+------------------------------------------------------------+--
----------------+--------+----------------------------+----------------------------
-  1 | BB TECNOLOGIA INDUSTRIAL S.A.C.  | BBTEC       | 20299922821 | \\\\servidor\\documentos\\BB TECNOLOGIA INDUSTRIAL SAC     | E
-mpresa destino | t      | 2026-04-17 16:02:01.593191 | 2026-04-17 16:02:01.593191
-  2 | BBTI S.A.C.                      | BBTI        | 20565747356 | \\\\servidor\\documentos\\BBTI SAC                         | E
-mpresa destino | t      | 2026-04-17 16:02:01.593191 | 2026-04-17 16:02:01.593191
-  3 | CONSORCIO CIMA ENERGY            | CIMA        | 20613521004 | \\\\servidor\\documentos\\CONSORCIO CIMA ENERGY            | C
-onsorcio       | t      | 2026-04-17 16:02:01.593191 | 2026-04-17 16:02:01.593191
-  4 | CONSORCIO ILUMINACION TARMA 2025 | TARMA       | 20614307197 | \\\\servidor\\documentos\\CONSORCIO ILUMINACION TARMA 2025 | C
-onsorcio       | t      | 2026-04-17 16:02:01.593191 | 2026-04-17 16:02:01.593191
-  5 | CONSORCIO HUANCAVELICA           | HUANCA      | 20612122416 | \\\\servidor\\documentos\\CONSORCIO HUANCAVELICA           | C
-onsorcio       | t      | 2026-04-17 16:02:01.593191 | 2026-04-17 16:02:01.593191
-(5 rows)
-cuando crees todo los archivos y sus codigo finales voy a subir al github y recien creare un nuvo proyecto con todo el prompt para tener un nuevo comienzo.
+Sí tendría participación, pero después.
+Para este MVP yo lo dejaría así:
+Plain text
+Fase 1 — Python local
+Carpeta origen → process_batch.py → clasifica/renombra/registra en PostgreSQL
+Luego n8n entra como orquestador, no como procesador principal:
+Plain text
+Fase 2 — n8n
+Cron / formulario / webhook
+→ llama script Python o API Python
+→ notifica resultado
+→ mueve alertas a revisión
+→ envía correo/Teams
+Mi recomendación:
+Plain text
+Python = cerebro del procesamiento documental
+PostgreSQL = trazabilidad
+n8n = automatización y coordinación
+Portal web = validación humana
+No pondría la lógica fuerte en n8n porque:
+el OCR/QR y reglas complejas son más mantenibles en Python;
+n8n se vuelve difícil de depurar si metes mucha lógica;
+Python lo puedes versionar, probar y subir a GitHub mejor.
+Para presentarlo al gerente:
+Plain text
+Primero entregamos un MVP ejecutable en Python.
+Luego, con servidor aprobado, n8n automatiza la ejecución programada y las notificaciones.
