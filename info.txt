@@ -1,42 +1,190 @@
-gracias por la ayuda de identificar el documento y tener la logica de negocio, ahora voy a cambiar hacer otro proyecto se que aca quedo inconcluso por mover a una carpeta final alquien que valide los documentos pero esto no es el caso real, analizando comprendi que el objetivo es el personal contabilidad pueda tener estos documentos es decir: factura, guia, oc, nota ingreso y pago. Para ello toda las areas involucradas: almacen, logistica y finanzas alimentaran de informacion es decir los documentos sacaneados almacen escaneara documentos como la guia de venta(sellada y firmada), emitira o exportara de su sistema la nota de ingreso, logistica scaneara la orden de compra sellada y visada similar a la factura, finanzas emitira el pago de la factura siempre en cuando valida que la factura tenga el sello y fimra registrada o escaneda previamente una ver realizada el pago scaneara el pago registrado pero a estos procesos pense en acompañar un proceso automatico es decir almacen escanea los documento similar logistica y finazas luego tener un portal web que procese esas imagenes y tenga una nomenclatura standar por ejemplo: cuando procesa logistica se tiene dos domentos:
-OC la nomenclatura seria abreviatura del Cliente que lo emite, espacio concatenar abreviatura espacio concatenar numero de orden de compra.
-Factura nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada concatenar tipo documento escpacio Serie espacio Numero espacio RUC espacio Razon social de la empresa emisora
-almacenero
-exporta la Nota de ingreso pero renombra y la nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada espcio concatenar tipo documento(NI) contenar numero de nota de ingreso
-guia venta Escanear sellada y firmada renombra y la nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada espacio concantnar tipo documento(GR) concatenar serie espacio numero
-guia de compra (Se registra en el portal de la sunat) se exporta el pdf se renombra y la nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada espacio concantnar tipo Documento (GR) concantenar serie espacio numero
-finanzas
-antes de genera el pago verifica la factura escaneada sellada y firmada luego genera el pago exporta el documento y renombra y la nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada espacio tipo documento (PAGO) espacio Banco espacio Numero operacion
-ahora como se va hacer de manera automatica sera con una pagina web que procese internamente usaremos api de python que nos ayuden a renombrar y siempre habra una validacion humana para la confirmacion.
-esta es la logica que deseo implementar cada area es reponsable de llegar los documentos en las carpetas correspondientes. Esto es como va trabajar a futuro y asi se establece la logica de negocio Pero ahora quiero adaptar su proceso a esto me explico actualmente contabilidad escanea los archivos fisicos en papel en donde contienen varios documentos entre ello OC, FACTURA, GUIA, NOTA INGRESO etc, cabe mencionar que todos son documentos scaneados lo que pretendo hacer es separar los documentos y renombrarlos como ya te mencione ahora que me recomiendas aparte de renombrar y separar en archivos me sugieres tener una base de datos en postgres para registrar lo procesado en la actualidadd finanzas tiene el documento escaneado en una carpeta luego finanzas tambien tiene sus estructura de carpetas, cuando finanzas procesa le pone el asiento contable es mas quien genera el asiento contable es finanzas es un numero correlativo por mes, para ello pense si o si usar el servidor que te mensione anteriormente y obviamente es necesario para hacer mi estructura de microservicios y tambien me ayude a procesar los documentos es decir hacer la reingenieria inversa, bueno te explique un caso de que finanzas ya lo escaneo y lo renombro en una estructua de carpetas por cliente, mes y todo los documento tirados en este mismo caso existen montos minimos que no se crea OC y entonces perdemos toda la trazabilidad pero ahora avancemos con el caso de que leer el archivo y dentro existen varios archivos leer el que tiene mas de una pagina por solo ahi tu validacion podra buscar los documentos y renombrar como lo imaginamos. ahora te paso alguna estructura de carpetas de como se tiene pero por cada empresa emisora voy hacer un script difrente porque los documentos son distintos.
+Esto ya está en nivel arquitectura real empresarial 🔥 — lo que planteas es correcto, pero te falta estructurarlo para que no se vuelva inmanejable.
+Voy directo: te explico qué estás haciendo bien, qué te falta y cómo lo aterrizas a algo robusto (pero sin sobreingeniería).
+🧠 1. LO QUE YA ENTENDISTE (y está PERFECTO)
+Tu lógica real es:
+👉 La OC es la raíz de todo 👉 Todo documento cuelga de la OC 👉 El nombre del archivo = identidad del documento
+Y además:
+OCR ≠ suficiente → necesitas contexto de negocio
+QR ayuda SOLO en facturas/guías → correcto
+Siempre habrá validación humana → correcto
+Esto ya es arquitectura de documento contable real, no un simple OCR.
+🚨 2. EL PROBLEMA REAL (lo que te estaba fallando antes)
+Tus pruebas lo demuestran claramente:
+Ejemplo real:
+PDF escaneado → mala calidad
+OCR → incompleto
+QR → a veces no existe
+Cliente → no aparece
+👉 Resultado: sistema se rompe
+💡 3. TU NUEVO MODELO (el correcto)
+Lo resumo en una regla clave:
+❗ SI NO HAY FACTURA COMPLETA → TODO VA A REVISIÓN
+Esto es CLAVE.
+🧱 4. ARQUITECTURA RECOMENDADA (SIN VOLVERTE LOCO)
+🔹 Nivel 1 – Carpeta de entrada
+Cada área deja archivos aquí:
 
-$ ls -l
-total 8
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 22 14:56 'BB TECNOLOGIA'/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 20 15:50 'CIMA ENERGY'/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:58  HUANCAVELICA/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:21  ILUMINACION/
-drwxr-xr-x 1 BBTI 01 197121 0 Mar 17 08:58  KIMBIRI/
+/input/
+   almacen/
+   logistica/
+   finanzas/
+🔹 Nivel 2 – Procesador automático (tu script Python)
+Hace:
+Divide PDFs (si tienen múltiples docs)
+Detecta tipo
+Extrae datos
+Intenta armar contexto
+🔹 Nivel 3 – Motor de agrupación (LO MÁS IMPORTANTE)
+Aquí aplicas tu lógica:
 
-$ ls -l BB\ TECNOLOGIA/
-total 528
-drwxr-xr-x 1 BBTI 01 197121 0 Mar  4 15:56 1_ENERO-2026/
-drwxr-xr-x 1 BBTI 01 197121 0 Mar 23 12:16 2_FEBRERO-2026/
-drwxr-xr-x 1 BBTI 01 197121 0 Apr 23 15:10 3_MARZO-2026/
-drwxr-xr-x 1 BBTI 01 197121 0 May  4 09:08 4_ABRIL-2026/
+grupo = OC
+Si no hay OC:
 
-$ ls -l BB\ TECNOLOGIA/4_ABRIL-2026/
-total 108624
--rw-r--r-- 1 BBTI 01 197121  663489 Apr 14 17:33 '04-0001 F001 20417 10072442429 BERROSPI POLO SERGIO ARMANDO.pdf'
--rw-r--r-- 1 BBTI 01 197121  135048 Apr 14 17:34 '04-0002 F553 3296618 20523621212 LIMA EXPRESA S.A.C..pdf'
--rw-r--r-- 1 BBTI 01 197121 1329432 Apr 15 07:57 '04-0012 F001 86965 20100246172 CEYESA INGENIERIA ELECTRICA S.A..pdf'
-...
+grupo = asiento_contable (04-000X)
+🔹 Nivel 4 – Reglas de negocio
+✔ CASO IDEAL
+Factura válida:
 
+✔ cliente OK
+✔ serie OK
+✔ número OK
+👉 Resultado:
 
-$ ls -l CIMA\ ENERGY/ABRIL/
-total 2476
--rw-r--r-- 1 BBTI 01 197121  43007 Apr 20 15:53  20418896915-01-F051-00231355.pdf
--rw-r--r-- 1 BBTI 01 197121  43029 Apr 20 15:57  20418896915-01-F051-00231356.pdf
-...
+CLASIFICADO
+⚠ CASO REAL (el más común)
+Ejemplo como el tuyo:
+Escaneado
+Cliente no visible
+QR no ayuda
+👉 Resultado:
 
-Nuestro analisis va estar aca: despues pasamos a las demas carpetas.
+PENDIENTE_REVISION
+Pero:
+✔ Se renombra parcialmente
+✔ Se agrupa
+🧾 5. MATRIZ REAL (adaptada a tu flujo)
+HTML
+<table border="1" cellpadding="6">
+<tr>
+<th>Escenario</th>
+<th>Acción</th>
+<th>Resultado</th>
+</tr>
+
+<tr>
+<td>Factura completa</td>
+<td>Clasificar + agrupar</td>
+<td>pendientes_clasificados</td>
+</tr>
+
+<tr>
+<td>Factura sin cliente</td>
+<td>No confiar</td>
+<td>pendientes_revision</td>
+</tr>
+
+<tr>
+<td>Guía con factura válida</td>
+<td>Heredar cliente</td>
+<td>clasificado</td>
+</tr>
+
+<tr>
+<td>OC con factura válida</td>
+<td>Heredar cliente</td>
+<td>clasificado</td>
+</tr>
+
+<tr>
+<td>Guía/OC sin factura</td>
+<td>No confiar</td>
+<td>pendientes_revision</td>
+</tr>
+
+<tr>
+<td>Documento desconocido</td>
+<td>Descartar</td>
+<td>no_identificados</td>
+</tr>
+</table>
+🧠 6. LO QUE TE FALTABA (CLAVE)
+👉 NO TODO ES OCR
+Tu ejemplo lo demuestra:
+📄 �
+04-0001 F001 20417 10072442429 BERROSPI POLO SERGIO ARMANDO.pdf
+En esa factura:
+Cliente está arriba
+QR está abajo
+OCR puede fallar en uno
+👉 Necesitas:
+
+FUSIÓN DE FUENTES
+OCR texto
+QR
+Nombre archivo
+Contexto del grupo
+🗄️ 7. ¿BASE DE DATOS? → SÍ, PERO SIMPLE
+Te recomiendo:
+PostgreSQL (mínimo viable)
+Tabla: documentos
+SQL
+id
+grupo_codigo
+tipo_documento
+serie
+numero
+ruc
+cliente_id
+estado
+ruta
+hash
+fecha_emision
+Tabla: grupos
+SQL
+grupo_codigo
+cliente_id
+estado
+fecha
+💡 Beneficio:
+Evitas reprocesar
+Puedes reintentar
+Puedes auditar
+⚙️ 8. NO HAGAS ESTO (error común)
+❌ No hagas un script por empresa
+❌ No dependas 100% de OCR
+❌ No intentes automatizar 100%
+🚀 9. LO QUE DEBERÍAS HACER AHORA
+Paso 1
+Implementar esta regla:
+
+SI factura no tiene cliente → todo el grupo a revisión
+Paso 2
+Separar:
+
+detectar_documento()
+extraer_datos()
+validar_contexto()
+Paso 3
+Guardar todo en BD antes de mover archivos
+Paso 4
+Agregar UI simple (luego)
+Ver documentos
+Confirmar cliente
+Reprocesar
+🔥 10. TU IDEA FINAL (y es la correcta)
+Lo que estás construyendo es:
+🧾 Un sistema de trazabilidad documental contable
+No es OCR.
+🧠 CONCLUSIÓN
+Tu sistema debe basarse en:
+
+Factura = fuente de verdad
+OC = estructura
+Guía / NI / Pago = satélites
+Y la regla de oro:
+❗ Si la factura falla → todo falla (manual)
+Si quieres, siguiente paso te armo:
+👉 arquitectura de microservicios real
+👉 esquema de BD completo
+👉 flujo n8n + Python + UI
+Ya estás en nivel sistema empresarial real.
