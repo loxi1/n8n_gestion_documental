@@ -1,62 +1,42 @@
-<table border="1" cellpadding="8" cellspacing="0">
-  <thead>
-    <tr>
-      <th>Tipo de documento</th>
-      <th>Condición de detección</th>
-      <th>Datos mínimos requeridos</th>
-      <th>Validación QR</th>
-      <th>Destino</th>
-      <th>Nomenclatura</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Factura</td>
-      <td>QR tipo 01, “Factura Electrónica” o serie Fxxx</td>
-      <td>Serie, número, RUC emisor y cliente destino</td>
-      <td>Sí, solo si faltan datos</td>
-      <td>pendientes_clasificados</td>
-      <td>ABREV FACTURA SERIE NUMERO RUC RAZON_SOCIAL.pdf</td>
-    </tr>
-    <tr>
-      <td>Guía de remisión</td>
-      <td>QR tipo 09, “Guía de Remisión Electrónica” o serie Txxx/GRxxx</td>
-      <td>Serie, número, RUC emisor y cliente destino</td>
-      <td>Sí, solo si faltan datos y existe QR</td>
-      <td>pendientes_clasificados</td>
-      <td>ABREV GUIA_REMISION SERIE NUMERO RUC RAZON_SOCIAL.pdf</td>
-    </tr>
-    <tr>
-      <td>Orden de compra</td>
-      <td>“Orden de Compra”, “OCBBTI” o número OC detectado</td>
-      <td>Número de OC</td>
-      <td>No aplica</td>
-      <td>pendientes_clasificados si está asociada a factura válida</td>
-      <td>ABREV ORDEN_COMPRA OC NUMERO RUC RAZON_SOCIAL.pdf</td>
-    </tr>
-    <tr>
-      <td>Factura sin cliente destino</td>
-      <td>Factura detectada, pero no se identifica cliente por QR ni texto</td>
-      <td>Serie, número y RUC emisor pueden existir</td>
-      <td>Se intenta QR si faltan datos</td>
-      <td>pendientes_revision</td>
-      <td>04-000X FACTURA SERIE NUMERO RUC RAZON_SOCIAL.pdf</td>
-    </tr>
-    <tr>
-      <td>Guía/OC asociada a factura sin cliente</td>
-      <td>Documento pertenece al mismo correo de una factura sin cliente</td>
-      <td>Datos disponibles del documento</td>
-      <td>Guía: opcional / OC: no aplica</td>
-      <td>pendientes_revision</td>
-      <td>04-000X TIPO SERIE NUMERO RUC RAZON_SOCIAL.pdf</td>
-    </tr>
-    <tr>
-      <td>Otro</td>
-      <td>No cumple reglas de factura, guía u orden de compra</td>
-      <td>No aplica</td>
-      <td>No aplica</td>
-      <td>no_identificados</td>
-      <td>SIN-GRUPO OTRO RUC/RAZON si existe.pdf</td>
-    </tr>
-  </tbody>
-</table>
+gracias por la ayuda de identificar el documento y tener la logica de negocio, ahora voy a cambiar hacer otro proyecto se que aca quedo inconcluso por mover a una carpeta final alquien que valide los documentos pero esto no es el caso real, analizando comprendi que el objetivo es el personal contabilidad pueda tener estos documentos es decir: factura, guia, oc, nota ingreso y pago. Para ello toda las areas involucradas: almacen, logistica y finanzas alimentaran de informacion es decir los documentos sacaneados almacen escaneara documentos como la guia de venta(sellada y firmada), emitira o exportara de su sistema la nota de ingreso, logistica scaneara la orden de compra sellada y visada similar a la factura, finanzas emitira el pago de la factura siempre en cuando valida que la factura tenga el sello y fimra registrada o escaneda previamente una ver realizada el pago scaneara el pago registrado pero a estos procesos pense en acompañar un proceso automatico es decir almacen escanea los documento similar logistica y finazas luego tener un portal web que procese esas imagenes y tenga una nomenclatura standar por ejemplo: cuando procesa logistica se tiene dos domentos:
+OC la nomenclatura seria abreviatura del Cliente que lo emite, espacio concatenar abreviatura espacio concatenar numero de orden de compra.
+Factura nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada concatenar tipo documento escpacio Serie espacio Numero espacio RUC espacio Razon social de la empresa emisora
+almacenero
+exporta la Nota de ingreso pero renombra y la nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada espcio concatenar tipo documento(NI) contenar numero de nota de ingreso
+guia venta Escanear sellada y firmada renombra y la nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada espacio concantnar tipo documento(GR) concatenar serie espacio numero
+guia de compra (Se registra en el portal de la sunat) se exporta el pdf se renombra y la nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada espacio concantnar tipo Documento (GR) concantenar serie espacio numero
+finanzas
+antes de genera el pago verifica la factura escaneada sellada y firmada luego genera el pago exporta el documento y renombra y la nomenclatura colcar la toda la nomeclatura de la OC(Quitando tipo de documento) vinculada espacio tipo documento (PAGO) espacio Banco espacio Numero operacion
+ahora como se va hacer de manera automatica sera con una pagina web que procese internamente usaremos api de python que nos ayuden a renombrar y siempre habra una validacion humana para la confirmacion.
+esta es la logica que deseo implementar cada area es reponsable de llegar los documentos en las carpetas correspondientes. Esto es como va trabajar a futuro y asi se establece la logica de negocio Pero ahora quiero adaptar su proceso a esto me explico actualmente contabilidad escanea los archivos fisicos en papel en donde contienen varios documentos entre ello OC, FACTURA, GUIA, NOTA INGRESO etc, cabe mencionar que todos son documentos scaneados lo que pretendo hacer es separar los documentos y renombrarlos como ya te mencione ahora que me recomiendas aparte de renombrar y separar en archivos me sugieres tener una base de datos en postgres para registrar lo procesado en la actualidadd finanzas tiene el documento escaneado en una carpeta luego finanzas tambien tiene sus estructura de carpetas, cuando finanzas procesa le pone el asiento contable es mas quien genera el asiento contable es finanzas es un numero correlativo por mes, para ello pense si o si usar el servidor que te mensione anteriormente y obviamente es necesario para hacer mi estructura de microservicios y tambien me ayude a procesar los documentos es decir hacer la reingenieria inversa, bueno te explique un caso de que finanzas ya lo escaneo y lo renombro en una estructua de carpetas por cliente, mes y todo los documento tirados en este mismo caso existen montos minimos que no se crea OC y entonces perdemos toda la trazabilidad pero ahora avancemos con el caso de que leer el archivo y dentro existen varios archivos leer el que tiene mas de una pagina por solo ahi tu validacion podra buscar los documentos y renombrar como lo imaginamos. ahora te paso alguna estructura de carpetas de como se tiene pero por cada empresa emisora voy hacer un script difrente porque los documentos son distintos.
+
+$ ls -l
+total 8
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 22 14:56 'BB TECNOLOGIA'/
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 20 15:50 'CIMA ENERGY'/
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:58  HUANCAVELICA/
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 17 15:21  ILUMINACION/
+drwxr-xr-x 1 BBTI 01 197121 0 Mar 17 08:58  KIMBIRI/
+
+$ ls -l BB\ TECNOLOGIA/
+total 528
+drwxr-xr-x 1 BBTI 01 197121 0 Mar  4 15:56 1_ENERO-2026/
+drwxr-xr-x 1 BBTI 01 197121 0 Mar 23 12:16 2_FEBRERO-2026/
+drwxr-xr-x 1 BBTI 01 197121 0 Apr 23 15:10 3_MARZO-2026/
+drwxr-xr-x 1 BBTI 01 197121 0 May  4 09:08 4_ABRIL-2026/
+
+$ ls -l BB\ TECNOLOGIA/4_ABRIL-2026/
+total 108624
+-rw-r--r-- 1 BBTI 01 197121  663489 Apr 14 17:33 '04-0001 F001 20417 10072442429 BERROSPI POLO SERGIO ARMANDO.pdf'
+-rw-r--r-- 1 BBTI 01 197121  135048 Apr 14 17:34 '04-0002 F553 3296618 20523621212 LIMA EXPRESA S.A.C..pdf'
+-rw-r--r-- 1 BBTI 01 197121 1329432 Apr 15 07:57 '04-0012 F001 86965 20100246172 CEYESA INGENIERIA ELECTRICA S.A..pdf'
+...
+
+
+$ ls -l CIMA\ ENERGY/ABRIL/
+total 2476
+-rw-r--r-- 1 BBTI 01 197121  43007 Apr 20 15:53  20418896915-01-F051-00231355.pdf
+-rw-r--r-- 1 BBTI 01 197121  43029 Apr 20 15:57  20418896915-01-F051-00231356.pdf
+...
+
+Nuestro analisis va estar aca: despues pasamos a las demas carpetas.
