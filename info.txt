@@ -1,3 +1,91 @@
+
+Perfecto. Orden de trabajo:
+Bash
+python app/copiar_trabajo.py --year 2026 --cliente BBTEC --month 1
+python app/procesar_facturas_1_pagina.py --year 2026 --cliente BBTEC --month 1
+python app/separar_fragmentos.py --year 2026 --cliente BBTEC --month 1
+python app/clasificar_paginas.py --year 2026 --cliente BBTEC --month 1
+python app/agrupar_fragmentos.py --year 2026 --cliente BBTEC --month 1
+python app/reprocesar_final.py --year 2026 --cliente BBTEC --month 1
+Ahora toca crear este archivo:
+Plain text
+app/core/document_enricher.py
+Python
+from pathlib import Path
+
+from core.pdf_text import extract_text_from_pdf
+from core.ocr_runner import run_ocr
+from core.classifier import extract_basic_fields
+from core.qr_reader import decode_qr_from_pdf
+from core.qr_parser import parse_qr_payload
+
+
+def should_use_qr(fields: dict) -> bool:
+    tipo = fields.get("tipo_documental")
+
+    if tipo not in ("factura", "guia_remision"):
+        return False
+
+    return (
+        not fields.get("serie")
+        or not fields.get("numero")
+        or not fields.get("ruc")
+        or not fields.get("fecha_emision")
+    )
+
+
+def enriquecer_documento(pdf_path: Path, fallback_name: str, ocr_tmp_dir: Path) -> dict:
+    text = extract_text_from_pdf(pdf_path)
+    fuente = "pdf_text"
+
+    ocr_pdf = None
+
+    if not text.strip():
+        ocr_pdf = ocr_tmp_dir / f"{pdf_path.stem}_ocr.pdf"
+
+        if run_ocr(pdf_path, ocr_pdf):
+            text = extract_text_from_pdf(ocr_pdf)
+            fuente = "ocr"
+
+    fields = extract_basic_fields(text, fallback_name)
+    fields["fuente_datos"] = fuente
+    fields["texto_extraido"] = text
+
+    if should_use_qr(fields):
+        qr_candidates = decode_qr_from_pdf(ocr_pdf or pdf_path, max_pages=1, dpi=280)
+
+        for candidate in qr_candidates:
+            parsed = parse_qr_payload(candidate)
+
+            if not parsed:
+                continue
+
+            fields["qr_data"] = parsed
+            fields["serie"] = fields.get("serie") or parsed.get("serie")
+            fields["numero"] = fields.get("numero") or parsed.get("numero")
+            fields["ruc"] = fields.get("ruc") or parsed.get("ruc_emisor")
+            fields["fecha_emision"] = fields.get("fecha_emision") or parsed.get("fecha_emision")
+            fields["importe"] = fields.get("importe") or parsed.get("importe")
+            fields["fuente_datos"] = "qr"
+            break
+
+    return fields
+Luego creamos:
+Plain text
+app/clasificar_paginas.py
+Ese será el que recorra documentos_paginas, lea cada PDF de página separada, use document_enricher.py y actualice:
+Plain text
+tipo_detectado
+serie
+numero
+ruc_emisor
+razon_social_emisor
+orden_servicio
+orden_compra
+clave_documental
+texto_extraido
+fuente_datos
+Siguiente paso: te paso clasificar_paginas.py.
 Sí tendría participación, pero después.
 Para este MVP yo lo dejaría así:
 Plain text
