@@ -201,3 +201,5 @@ Para presentarlo al gerente:
 Plain text
 Primero entregamos un MVP ejecutable en Python.
 Luego, con servidor aprobado, n8n automatiza la ejecución programada y las notificaciones.
+
+va
