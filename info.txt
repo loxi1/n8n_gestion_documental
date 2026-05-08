@@ -1,274 +1,108 @@
-Correcto. Ahora falta renombrar al distribuir.
-Antes de probar de nuevo, elimina solo los provisionales viejos que empiezan con 04-:
-Bash
-find data/salida/2026/BBTEC/01/con_oc -type f -name "04-*.pdf" -delete
-find data/salida/2026/BBTEC/01/sin_oc -type f -name "04-*.pdf" -delete
-Luego vuelves a generar provisional:
-Bash
-python app/agrupar_fragmentos.py --year 2026 --cliente BBTEC --month 1
-Y usa este app/distribuir_agrupados.py final:
+Sí. El cambio correcto es en clasificación, no en distribución.
+1. Cambios en document_enricher.py
+En detect_tipo(), pon factura antes que OC/OS:
 Python
-import argparse
-import re
-import shutil
-import unicodedata
-from pathlib import Path
+def detect_tipo(text: str, archivo_fuente: str = "") -> str:
+    t = norm(text)
 
-from core.db import get_cursor
+    if is_proforma_text(t, archivo_fuente):
+        return "proforma"
 
-BASE_SALIDA = Path("data/salida")
+    if is_nota_ingreso_text(t):
+        return "nota_ingreso"
 
+    # NUEVO: factura primero
+    if "FACTURA ELECTRONICA" in t or "FACTURA ELECTRÓNICA" in t or re.search(r"\b[A-Z]\d{3,4}\s*[-]\s*\d+\b", t):
+        return "factura"
 
-def safe_text(value: str | None) -> str:
-    value = value or ""
-    value = unicodedata.normalize("NFKD", value)
-    value = value.encode("ascii", "ignore").decode("ascii")
-    value = re.sub(r"[^A-Za-z0-9]+", "_", value)
-    return value.strip("_").upper() or "SIN_RAZON_SOCIAL"
+    if is_guia_text(t, archivo_fuente):
+        return "guia_remision"
 
+    if is_orden_servicio_text(t):
+        return "orden_servicio"
 
-def unique_path(path: Path) -> Path:
-    if not path.exists():
-        return path
+    if is_orden_compra_text(t):
+        return "orden_compra"
 
-    base = path.with_suffix("")
-    ext = path.suffix
-    i = 2
+    if "FACTURA" in t:
+        return "factura"
 
-    while True:
-        nuevo = Path(f"{base}_{i}{ext}")
-        if not nuevo.exists():
-            return nuevo
-        i += 1
+    if is_pago_text(t):
+        return "pago"
 
+    return "otro"
+Así una página que diga:
+Plain text
+FACTURA ELECTRONICA
+Orden de Compra: 002744
+queda como factura, no como orden_compra.
+2. Ajuste importante en extract_oc()
+Evita que detecte OC desde una factura:
+Python
+def extract_oc(text: str) -> dict:
+    t = norm(text)
 
-def mover(origen: Path, destino: Path):
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    destino = unique_path(destino)
-    shutil.move(str(origen), str(destino))
-    return destino
+    if "FACTURA ELECTRONICA" in t or "FACTURA ELECTRÓNICA" in t:
+        return {"numero": None, "clave": None}
 
+    if not is_orden_compra_text(t):
+        return {"numero": None, "clave": None}
 
-def extraer_asiento(nombre: str) -> str | None:
-    m = re.match(r"^(04-\d{4})\s+", nombre)
-    return m.group(1) if m else None
+    patrones = [
+        r"ORDEN\s+DE\s+COMPRA\s*(?:N[°º*?])?\s*:?\s*(\d{3,8})\b",
+        r"\bO[./-]?C\.?\s*(?:N[°º*?])?\s*:?\s*(\d{3,8})\b",
+        r"OBSERVACIONES\s*:?.*?ORDEN\s+DE\s+COMPRA\s*N[°º*?]?\s*(\d{3,8})\b",
+    ]
 
+    for patron in patrones:
+        m = re.search(patron, t, re.I | re.S)
+        if m:
+            numero = m.group(1).zfill(6)
+            return {
+                "numero": numero,
+                "clave": f"OC|{numero}",
+            }
 
-def obtener_control_por_asiento():
-    with get_cursor() as (_, cur):
-        cur.execute("""
-            SELECT asiento_contable,
-                   tipo_detectado,
-                   orden_compra,
-                   orden_servicio,
-                   pagina
-            FROM documentos_paginas
-            WHERE estado = 'clasificado'
-              AND clave_documental IS NOT NULL
-              AND tipo_detectado IN ('orden_compra', 'orden_servicio')
-            ORDER BY asiento_contable, pagina
-        """)
-
-        data = {}
-
-        for row in cur.fetchall():
-            asiento = row["asiento_contable"]
-
-            if asiento in data:
-                continue
-
-            if row["tipo_detectado"] == "orden_compra" and row["orden_compra"]:
-                data[asiento] = ("OC", str(row["orden_compra"]).zfill(6))
-
-            elif row["tipo_detectado"] == "orden_servicio" and row["orden_servicio"]:
-                data[asiento] = ("OS", str(row["orden_servicio"]).zfill(6))
-
-        return data
-
-
-def obtener_razones():
-    with get_cursor() as (_, cur):
-        cur.execute("""
-            SELECT DISTINCT ruc_emisor, razon_social_emisor
-            FROM documentos_paginas
-            WHERE ruc_emisor IS NOT NULL
-              AND razon_social_emisor IS NOT NULL
-              AND razon_social_emisor <> ''
-        """)
-
-        return {
-            row["ruc_emisor"]: row["razon_social_emisor"]
-            for row in cur.fetchall()
-        }
-
-
-def parse_nombre(nombre: str) -> dict:
-    stem = Path(nombre).stem
-
-    partes = stem.split()
-    asiento = partes[0]
-
-    if "FACTURA" in partes:
-        i = partes.index("FACTURA")
-        return {
-            "asiento": asiento,
-            "tipo": "FACTURA",
-            "serie": partes[i + 1],
-            "numero": partes[i + 2],
-            "ruc": partes[i + 3],
-        }
-
-    if "GUIA_REMISION" in partes:
-        i = partes.index("GUIA_REMISION")
-        return {
-            "asiento": asiento,
-            "tipo": "GUIA_REMISION",
-            "serie": partes[i + 1],
-            "numero": partes[i + 2],
-            "ruc": partes[i + 3],
-        }
-
-    if "NOTA_INGRESO" in partes:
-        i = partes.index("NOTA_INGRESO")
-        return {
-            "asiento": asiento,
-            "tipo": "NOTA_INGRESO",
-            "numero": partes[i + 1],
-        }
-
-    if "OC" in partes:
-        i = partes.index("OC")
-        return {
-            "asiento": asiento,
-            "tipo": "ORDEN_COMPRA",
-            "numero": partes[i + 1],
-        }
-
-    if "OS" in partes:
-        i = partes.index("OS")
-        return {
-            "asiento": asiento,
-            "tipo": "ORDEN_SERVICIO",
-            "numero": partes[i + 1],
-        }
-
-    return {
-        "asiento": asiento,
-        "tipo": "OTRO",
-    }
-
-
-def nombre_final_con_oc(cliente: str, control_tipo: str, control_num: str, data: dict, razones: dict) -> str:
-    prefix = f"{cliente} {control_tipo} {control_num} -"
-
-    tipo = data["tipo"]
-
-    if tipo == "ORDEN_COMPRA":
-        return f"{prefix} ORDEN_COMPRA {data['numero']}.pdf"
-
-    if tipo == "ORDEN_SERVICIO":
-        return f"{prefix} ORDEN_SERVICIO {data['numero']}.pdf"
-
-    if tipo == "FACTURA":
-        razon = safe_text(razones.get(data["ruc"]))
-        return f"{prefix} FACTURA {data['serie']} {data['numero']} {data['ruc']} {razon}.pdf"
-
-    if tipo == "GUIA_REMISION":
-        razon = safe_text(razones.get(data["ruc"]))
-        return f"{prefix} GUIA_REMISION {data['serie']} {data['numero']} {data['ruc']} {razon}.pdf"
-
-    if tipo == "NOTA_INGRESO":
-        return f"{prefix} NOTA_INGRESO {data['numero']}.pdf"
-
-    return f"{prefix} SOPORTE.pdf"
-
-
-def nombre_final_sin_oc(cliente: str, data: dict, razones: dict) -> str:
-    asiento = data["asiento"]
-    tipo = data["tipo"]
-
-    if tipo == "FACTURA":
-        razon = safe_text(razones.get(data["ruc"]))
-        return f"{asiento} {cliente} FACTURA {data['serie']} {data['numero']} {data['ruc']} {razon}.pdf"
-
-    if tipo == "GUIA_REMISION":
-        razon = safe_text(razones.get(data["ruc"]))
-        return f"{asiento} {cliente} GUIA_REMISION {data['serie']} {data['numero']} {data['ruc']} {razon}.pdf"
-
-    if tipo == "NOTA_INGRESO":
-        return f"{asiento} {cliente} NOTA_INGRESO {data['numero']}.pdf"
-
-    return f"{asiento} {cliente} SOPORTE.pdf"
-
-
-def procesar(year: int, cliente: str, month: int):
-    base_mes = BASE_SALIDA / str(year) / cliente / f"{month:02d}"
-    provisional = base_mes / "provisional"
-
-    dir_con_oc = base_mes / "con_oc"
-    dir_sin_oc = base_mes / "sin_oc"
-    dir_revision = base_mes / "revision"
-
-    dir_con_oc.mkdir(parents=True, exist_ok=True)
-    dir_sin_oc.mkdir(parents=True, exist_ok=True)
-    dir_revision.mkdir(parents=True, exist_ok=True)
-
-    controles = obtener_control_por_asiento()
-    razones = obtener_razones()
-
-    archivos = sorted(provisional.glob("*.pdf"))
-
-    print(f"Provisional: {provisional}")
-    print(f"Archivos encontrados: {len(archivos)}")
-    print(f"Asientos con OC/OS: {len(controles)}")
-
-    con_oc = sin_oc = revision = 0
-
-    for archivo in archivos:
-        data = parse_nombre(archivo.name)
-        asiento = data.get("asiento")
-
-        if not asiento:
-            destino = mover(archivo, dir_revision / archivo.name)
-            revision += 1
-            print(f"[REVISION] {destino.name}")
-            continue
-
-        if asiento in controles:
-            control_tipo, control_num = controles[asiento]
-            nuevo_nombre = nombre_final_con_oc(cliente, control_tipo, control_num, data, razones)
-            destino = mover(archivo, dir_con_oc / nuevo_nombre)
-            con_oc += 1
-            print(f"[CON_OC] {destino.name}")
-
-        else:
-            nuevo_nombre = nombre_final_sin_oc(cliente, data, razones)
-            destino = mover(archivo, dir_sin_oc / nuevo_nombre)
-            sin_oc += 1
-            print(f"[SIN_OC] {destino.name}")
-
-    print("\nDistribución finalizada.")
-    print(f"Con OC/OS: {con_oc}")
-    print(f"Sin OC/OS: {sin_oc}")
-    print(f"Revisión: {revision}")
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--year", type=int, required=True)
-    parser.add_argument("--cliente", required=True)
-    parser.add_argument("--month", type=int, required=True)
-
-    args = parser.parse_args()
-    procesar(args.year, args.cliente, args.month)
-Ejecutas:
+    return {"numero": None, "clave": None}
+3. Qué borrar en archivos
+Borra solo salidas generadas:
 Bash
+rm -rf data/salida/2026/BBTEC/01/provisional
+rm -rf data/salida/2026/BBTEC/01/con_oc
+No borres sin_oc completo porque ahí tienes facturas de 1 página anteriores. Solo borra los provisionales que empiezan con 04-:
+Bash
+find data/salida/2026/BBTEC/01/sin_oc -type f -name "04-*.pdf" -delete
+No borres:
+Plain text
+data/trabajo/
+storage/tmp/pages/
+4. Qué limpiar en BD
+No necesitas volver a separar ni OCR. Limpia desde clasificación:
+SQL
+UPDATE documentos_paginas
+SET serie = NULL,
+    numero = NULL,
+    ruc_emisor = NULL,
+    razon_social_emisor = NULL,
+    orden_servicio = NULL,
+    orden_compra = NULL,
+    clave_documental = NULL,
+    requiere_qr = FALSE,
+    qr_procesado = FALSE,
+    qr_raw = NULL,
+    qr_error = NULL,
+    estado = 'separado';
+
+TRUNCATE documentos_agrupados RESTART IDENTITY CASCADE;
+5. Reprocesar
+Bash
+python app/clasificar_paginas.py --year 2026 --cliente BBTEC --month 1
+python app/procesar_qr_pendientes.py --year 2026 --cliente BBTEC --month 1
+python app/agrupar_fragmentos.py --year 2026 --cliente BBTEC --month 1
 python app/distribuir_agrupados.py --year 2026 --cliente BBTEC --month 1
-Ahora 04-0044 debería quedar así:
-Plain text
-BBTEC OC 002944 - FACTURA F005 111263 20434327611 SUPERTEC_S_A_C.pdf
-BBTEC OC 002944 - NOTA_INGRESO 0000003061.pdf
-BBTEC OC 002944 - ORDEN_COMPRA 002944.pdf
-Y sin OC:
-Plain text
-04-0001 BBTEC FACTURA E001 162 10804262119 LEGUIA_DAMIANO_WILVER.pdf
+Antes de distribuir, revisa:
+SQL
+SELECT tipo_detectado, count(*)
+FROM documentos_paginas
+GROUP BY tipo_detectado
+ORDER BY 2 DESC;
