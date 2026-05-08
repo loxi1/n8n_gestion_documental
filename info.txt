@@ -106,3 +106,4 @@ SELECT tipo_detectado, count(*)
 FROM documentos_paginas
 GROUP BY tipo_detectado
 ORDER BY 2 DESC;
+
