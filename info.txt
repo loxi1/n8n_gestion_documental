@@ -1,109 +1,59 @@
-Sí. El cambio correcto es en clasificación, no en distribución.
-1. Cambios en document_enricher.py
-En detect_tipo(), pon factura antes que OC/OS:
+Sí. En classifier.py, cambia principalmente estas 2 funciones.
+1. Reemplaza _extract_oc_fields
 Python
-def detect_tipo(text: str, archivo_fuente: str = "") -> str:
-    t = norm(text)
+def _extract_oc_fields(text_u: str, name_u: str):
+    text_u = normalize_text(text_u)
+    compact = compact_text(text_u)
 
-    if is_proforma_text(t, archivo_fuente):
-        return "proforma"
+    # Si es factura, NO convertirla en OC solo porque menciona "Orden de Compra"
+    if "FACTURAELECTRONICA" in compact:
+        return None, None
 
-    if is_nota_ingreso_text(t):
-        return "nota_ingreso"
+    tiene_empresa = (
+        "BB TECNOLOGIA INDUSTRIAL" in text_u
+        or "BB TECNOLOGÍA INDUSTRIAL" in text_u
+    )
 
-    # NUEVO: factura primero
-    if "FACTURA ELECTRONICA" in t or "FACTURA ELECTRÓNICA" in t or re.search(r"\b[A-Z]\d{3,4}\s*[-]\s*\d+\b", t):
-        return "factura"
+    tiene_ruc_empresa = "20299922821" in text_u
 
-    if is_guia_text(t, archivo_fuente):
-        return "guia_remision"
-
-    if is_orden_servicio_text(t):
-        return "orden_servicio"
-
-    if is_orden_compra_text(t):
-        return "orden_compra"
-
-    if "FACTURA" in t:
-        return "factura"
-
-    if is_pago_text(t):
-        return "pago"
-
-    return "otro"
-Así una página que diga:
-Plain text
-FACTURA ELECTRONICA
-Orden de Compra: 002744
-queda como factura, no como orden_compra.
-2. Ajuste importante en extract_oc()
-Evita que detecte OC desde una factura:
-Python
-def extract_oc(text: str) -> dict:
-    t = norm(text)
-
-    if "FACTURA ELECTRONICA" in t or "FACTURA ELECTRÓNICA" in t:
-        return {"numero": None, "clave": None}
-
-    if not is_orden_compra_text(t):
-        return {"numero": None, "clave": None}
-
-    patrones = [
-        r"ORDEN\s+DE\s+COMPRA\s*(?:N[°º*?])?\s*:?\s*(\d{3,8})\b",
-        r"\bO[./-]?C\.?\s*(?:N[°º*?])?\s*:?\s*(\d{3,8})\b",
-        r"OBSERVACIONES\s*:?.*?ORDEN\s+DE\s+COMPRA\s*N[°º*?]?\s*(\d{3,8})\b",
-    ]
-
-    for patron in patrones:
-        m = re.search(patron, t, re.I | re.S)
+    # OC real: debe tener título formal + empresa destino + RUC destino
+    if tiene_empresa and tiene_ruc_empresa:
+        m = re.search(
+            r"ORDEN\s+DE\s+COMPRA\s+N[°º*?]?\s*:?\s*(\d{3,8})",
+            text_u,
+            re.I,
+        )
         if m:
-            numero = m.group(1).zfill(6)
-            return {
-                "numero": numero,
-                "clave": f"OC|{numero}",
-            }
+            return None, m.group(1).zfill(6)
 
-    return {"numero": None, "clave": None}
-3. Qué borrar en archivos
-Borra solo salidas generadas:
-Bash
-rm -rf data/salida/2026/BBTEC/01/provisional
-rm -rf data/salida/2026/BBTEC/01/con_oc
-No borres sin_oc completo porque ahí tienes facturas de 1 página anteriores. Solo borra los provisionales que empiezan con 04-:
-Bash
-find data/salida/2026/BBTEC/01/sin_oc -type f -name "04-*.pdf" -delete
-No borres:
+    return None, None
+2. Cambia el orden en detect_tipo_documental
+Reemplaza esta parte:
+Python
+if "ORDENDESERVICIO" in compact or "ORDENDECOMPRA" in compact:
+    return "orden_compra"
+por esto:
+Python
+if (
+    "ORDENDECOMPRA" in compact
+    and "20299922821" in text_u
+    and (
+        "BB TECNOLOGIA INDUSTRIAL" in text_u
+        or "BB TECNOLOGÍA INDUSTRIAL" in text_u
+    )
+    and re.search(r"ORDEN\s+DE\s+COMPRA\s+N[°º*?]?\s*:?\s*\d{3,8}", text_u, re.I)
+):
+    return "orden_compra"
+
+if "ORDENDESERVICIO" in compact:
+    return "orden_servicio"
+Importante
+Con esto, una factura que diga:
 Plain text
-data/trabajo/
-storage/tmp/pages/
-4. Qué limpiar en BD
-No necesitas volver a separar ni OCR. Limpia desde clasificación:
-SQL
-UPDATE documentos_paginas
-SET serie = NULL,
-    numero = NULL,
-    ruc_emisor = NULL,
-    razon_social_emisor = NULL,
-    orden_servicio = NULL,
-    orden_compra = NULL,
-    clave_documental = NULL,
-    requiere_qr = FALSE,
-    qr_procesado = FALSE,
-    qr_raw = NULL,
-    qr_error = NULL,
-    estado = 'separado';
-
-TRUNCATE documentos_agrupados RESTART IDENTITY CASCADE;
-5. Reprocesar
-Bash
-python app/clasificar_paginas.py --year 2026 --cliente BBTEC --month 1
-python app/procesar_qr_pendientes.py --year 2026 --cliente BBTEC --month 1
-python app/agrupar_fragmentos.py --year 2026 --cliente BBTEC --month 1
-python app/distribuir_agrupados.py --year 2026 --cliente BBTEC --month 1
-Antes de distribuir, revisa:
-SQL
-SELECT tipo_detectado, count(*)
-FROM documentos_paginas
-GROUP BY tipo_detectado
-ORDER BY 2 DESC;
-
+Orden de Compra : 000228
+seguirá siendo factura.
+Solo será orden_compra si tiene:
+Plain text
+Orden de Compra N*:002912
+BB TECNOLOGIA INDUSTRIAL S.A.C.
+20299922821
